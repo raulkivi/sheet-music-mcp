@@ -21,7 +21,7 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "mcp>=1.28.1,<2.0.0",
+    "mcp>=1.28.1,<3.0.0",
     "oemer>=0.1.0",
     # oemer's own packaging leaves onnxruntime-gpu and opencv-python-headless
     # unpinned, so `uv sync` resolves both to whatever is newest. Two
@@ -45,7 +45,7 @@ dependencies = [
     #     extraction on every input.
     "onnxruntime>=1.30.0,<2.0.0",
     "onnx>=1.17.0,<2.0.0",
-    "opencv-python-headless==4.10.0.84",
+    "opencv-python-headless==5.0.0.93",
     "Pillow>=10.0.0",
     "defusedxml>=0.7.0",
 ]
