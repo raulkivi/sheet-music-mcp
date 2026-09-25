@@ -12,6 +12,8 @@ jobs:
   test:
     name: ${{ matrix.server }} (Python ${{ matrix.python }})
     runs-on: ubuntu-latest
+    # Bounds a hung test; the slowest server (omr-mcp) takes about a minute.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
