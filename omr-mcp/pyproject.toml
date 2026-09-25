@@ -45,7 +45,7 @@ dependencies = [
     #     extraction on every input.
     "onnxruntime>=1.30.0,<2.0.0",
     "onnx>=1.17.0,<2.0.0",
-    "opencv-python-headless==4.10.0.84",
+    "opencv-python-headless==4.14.0.94",
     "Pillow>=10.0.0",
     "defusedxml>=0.7.0",
 ]
