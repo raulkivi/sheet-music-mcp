@@ -6,6 +6,8 @@ on:
 
 jobs:
   claude-review:
+    # Dependabot and fork PRs get no repository secrets, so the token would be empty.
+    if: github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
