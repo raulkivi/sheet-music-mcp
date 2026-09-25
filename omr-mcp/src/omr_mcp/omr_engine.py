@@ -11,6 +11,8 @@ from pathlib import Path
 import logging
 from typing import Any, Optional
 
+from .onnx_compat import fix_negative_convtranspose_pads
+
 logger = logging.getLogger(__name__)
 
 # oemer always prefers the CUDA execution provider on Linux/Windows when a
@@ -170,6 +172,11 @@ def _run_oemer(image_path: str) -> str:
     from oemer.ete import clear_data, extract  # type: ignore[import-untyped]
 
     _ensure_oemer_checkpoints()
+    # Runs every time, not only after a download: checkpoints cached by an
+    # older omr-mcp are still unpatched. A no-op once the model is fixed.
+    checkpoint_path = _oemer_checkpoint_path()
+    if checkpoint_path is not None:
+        fix_negative_convtranspose_pads(checkpoint_path)
 
     output_dir = tempfile.mkdtemp(prefix="oemer_")
     args = Namespace(

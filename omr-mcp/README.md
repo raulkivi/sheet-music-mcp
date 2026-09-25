@@ -104,7 +104,7 @@ Source: [PDMX dataset](https://zenodo.org/records/14648209) — 250K+ public dom
 ## Dependencies
 
 - [oemer](https://github.com/BreezeWhite/oemer) — default deep learning OMR engine (UNet + SVM, ONNX Runtime)
-- `onnxruntime==1.18.1` — pinned; newer releases reject the ConvTranspose shapes baked into oemer's checkpoints (see `pyproject.toml` comments / `docs/HANDOVER.md` gotchas)
+- `onnxruntime>=1.30` — releases after 1.19 reject the negative ConvTranspose pads baked into oemer's `unet_big` checkpoint; `onnx_compat.py` rewrites them into the equivalent `output_padding` before each recognition (needs `onnx`). This allows Python 3.11–3.14 (see `docs/HANDOVER.md` gotchas)
 - `opencv-python-headless==4.10.0.84` — pinned; 5.x changed `cv2.HoughLinesP()`'s return shape, which crashes oemer's staffline extraction (see `pyproject.toml` comments / `docs/HANDOVER.md` gotchas)
 - [Pillow](https://python-pillow.org/) — image loading and validation
 - [defusedxml](https://github.com/tiran/defusedxml) — safe XML parsing

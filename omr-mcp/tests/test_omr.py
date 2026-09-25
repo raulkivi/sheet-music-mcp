@@ -424,3 +424,21 @@ class TestAudiverisEngine:
         result = recognize_image(str(image_path), engine="audiveris")
         assert result["error_code"] == "PROCESSING_FAILED"
         assert "resolution" in result["error"].lower()
+
+
+class TestRunOemer:
+    """oemer's model must be made loadable before each recognition."""
+
+    def test_model_is_fixed_after_download_and_before_inference(self, tmp_path):
+        from omr_mcp import omr_engine
+
+        model = tmp_path / "unet_big" / "model.onnx"
+        calls = []
+        with patch.object(omr_engine, "_ensure_oemer_checkpoints", side_effect=lambda: calls.append("download")), \
+             patch.object(omr_engine, "_oemer_checkpoint_path", return_value=model), \
+             patch.object(omr_engine, "fix_negative_convtranspose_pads",
+                          side_effect=lambda path: calls.append(("fix", path))), \
+             patch("oemer.ete.clear_data"), \
+             patch("oemer.ete.extract", side_effect=lambda args: calls.append("extract") or "out.musicxml"):
+            assert omr_engine._run_oemer("page.png") == "out.musicxml"
+        assert calls == ["download", ("fix", model), "extract"]

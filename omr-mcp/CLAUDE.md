@@ -105,11 +105,12 @@ asyncio.run(_run())
 - **`omr_engine.py` forces `CUDA_VISIBLE_DEVICES=""` at import time.** On this dev host,
   onnxruntime's CUDA execution provider hard-aborts the process instead of raising a catchable
   Python exception. Real GPU inference would need a matched onnxruntime-gpu/CUDA driver pair.
-- **`onnxruntime` and `opencv-python-headless` are pinned** in `pyproject.toml`, and
-  `onnxruntime-gpu` is excluded via `[tool.uv] override-dependencies` — oemer's own packaging
-  leaves both unpinned, and their latest releases each broke oemer's bundled ONNX models in
-  different ways (ConvTranspose shape validation; `cv2.HoughLinesP` return-shape change). Full
-  details in `docs/HANDOVER.md`.
+- **`opencv-python-headless` is pinned** in `pyproject.toml`, and `onnxruntime-gpu` is excluded
+  via `[tool.uv] override-dependencies` — oemer's own packaging leaves both unpinned; opencv 5.x
+  changed `cv2.HoughLinesP`'s return shape. `onnxruntime` is current (>=1.30): its stricter
+  ConvTranspose validation is handled by `onnx_compat.fix_negative_convtranspose_pads()`, which
+  `_run_oemer()` applies to the cached `unet_big` model before every recognition. Full details
+  in `docs/HANDOVER.md`.
 - **`engine="audiveris"` downloads ~80 MB on first use** (self-contained, bundles its own JRE) into
   `~/.cache/omr-mcp/audiveris/`, extracted via `dpkg-deb -x` — no root, no system `apt`/`dpkg -i`.
   Requires `dpkg-deb` (present on virtually all Debian/Ubuntu systems).
