@@ -24,11 +24,14 @@ dependencies = [
     "mcp>=1.28.1,<2.0.0",
     "oemer>=0.1.0",
     # oemer's own packaging leaves onnxruntime-gpu and opencv-python-headless
-    # unpinned, so `uv sync` resolves both to whatever is newest. Two pins
-    # are required to keep oemer's bundled models actually runnable:
+    # unpinned, so `uv sync` resolves both to whatever is newest. Two
+    # constraints keep oemer's bundled models actually runnable:
     #   - onnxruntime: versions newer than ~1.19 enforce stricter ONNX
     #     shape-inference that rejects the ConvTranspose negative-pad values
-    #     baked into oemer's exported checkpoints. The plain (CPU) build is
+    #     baked into oemer's exported checkpoints. onnx_compat.py rewrites
+    #     those pads into the equivalent output_padding after download (needs
+    #     the `onnx` package), so current releases work, including the first
+    #     ones with Python 3.13/3.14 wheels. The plain (CPU) build is
     #     used instead of onnxruntime-gpu because the GPU build's older
     #     wheels request an executable stack that current kernels refuse to
     #     map, and because we force CPU-only inference anyway (see
@@ -40,7 +43,8 @@ dependencies = [
     #     cv2.HoughLinesP() return shape; opencv 5.x changed it, causing an
     #     "invalid index to scalar variable" crash during staffline
     #     extraction on every input.
-    "onnxruntime==1.18.1",
+    "onnxruntime>=1.30.0,<2.0.0",
+    "onnx>=1.17.0,<2.0.0",
     "opencv-python-headless==4.10.0.84",
     "Pillow>=10.0.0",
     "defusedxml>=0.7.0",
@@ -73,7 +77,7 @@ markers = [
 # oemer unconditionally depends on onnxruntime-gpu (unpinned). Both
 # onnxruntime and onnxruntime-gpu install into the same `onnxruntime` import
 # package, so if both get installed, whichever lands last silently shadows
-# the other — which was overwriting our pinned CPU-only onnxruntime==1.18.1
+# the other — which was overwriting our CPU-only onnxruntime
 # above with an unpinned onnxruntime-gpu, reintroducing the exec-stack
 # import failure. Excluding it here (impossible marker) keeps only our pin
 # installed; oemer's `import onnxruntime` still resolves fine since both

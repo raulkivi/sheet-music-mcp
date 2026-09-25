@@ -19,10 +19,6 @@ jobs:
       matrix:
         server: [comparer-mcp, musicxml-abc-mcp, omr-mcp, pitch-mcp, render-mcp, synth-mcp]
         python: ['3.12', '3.13']
-        exclude:
-          # omr-mcp pins onnxruntime 1.18.1, which has no Python 3.13 wheels.
-          - server: omr-mcp
-            python: '3.13'
     defaults:
       run:
         working-directory: ${{ matrix.server }}

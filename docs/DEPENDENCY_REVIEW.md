@@ -9,12 +9,13 @@ resolved in that server's `uv.lock`. **Latest stable** = current PyPI release as
 |---|---|---|---|---|
 | mcp | `>=1.28.1,<2.0.0` | 1.29.1 | 2.1.1 (1.29.1 on the v1.x maintenance line) | Capped below 2.0 intentionally — upgraded to 1.29.1, tests pass |
 | oemer | `>=0.1.0` | 0.1.8 | 0.1.8 | up to date |
-| onnxruntime | `==1.18.1` (pinned, CPU build) | 1.18.1 | 1.29.0 | Deliberately pinned — see below |
+| onnxruntime | `>=1.30.0,<2.0.0` (CPU build) | 1.30.0 | 1.30.0 | Unpinned 2026-09-26: `onnx_compat.py` rewrites oemer's negative ConvTranspose pads |
+| onnx | `>=1.17.0,<2.0.0` | 1.23.0 | 1.23.0 | New: used by `onnx_compat.py` to rewrite the model |
 | opencv-python-headless | `==4.10.0.84` (pinned) | 4.10.0.84 | 5.0.0.93 | Deliberately pinned — opencv 5.x changed `cv2.HoughLinesP()` return shape, crashing oemer's staffline extraction |
 | Pillow | `>=10.0.0` | 12.3.0 | 12.3.0 | up to date |
 | defusedxml | `>=0.7.0` | 0.7.1 | 0.7.1 | up to date |
 
-`onnxruntime-gpu` is explicitly excluded via `[tool.uv] override-dependencies` (an "impossible marker") so oemer's own unpinned dependency on it can't silently shadow the pinned CPU build.
+`onnxruntime-gpu` is explicitly excluded via `[tool.uv] override-dependencies` (an "impossible marker") so oemer's own unpinned dependency on it can't silently shadow the CPU build.
 
 ## render-mcp (v0.1.2)
 
