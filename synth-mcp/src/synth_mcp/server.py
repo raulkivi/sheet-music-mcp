@@ -3,9 +3,10 @@ import json
 import logging
 import os
 
+import jsonschema
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import TextContent, Tool
+from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
 
 from .engine import ProcessingError, extract_midi, parse_parts, synthesize_midi
 from .utils import generate_output_path, validate_musicxml, validate_tempo_factor
@@ -13,16 +14,13 @@ from .utils import generate_output_path, validate_musicxml, validate_tempo_facto
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Server("synth-mcp")
 
-
-@app.list_tools()
 async def list_tools():
     return [
         Tool(
             name="get_parts",
             description="List all voice parts available in a MusicXML score",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "musicxml": {
@@ -39,7 +37,7 @@ async def list_tools():
                 "Synthesize audio from a MusicXML score. "
                 "Optionally select specific voice parts and adjust the tempo."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "musicxml": {
@@ -69,7 +67,7 @@ async def list_tools():
         Tool(
             name="list_capabilities",
             description="List supported formats and available tools for this synthesis server",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {},
                 "required": [],
@@ -82,7 +80,7 @@ async def list_tools():
                 "Returns a human-readable status summary. Call this first to verify the server "
                 "is ready before attempting synthesis."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {},
                 "required": [],
@@ -95,7 +93,6 @@ def _error(message: str, code: str) -> list[TextContent]:
     return [TextContent(type="text", text=json.dumps({"error": message, "error_code": code}))]
 
 
-@app.call_tool()
 async def call_tool(name: str, arguments: dict):
     if name == "get_parts":
         musicxml = arguments.get("musicxml", "")
@@ -268,6 +265,34 @@ async def call_tool(name: str, arguments: dict):
         return [TextContent(type="text", text="\n".join(lines))]
 
     raise ValueError(f"Unknown tool: {name}")
+
+
+def _error_result(message: str) -> CallToolResult:
+    return CallToolResult(content=[TextContent(type="text", text=message)], is_error=True)
+
+
+async def _on_list_tools(ctx, params) -> ListToolsResult:
+    return ListToolsResult(tools=await list_tools())
+
+
+async def _on_call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
+    # mcp 2.x low-level handlers neither validate input nor catch tool errors;
+    # keep the 1.x decorator behaviour clients rely on.
+    arguments = params.arguments or {}
+    tool = next((t for t in await list_tools() if t.name == params.name), None)
+    if tool is not None:
+        try:
+            jsonschema.validate(instance=arguments, schema=tool.input_schema)
+        except jsonschema.ValidationError as e:
+            return _error_result(f"Input validation error: {e.message}")
+    try:
+        return CallToolResult(content=await call_tool(params.name, arguments))
+    except Exception as e:
+        logger.error("Tool %s failed: %s", params.name, e)
+        return _error_result(str(e))
+
+
+app = Server("synth-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
 
 
 def main():

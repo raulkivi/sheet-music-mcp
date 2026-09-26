@@ -53,14 +53,14 @@ class TestToolSchemas:
     async def test_get_parts_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "get_parts")
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert "musicxml" in schema["properties"]
         assert schema["required"] == ["musicxml"]
 
     async def test_synthesize_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "synthesize")
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert "musicxml" in schema["properties"]
         assert "part_ids" in schema["properties"]
         assert "tempo_factor" in schema["properties"]
@@ -70,8 +70,8 @@ class TestToolSchemas:
     async def test_list_capabilities_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "list_capabilities")
-        assert tool.inputSchema["properties"] == {}
-        assert tool.inputSchema["required"] == []
+        assert tool.input_schema["properties"] == {}
+        assert tool.input_schema["required"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -257,4 +257,4 @@ class TestHealthCheck:
     async def test_health_check_schema_has_no_required_params(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "health_check")
-        assert tool.inputSchema["required"] == []
+        assert tool.input_schema["required"] == []

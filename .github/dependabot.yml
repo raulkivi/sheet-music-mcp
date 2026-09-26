@@ -23,10 +23,6 @@ updates:
         applies-to: version-updates
         patterns: ['*']
     ignore:
-      # mcp 2.x removed the Server.list_tools()/call_tool() decorator API that
-      # every server uses; moving to 2.x is a migration, not a bump.
-      - dependency-name: mcp
-        update-types: ['version-update:semver-major']
       # opencv 5.x changed cv2.HoughLinesP()'s return shape, which crashes
       # oemer's staffline extraction (omr-mcp). Unit tests do not cover this.
       - dependency-name: opencv-python-headless

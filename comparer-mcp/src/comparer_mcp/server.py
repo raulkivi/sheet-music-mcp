@@ -2,9 +2,10 @@ import asyncio
 import json
 import logging
 
+import jsonschema
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import TextContent, Tool
+from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
 
 from .annotator import annotate
 from .engine import ProcessingError, compare, compare_files, health_check
@@ -13,8 +14,6 @@ from .utils import validate_musicxml
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-app = Server("comparer-mcp")
 
 _OPTIONS_SCHEMA = {
     "type": "object",
@@ -33,7 +32,6 @@ _OPTIONS_SCHEMA = {
 }
 
 
-@app.list_tools()
 async def list_tools():
     return [
         Tool(
@@ -43,7 +41,7 @@ async def list_tools():
                 "ComparisonResult with global similarity score, summary statistics, and "
                 "per-part/measure/note detail."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "reference_xml": {
@@ -66,7 +64,7 @@ async def list_tools():
                 "compressed .mxl). Returns the same structured ComparisonResult as "
                 "compare_musicxml."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "reference_path": {
@@ -88,7 +86,7 @@ async def list_tools():
                 "Fast similarity check between two MusicXML strings: returns only the "
                 "0.0-1.0 similarity score and summary statistics, without per-note detail."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "reference_xml": {
@@ -110,7 +108,7 @@ async def list_tools():
                 "MusicXML strings, optionally filtered to one part and/or a measure range. "
                 "Useful for targeted queries like 'what changed in the Alto, measures 17-24?'"
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "reference_xml": {
@@ -144,7 +142,7 @@ async def list_tools():
                 "and note-level differences grouped into measure-range summaries (e.g. "
                 "'transposed by 3 semitones in measures 17-24')."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "reference_xml": {
@@ -171,7 +169,7 @@ async def list_tools():
                 "render_to_pdf or render_to_image to visualize the diff — both take a raw "
                 "musicxml string."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "reference_xml": {
@@ -190,7 +188,7 @@ async def list_tools():
         Tool(
             name="list_capabilities",
             description="List supported formats and available tools for this server",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {},
                 "required": [],
@@ -203,7 +201,7 @@ async def list_tools():
                 "Runs a self-comparison smoke test and returns a structured status summary. "
                 "Ask your AI assistant to run this tool to confirm the server is set up correctly."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {},
                 "required": [],
@@ -235,7 +233,6 @@ def _filter_changes(result, part, measure_range) -> list[dict]:
     return changes
 
 
-@app.call_tool()
 async def call_tool(name: str, arguments: dict):
     if name == "compare_musicxml":
         reference_xml = arguments.get("reference_xml", "")
@@ -417,6 +414,34 @@ async def call_tool(name: str, arguments: dict):
             return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     raise ValueError(f"Unknown tool: {name}")
+
+
+def _error_result(message: str) -> CallToolResult:
+    return CallToolResult(content=[TextContent(type="text", text=message)], is_error=True)
+
+
+async def _on_list_tools(ctx, params) -> ListToolsResult:
+    return ListToolsResult(tools=await list_tools())
+
+
+async def _on_call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
+    # mcp 2.x low-level handlers neither validate input nor catch tool errors;
+    # keep the 1.x decorator behaviour clients rely on.
+    arguments = params.arguments or {}
+    tool = next((t for t in await list_tools() if t.name == params.name), None)
+    if tool is not None:
+        try:
+            jsonschema.validate(instance=arguments, schema=tool.input_schema)
+        except jsonschema.ValidationError as e:
+            return _error_result(f"Input validation error: {e.message}")
+    try:
+        return CallToolResult(content=await call_tool(params.name, arguments))
+    except Exception as e:
+        logger.error("Tool %s failed: %s", params.name, e)
+        return _error_result(str(e))
+
+
+app = Server("comparer-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
 
 
 def main():

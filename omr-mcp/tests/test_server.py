@@ -3,11 +3,9 @@
 import asyncio
 import json
 import time
-import pytest
+from types import SimpleNamespace
 
-from mcp.server.lowlevel.server import request_ctx
-from mcp.shared.context import RequestContext
-from mcp.types import RequestParams
+import pytest
 
 from omr_mcp.server import _detect_input_format
 
@@ -57,7 +55,7 @@ class TestServerToolSchemas:
         tools = asyncio.run(list_tools())
         recognize_sheet = next(t for t in tools if t.name == "recognize_sheet")
 
-        schema = recognize_sheet.inputSchema
+        schema = recognize_sheet.input_schema
         assert "image" in schema["properties"]
         assert "format" in schema["properties"]
         assert "engine" in schema["properties"]
@@ -70,7 +68,7 @@ class TestServerToolSchemas:
         tools = asyncio.run(list_tools())
         tool = next(t for t in tools if t.name == "recognize_sheet_to_file")
 
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert "input_path" in schema["properties"]
         assert "output_path" in schema["properties"]
         assert "engine" in schema["properties"]
@@ -82,7 +80,7 @@ class TestServerToolSchemas:
         tools = asyncio.run(list_tools())
         tool = next(t for t in tools if t.name == "recognize_sheets")
 
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert "images" in schema["properties"]
         assert schema["properties"]["images"]["type"] == "array"
         assert "engine" in schema["properties"]
@@ -209,16 +207,16 @@ class _FakeSession:
     def __init__(self):
         self.notifications = []
 
-    async def send_progress_notification(self, progress_token, progress, total=None, message=None):
+    async def send_progress_notification(self, progress_token, progress, total=None, message=None, related_request_id=None):
         self.notifications.append((progress_token, progress, message))
 
 
-def _set_request_context(*, progress_token=None):
-    """Install a fake MCP RequestContext for the duration of the caller's async block,
-    mirroring what the real Server sets before invoking a tool handler."""
+def _request_context(*, progress_token=None):
+    """Fake of the ServerRequestContext mcp 2.x passes to a tool handler: `meta` is a
+    dict with the client's progress token under `progress_token`."""
     session = _FakeSession()
-    meta = RequestParams.Meta(progressToken=progress_token) if progress_token else None
-    ctx = RequestContext(request_id="test-request", meta=meta, session=session, lifespan_context=None)
+    meta = {"progress_token": progress_token} if progress_token else None
+    ctx = SimpleNamespace(request_id="test-request", meta=meta, session=session)
     return ctx, session
 
 
@@ -226,8 +224,7 @@ class TestRunWithProgress:
     """Tests for the progress-notification wrapper around long-running engine calls."""
 
     def test_no_request_context_runs_and_returns_result(self):
-        # Matches how unit tests call call_tool() directly, with no live MCP request —
-        # app.request_context raises LookupError in that case; must not propagate.
+        # Matches how unit tests call call_tool() directly, with no live MCP request.
         from omr_mcp.server import _run_with_progress
 
         result = asyncio.run(_run_with_progress(lambda: 42, message_prefix="test"))
@@ -236,15 +233,8 @@ class TestRunWithProgress:
     def test_no_progress_token_runs_without_notifications(self):
         from omr_mcp.server import _run_with_progress
 
-        async def _call():
-            ctx, session = _set_request_context(progress_token=None)
-            token = request_ctx.set(ctx)
-            try:
-                return await _run_with_progress(lambda: 42, message_prefix="test"), session
-            finally:
-                request_ctx.reset(token)
-
-        result, session = asyncio.run(_call())
+        ctx, session = _request_context(progress_token=None)
+        result = asyncio.run(_run_with_progress(lambda: 42, ctx=ctx, message_prefix="test"))
         assert result == 42
         assert session.notifications == []
 
@@ -255,20 +245,29 @@ class TestRunWithProgress:
             time.sleep(0.2)
             return "done"
 
-        async def _call():
-            ctx, session = _set_request_context(progress_token="tok-1")
-            token = request_ctx.set(ctx)
-            try:
-                result = await _run_with_progress(_slow, message_prefix="Working", interval_seconds=0.05)
-                return result, session
-            finally:
-                request_ctx.reset(token)
-
-        result, session = asyncio.run(_call())
+        ctx, session = _request_context(progress_token="tok-1")
+        result = asyncio.run(
+            _run_with_progress(_slow, ctx=ctx, message_prefix="Working", interval_seconds=0.05)
+        )
         assert result == "done"
         assert len(session.notifications) >= 2
         assert all(token == "tok-1" for token, _progress, _message in session.notifications)
         assert all("Working" in message for _token, _progress, message in session.notifications)
+
+    def test_call_tool_forwards_the_request_context(self, monkeypatch, tmp_path):
+        import omr_mcp.server as srv
+
+        captured = {}
+
+        async def _fake_run_with_progress(fn, *args, ctx=None, message_prefix, **kwargs):
+            captured["ctx"] = ctx
+            return {"musicxml": "<score-partwise/>", "metadata": {}}
+
+        monkeypatch.setattr(srv, "_run_with_progress", _fake_run_with_progress)
+        ctx, _session = _request_context(progress_token="tok-1")
+
+        asyncio.run(srv.call_tool("recognize_sheet", {"image": str(tmp_path / "x.png")}, ctx))
+        assert captured["ctx"] is ctx
 
     def test_exception_from_fn_propagates(self):
         from omr_mcp.server import _run_with_progress

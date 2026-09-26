@@ -45,14 +45,14 @@ class TestToolSchemas:
     async def test_render_to_pdf_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "render_to_pdf")
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert "musicxml" in schema["properties"]
         assert schema["required"] == ["musicxml"]
 
     async def test_render_to_image_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "render_to_image")
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert "musicxml" in schema["properties"]
         assert "page" in schema["properties"]
         assert "format" in schema["properties"]
@@ -63,8 +63,8 @@ class TestToolSchemas:
     async def test_list_capabilities_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "list_capabilities")
-        assert tool.inputSchema["properties"] == {}
-        assert tool.inputSchema["required"] == []
+        assert tool.input_schema["properties"] == {}
+        assert tool.input_schema["required"] == []
 
 
 # ---------------------------------------------------------------------------

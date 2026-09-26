@@ -49,7 +49,7 @@ class TestListTools:
     async def test_musicxml_to_abc_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "musicxml_to_abc")
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert "musicxml" in schema["properties"]
         assert "musicxml" in schema["required"]
         # part_id is optional
@@ -59,20 +59,20 @@ class TestListTools:
     async def test_abc_to_musicxml_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "abc_to_musicxml")
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert "abc" in schema["properties"]
         assert "abc" in schema["required"]
 
     async def test_validate_abc_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "validate_abc")
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert "abc" in schema["properties"]
 
     async def test_list_capabilities_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "list_capabilities")
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert schema["required"] == []
 
 
@@ -184,7 +184,7 @@ class TestCallToolHealthCheck:
     async def test_health_check_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "health_check")
-        assert tool.inputSchema["required"] == []
+        assert tool.input_schema["required"] == []
 
 
 class TestUnknownTool:

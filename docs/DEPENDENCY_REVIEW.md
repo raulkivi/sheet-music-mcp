@@ -7,7 +7,7 @@ resolved in that server's `uv.lock`. **Latest stable** = current PyPI release as
 
 | Package | Constraint | Current | Latest stable | Note |
 |---|---|---|---|---|
-| mcp | `>=1.28.1,<2.0.0` | 1.29.1 | 2.1.1 (1.29.1 on the v1.x maintenance line) | Capped below 2.0 intentionally — upgraded to 1.29.1, tests pass |
+| mcp | `>=2.2.0,<3.0.0` | 2.2.0 | 2.2.0 | Migrated to 2.x 2026-09-26 (see below) |
 | oemer | `>=0.1.0` | 0.1.8 | 0.1.8 | up to date |
 | onnxruntime | `>=1.30.0,<2.0.0` (CPU build) | 1.30.0 | 1.30.0 | Unpinned 2026-09-26: `onnx_compat.py` rewrites oemer's negative ConvTranspose pads |
 | onnx | `>=1.17.0,<2.0.0` | 1.23.0 | 1.23.0 | New: used by `onnx_compat.py` to rewrite the model |
@@ -21,7 +21,7 @@ resolved in that server's `uv.lock`. **Latest stable** = current PyPI release as
 
 | Package | Constraint | Current | Latest stable | Note |
 |---|---|---|---|---|
-| mcp | `>=1.28.1,<2.0.0` | 1.29.1 | 2.1.1 (1.29.1 on v1.x) | Capped below 2.0 — upgraded, tests pass |
+| mcp | `>=2.2.0,<3.0.0` | 2.2.0 | 2.2.0 | Migrated to 2.x 2026-09-26 (see below) |
 | verovio | `>=3.0.0` | 6.3.0 | 6.3.0 | upgraded, 73/73 tests pass |
 | cairosvg | `>=2.7.0` | 2.9.0 | 2.9.0 | up to date |
 | pypdf | `>=4.0.0` | 6.16.2 | 6.16.2 | upgraded |
@@ -31,7 +31,7 @@ resolved in that server's `uv.lock`. **Latest stable** = current PyPI release as
 
 | Package | Constraint | Current | Latest stable | Note |
 |---|---|---|---|---|
-| mcp | `>=1.28.1,<2.0.0` | 1.29.1 | 2.1.1 (1.29.1 on v1.x) | Capped below 2.0 — upgraded, tests pass |
+| mcp | `>=2.2.0,<3.0.0` | 2.2.0 | 2.2.0 | Migrated to 2.x 2026-09-26 (see below) |
 | music21 | `>=9.0.0` | 10.5.0 | 10.5.0 | up to date |
 | pyfluidsynth | `>=1.3.0` | 1.4.0 | 1.4.0 | up to date |
 
@@ -39,14 +39,14 @@ resolved in that server's `uv.lock`. **Latest stable** = current PyPI release as
 
 | Package | Constraint | Current | Latest stable | Note |
 |---|---|---|---|---|
-| mcp | `>=1.28.1,<2.0.0` | 1.29.1 | 2.1.1 (1.29.1 on v1.x) | Capped below 2.0 — upgraded, tests pass |
+| mcp | `>=2.2.0,<3.0.0` | 2.2.0 | 2.2.0 | Migrated to 2.x 2026-09-26 (see below) |
 | music21 | `>=9.0.0` | 10.5.0 | 10.5.0 | up to date |
 
 ## pitch-mcp (v0.2.0)
 
 | Package | Constraint | Current | Latest stable | Note |
 |---|---|---|---|---|
-| mcp | `>=1.28.1,<2.0.0` | 1.29.1 | 2.1.1 (1.29.1 on v1.x) | Capped below 2.0 — upgraded, tests pass |
+| mcp | `>=2.2.0,<3.0.0` | 2.2.0 | 2.2.0 | Migrated to 2.x 2026-09-26 (see below) |
 | music21 | `>=9.0.0` | 10.5.0 | 10.5.0 | up to date |
 | librosa | `>=1.0.0` | 1.0.0 | 1.0.0 | up to date, see prior deep-dive below |
 | numpy | `>=1.24.0` | 2.5.2 | 2.5.2 | up to date |
@@ -58,7 +58,7 @@ resolved in that server's `uv.lock`. **Latest stable** = current PyPI release as
 
 | Package | Constraint | Current | Latest stable | Note |
 |---|---|---|---|---|
-| mcp | `>=1.28.1,<2.0.0` | 1.29.1 | 2.1.1 (1.29.1 on v1.x) | Capped below 2.0 — upgraded, tests pass |
+| mcp | `>=2.2.0,<3.0.0` | 2.2.0 | 2.2.0 | Migrated to 2.x 2026-09-26 (see below) |
 | music21 | `>=9.0.0` | 10.5.0 | 10.5.0 | up to date |
 
 ## What changed since the 2026-08-15 review
@@ -75,8 +75,7 @@ resolved in that server's `uv.lock`. **Latest stable** = current PyPI release as
 - `mcp` 2.x moved 2.0.0 → 2.0.1 → 2.1.0 → 2.1.1 on the v2 line; still not adopted (see below).
 - Not touched: transitive tooling packages (`click`, `cryptography`, `uvicorn`, `pydantic`, etc.)
   with patch updates available across every server — low priority, no direct app impact.
-- No new evidence changes either of the two standing pin decisions (`onnxruntime` in omr-mcp,
-  the `mcp<2.0.0` cap everywhere) — both re-verified below.
+- The `mcp<2.0.0` cap was lifted on 2026-09-26 by the 2.x migration below.
 
 ## Dev dependencies (shared across all six)
 
@@ -86,6 +85,22 @@ resolved in that server's `uv.lock`. **Latest stable** = current PyPI release as
 | pytest-asyncio | `>=0.23.0` | 1.4.0 | 1.4.0 | up to date |
 
 ## Release-note findings for updatable packages
+
+### `mcp` 1.29.1 → 2.2.0 (all six servers) — **migrated 2026-09-26**
+
+2.x removed the `Server.list_tools()`/`call_tool()` decorators; handlers are now passed as
+`Server(name, on_list_tools=..., on_call_tool=...)` and receive the request context as an
+argument (`app.request_context` is gone). The 2.x low-level handlers also dropped two things the
+1.x decorator did, so each server's `_on_call_tool` adapter restores them:
+
+- validates arguments against the tool's `input_schema` (`jsonschema`, now a direct dependency);
+- returns tool exceptions, including unknown tool names, as `isError` results instead of a
+  JSON-RPC internal error.
+
+`omr-mcp` passes the request context to `_run_with_progress` explicitly; the progress token is
+`ctx.meta["progress_token"]`. Pydantic field names are snake_case (`Tool.input_schema`,
+`CallToolResult.is_error`). Verified: unit and integration tests, and a stdio smoke test of every
+server with both a 1.x client (negotiates protocol `2025-11-25`) and a 2.x client.
 
 ### `mcp` 1.29.0 → 1.29.1 / 2.1.1 (all six servers) — **take the 1.29.1 patch, still don't cross to 2.x**
 

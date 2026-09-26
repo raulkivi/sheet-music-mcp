@@ -54,7 +54,8 @@ version = "0.1.0"
 description = "<One sentence description>"
 requires-python = ">=3.11"
 dependencies = [
-    "mcp>=1.0.0",
+    "jsonschema>=4.20.0",
+    "mcp>=2.2.0,<3.0.0",
     # add server-specific dependencies here
 ]
 

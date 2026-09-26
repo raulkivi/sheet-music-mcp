@@ -100,6 +100,12 @@ async def _run():
 asyncio.run(_run())
 ```
 
+mcp 2.x has no `@app.list_tools()`/`@app.call_tool()` decorators. Wire the handlers at the end of
+`server.py` with `Server(name, on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)`.
+`_on_call_tool` validates arguments against the tool's `input_schema` and returns exceptions as
+`isError` results, which 2.x no longer does itself. Tools needing the request context (progress)
+take it as a `ctx` argument; `app.request_context` no longer exists.
+
 ---
 
 ## System libraries (already installed on this machine)
