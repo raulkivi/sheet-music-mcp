@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.raulkivi/render-mcp",
+  "title": "MusicXML Renderer",
+  "description": "Renders MusicXML scores to PDF, PNG or SVG",
+  "repository": {
+    "url": "https://github.com/raulkivi/sheet-music-mcp",
+    "source": "github",
+    "subfolder": "render-mcp"
+  },
+  "version": "0.2.1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "render-mcp",
+      "version": "0.2.1",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

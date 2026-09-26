@@ -1,5 +1,7 @@
 # musicxml-abc-mcp
 
+<!-- mcp-name: io.github.raulkivi/musicxml-abc-mcp -->
+
 MCP server that converts between MusicXML and ABC notation.
 
 ## What it does

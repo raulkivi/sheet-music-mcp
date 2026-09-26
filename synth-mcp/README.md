@@ -1,5 +1,7 @@
 # synth-mcp
 
+<!-- mcp-name: io.github.raulkivi/synth-mcp -->
+
 MCP server that synthesizes audio from MusicXML. Supports voice part selection (Soprano, Alto, Tenor, Bass) and tempo control.
 
 ## What it does

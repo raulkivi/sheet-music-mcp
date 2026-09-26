@@ -1,4 +1,5 @@
-# publish.yml — PyPI Trusted Publishing workflow
+# publish.yml — publishes one server to PyPI (Trusted Publishing) and the
+# MCP Registry (GitHub OIDC), selected by the tag prefix.
 #
 # ONE-TIME SETUP (per server, on PyPI):
 #   1. Create an account at https://pypi.org and log in.
@@ -14,12 +15,15 @@
 #      omr-mcp, synth-mcp, render-mcp, musicxml-abc-mcp, pitch-mcp, comparer-mcp
 #
 #   Full guide: https://docs.pypi.org/trusted-publishers/
+#   The MCP Registry needs no setup: GitHub OIDC proves the io.github.raulkivi/* namespace,
+#   and the `mcp-name:` marker in each README proves ownership of the PyPI package.
 #
 # PUBLISHING A RELEASE:
-#   Push a tag matching the server prefix, e.g.:
-#     git tag omr-mcp/v0.1.0 && git push origin omr-mcp/v0.1.0
+#   Bump the version in pyproject.toml, __init__.py, uv.lock and server.json, then
+#   push a tag matching the server prefix, one tag per push, e.g.:
+#     git tag omr-mcp/v0.2.1 && git push origin omr-mcp/v0.2.1
 
-name: Publish to PyPI
+name: Publish
 
 on:
   push:
@@ -31,117 +35,59 @@ on:
       - "pitch-mcp/v*"
       - "comparer-mcp/v*"
 
+permissions:
+  contents: read
+
 jobs:
-  publish-omr-mcp:
-    name: Publish omr-mcp
-    if: startsWith(github.ref, 'refs/tags/omr-mcp/v')
+  publish:
+    name: Publish ${{ github.ref_name }}
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
       id-token: write
       contents: read
+    env:
+      MCP_PUBLISHER_VERSION: 1.8.1
+      MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Resolve server from tag
+        id: tag
+        run: |
+          echo "server=${GITHUB_REF_NAME%%/v*}" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME##*/v}" >> "$GITHUB_OUTPUT"
+      # Fails before anything is uploaded if a version file was not bumped.
+      - name: Check tag matches package and server.json versions
+        working-directory: ${{ steps.tag.outputs.server }}
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          python3 -c 'import sys, tomllib; v = tomllib.load(open("pyproject.toml", "rb"))["project"]["version"]; sys.exit(v != sys.argv[1] and f"pyproject.toml has {v}")' "$VERSION"
+          jq -e --arg v "$VERSION" '.version == $v and all(.packages[]; .version == $v)' server.json
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
       - name: Build
-        working-directory: omr-mcp
+        working-directory: ${{ steps.tag.outputs.server }}
         run: uv build
-      - name: Publish
+      - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
-          packages-dir: omr-mcp/dist/
-
-  publish-synth-mcp:
-    name: Publish synth-mcp
-    if: startsWith(github.ref, 'refs/tags/synth-mcp/v')
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
-      - name: Build
-        working-directory: synth-mcp
-        run: uv build
-      - name: Publish
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
-        with:
-          packages-dir: synth-mcp/dist/
-
-  publish-render-mcp:
-    name: Publish render-mcp
-    if: startsWith(github.ref, 'refs/tags/render-mcp/v')
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
-      - name: Build
-        working-directory: render-mcp
-        run: uv build
-      - name: Publish
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
-        with:
-          packages-dir: render-mcp/dist/
-
-  publish-musicxml-abc-mcp:
-    name: Publish musicxml-abc-mcp
-    if: startsWith(github.ref, 'refs/tags/musicxml-abc-mcp/v')
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
-      - name: Build
-        working-directory: musicxml-abc-mcp
-        run: uv build
-      - name: Publish
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
-        with:
-          packages-dir: musicxml-abc-mcp/dist/
-
-  publish-pitch-mcp:
-    name: Publish pitch-mcp
-    if: startsWith(github.ref, 'refs/tags/pitch-mcp/v')
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
-      - name: Build
-        working-directory: pitch-mcp
-        run: uv build
-      - name: Publish
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
-        with:
-          packages-dir: pitch-mcp/dist/
-
-  publish-comparer-mcp:
-    name: Publish comparer-mcp
-    if: startsWith(github.ref, 'refs/tags/comparer-mcp/v')
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
-      - name: Build
-        working-directory: comparer-mcp
-        run: uv build
-      - name: Publish
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
-        with:
-          packages-dir: comparer-mcp/dist/
+          packages-dir: ${{ steps.tag.outputs.server }}/dist/
+      - name: Install mcp-publisher
+        run: |
+          curl -sSfL -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf mcp-publisher.tar.gz -C "$RUNNER_TEMP" mcp-publisher
+      - name: Publish to MCP Registry
+        working-directory: ${{ steps.tag.outputs.server }}
+        run: |
+          "$RUNNER_TEMP/mcp-publisher" login github-oidc
+          # The registry reads the new release's README from PyPI, which can lag the upload.
+          for attempt in 1 2 3 4 5; do
+            "$RUNNER_TEMP/mcp-publisher" publish && exit 0
+            echo "Attempt $attempt failed; retrying in 30 s"
+            sleep 30
+          done
+          exit 1

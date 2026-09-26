@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.raulkivi/musicxml-abc-mcp",
+  "title": "MusicXML to ABC",
+  "description": "Converts between MusicXML and ABC notation, so LLMs can read and edit scores",
+  "repository": {
+    "url": "https://github.com/raulkivi/sheet-music-mcp",
+    "source": "github",
+    "subfolder": "musicxml-abc-mcp"
+  },
+  "version": "0.2.1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "musicxml-abc-mcp",
+      "version": "0.2.1",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

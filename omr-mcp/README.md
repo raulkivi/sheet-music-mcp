@@ -1,5 +1,7 @@
 # omr-mcp
 
+<!-- mcp-name: io.github.raulkivi/omr-mcp -->
+
 MCP server that converts sheet music images to MusicXML using optical music recognition (OMR).
 
 ## What it does
