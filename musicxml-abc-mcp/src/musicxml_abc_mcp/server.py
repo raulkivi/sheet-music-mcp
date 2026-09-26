@@ -7,6 +7,7 @@ import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
 
+from . import __version__
 from .engine import ProcessingError, abc_to_musicxml, health_check, musicxml_to_abc, validate_abc
 from .utils import validate_abc_str, validate_musicxml
 
@@ -162,7 +163,7 @@ async def call_tool(name: str, arguments: dict):
 
         result = {
             "server": "musicxml-abc-mcp",
-            "version": "0.1.2",
+            "version": __version__,
             "input_formats": ["musicxml", "abc"],
             "output_formats": ["abc", "musicxml"],
             "tools": ["musicxml_to_abc", "abc_to_musicxml", "validate_abc", "list_capabilities", "health_check"],

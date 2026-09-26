@@ -1,6 +1,6 @@
 [project]
 name = "render-mcp"
-version = "0.1.2"
+version = "0.2.0"
 description = "MCP server that renders MusicXML to PDF or PNG"
 readme = "README.md"
 authors = [

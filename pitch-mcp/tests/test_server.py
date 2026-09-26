@@ -3,6 +3,7 @@
 import json
 import os
 import tempfile
+from importlib.metadata import version as package_version
 
 import numpy as np
 import pytest
@@ -105,7 +106,7 @@ class TestListCapabilities:
         result = await call_tool("list_capabilities", {})
         payload = json.loads(result[0].text)
         assert payload["server"] == "pitch-mcp"
-        assert payload["version"] == "0.2.0"
+        assert payload["version"] == package_version("pitch-mcp")
         assert "musicxml" in payload["input_formats"]
         assert "wav" in payload["input_formats"]
         assert "pitch_backend" in payload

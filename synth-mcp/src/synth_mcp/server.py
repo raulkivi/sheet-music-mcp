@@ -8,6 +8,7 @@ import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
 
+from . import __version__
 from .engine import ProcessingError, extract_midi, parse_parts, synthesize_midi
 from .utils import generate_output_path, validate_musicxml, validate_tempo_factor
 
@@ -197,7 +198,7 @@ async def call_tool(name: str, arguments: dict):
 
         result = {
             "server": "synth-mcp",
-            "version": "0.1.3",
+            "version": __version__,
             "input_formats": ["musicxml"],
             "output_formats": ["wav"],
             "tools": ["get_parts", "synthesize", "list_capabilities", "health_check"],

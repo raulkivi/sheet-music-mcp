@@ -7,6 +7,7 @@ import json
 import logging
 import time
 
+from . import __version__
 from .omr_engine import recognize_image, recognize_image_to_file, recognize_images, health_check as _engine_health_check
 from .utils import decode_base64_image, SUPPORTED_IMAGE_FORMATS
 
@@ -262,7 +263,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
 
         result = {
             "server": "omr-mcp",
-            "version": "0.1.2",
+            "version": __version__,
             "input_formats": list(ext.lstrip(".") for ext in SUPPORTED_IMAGE_FORMATS),
             "output_formats": ["musicxml"],
             "tools": [

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import time
+from importlib.metadata import version as package_version
 from types import SimpleNamespace
 
 import pytest
@@ -96,6 +97,7 @@ class TestServerToolSchemas:
 
         data = json.loads(result[0].text)
         assert data["server"] == "omr-mcp"
+        assert data["version"] == package_version("omr-mcp")
         assert "input_formats" in data
         assert "output_formats" in data
         assert "tools" in data
