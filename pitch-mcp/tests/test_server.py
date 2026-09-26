@@ -71,7 +71,7 @@ class TestListTools:
     async def test_analyze_recording_schema(self):
         tools = await list_tools()
         t = next(x for x in tools if x.name == "analyze_recording")
-        req = t.inputSchema["required"]
+        req = t.input_schema["required"]
         assert "audio_path" in req
         assert "musicxml" in req
         assert "part_id" in req
@@ -79,25 +79,25 @@ class TestListTools:
     async def test_load_score_schema(self):
         tools = await list_tools()
         t = next(x for x in tools if x.name == "load_score")
-        assert "musicxml" in t.inputSchema["required"]
-        assert "part_id" in t.inputSchema["required"]
+        assert "musicxml" in t.input_schema["required"]
+        assert "part_id" in t.input_schema["required"]
 
     async def test_start_monitoring_schema(self):
         tools = await list_tools()
         t = next(x for x in tools if x.name == "start_monitoring")
-        assert "session_id" in t.inputSchema["required"]
+        assert "session_id" in t.input_schema["required"]
         # tempo_bpm is optional
-        assert "tempo_bpm" in t.inputSchema["properties"]
+        assert "tempo_bpm" in t.input_schema["properties"]
 
     async def test_list_capabilities_no_required(self):
         tools = await list_tools()
         t = next(x for x in tools if x.name == "list_capabilities")
-        assert t.inputSchema["required"] == []
+        assert t.input_schema["required"] == []
 
     async def test_health_check_no_required(self):
         tools = await list_tools()
         t = next(x for x in tools if x.name == "health_check")
-        assert t.inputSchema["required"] == []
+        assert t.input_schema["required"] == []
 
 
 class TestListCapabilities:

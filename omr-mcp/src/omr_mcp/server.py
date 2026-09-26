@@ -1,6 +1,7 @@
+import jsonschema
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import Tool, TextContent
+from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
 import asyncio
 import json
 import logging
@@ -13,15 +14,12 @@ from .utils import decode_base64_image, SUPPORTED_IMAGE_FORMATS
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Server("omr-mcp")
-
-@app.list_tools()
 async def list_tools():
     return [
         Tool(
             name="recognize_sheet",
             description="Recognize music notation from an image and return MusicXML",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "image": {
@@ -51,7 +49,7 @@ async def list_tools():
         Tool(
             name="recognize_sheet_to_file",
             description="Process sheet music image and save MusicXML result to filesystem",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "input_path": {
@@ -74,7 +72,7 @@ async def list_tools():
         Tool(
             name="recognize_sheets",
             description="Process multiple pages of sheet music in order and return a single merged MusicXML",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "images": {
@@ -94,7 +92,7 @@ async def list_tools():
         Tool(
             name="list_capabilities",
             description="List supported formats and available tools for this OMR server",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {},
                 "required": []
@@ -103,7 +101,7 @@ async def list_tools():
         Tool(
             name="list_supported_formats",
             description="(Deprecated — use list_capabilities) List supported input and output formats",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {},
                 "required": []
@@ -116,7 +114,7 @@ async def list_tools():
                 "human-readable status summary. Use this to verify the server is "
                 "set up correctly, especially on first run."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {},
                 "required": []
@@ -133,7 +131,7 @@ def _detect_input_format(image: str, format_hint: str | None) -> str:
         return "base64"
     return "path"
 
-async def _run_with_progress(fn, *args, message_prefix: str, interval_seconds: float = 5.0, **kwargs):
+async def _run_with_progress(fn, *args, ctx=None, message_prefix: str, interval_seconds: float = 5.0, **kwargs):
     """Run a blocking, long-running engine call off the event loop, emitting periodic MCP
     progress notifications when the client supplied a progress token (PLAN.md Phase 2). oemer
     exposes no internal progress callback, so this is an elapsed-time heartbeat, not a true
@@ -141,13 +139,8 @@ async def _run_with_progress(fn, *args, message_prefix: str, interval_seconds: f
     direct synchronous call would otherwise block entirely."""
     task = asyncio.create_task(asyncio.to_thread(fn, *args, **kwargs))
 
-    try:
-        ctx = app.request_context
-    except LookupError:
-        # No active MCP request context (e.g. call_tool() invoked directly, as in unit tests) —
-        # app.request_context raises rather than returning None in that case.
-        ctx = None
-    progress_token = ctx.meta.progressToken if ctx and ctx.meta else None
+    # ctx is None when call_tool() is invoked directly, as in unit tests.
+    progress_token = (ctx.meta or {}).get("progress_token") if ctx else None
     if progress_token is None:
         return await task
 
@@ -160,11 +153,13 @@ async def _run_with_progress(fn, *args, message_prefix: str, interval_seconds: f
         tick += 1
         elapsed = int(time.monotonic() - start)
         await ctx.session.send_progress_notification(
-            progress_token, progress=tick, message=f"{message_prefix} ({elapsed}s elapsed)..."
+            progress_token,
+            progress=tick,
+            message=f"{message_prefix} ({elapsed}s elapsed)...",
+            related_request_id=ctx.request_id,
         )
 
-@app.call_tool()
-async def call_tool(name: str, arguments: dict):
+async def call_tool(name: str, arguments: dict, ctx=None):
     if name == "recognize_sheet":
         image = arguments["image"]
         format_hint = arguments.get("format")
@@ -185,7 +180,7 @@ async def call_tool(name: str, arguments: dict):
                 image_path = image
 
             result = await _run_with_progress(
-                recognize_image, image_path, engine=engine, message_prefix="Running OMR recognition"
+                recognize_image, image_path, engine=engine, ctx=ctx, message_prefix="Running OMR recognition"
             )
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except Exception as e:
@@ -206,6 +201,7 @@ async def call_tool(name: str, arguments: dict):
                 input_path,
                 output_path,
                 engine=engine,
+                ctx=ctx,
                 message_prefix="Running OMR recognition",
             )
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
@@ -246,6 +242,7 @@ async def call_tool(name: str, arguments: dict):
                 recognize_images,
                 resolved_paths,
                 engine=engine,
+                ctx=ctx,
                 message_prefix=f"Running OMR recognition on {len(resolved_paths)} page(s)",
             )
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
@@ -318,6 +315,34 @@ async def call_tool(name: str, arguments: dict):
         return [TextContent(type="text", text="\n".join(lines))]
 
     raise ValueError(f"Unknown tool: {name}")
+
+def _error_result(message: str) -> CallToolResult:
+    return CallToolResult(content=[TextContent(type="text", text=message)], is_error=True)
+
+
+async def _on_list_tools(ctx, params) -> ListToolsResult:
+    return ListToolsResult(tools=await list_tools())
+
+
+async def _on_call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
+    # mcp 2.x low-level handlers neither validate input nor catch tool errors;
+    # keep the 1.x decorator behaviour clients rely on.
+    arguments = params.arguments or {}
+    tool = next((t for t in await list_tools() if t.name == params.name), None)
+    if tool is not None:
+        try:
+            jsonschema.validate(instance=arguments, schema=tool.input_schema)
+        except jsonschema.ValidationError as e:
+            return _error_result(f"Input validation error: {e.message}")
+    try:
+        return CallToolResult(content=await call_tool(params.name, arguments, ctx))
+    except Exception as e:
+        logger.error("Tool %s failed: %s", params.name, e)
+        return _error_result(str(e))
+
+
+app = Server("omr-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
+
 
 def main():
     """Main entry point for the OMR MCP server."""

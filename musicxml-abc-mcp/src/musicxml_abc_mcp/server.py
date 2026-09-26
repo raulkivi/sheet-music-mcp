@@ -2,9 +2,10 @@ import asyncio
 import json
 import logging
 
+import jsonschema
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import TextContent, Tool
+from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
 
 from .engine import ProcessingError, abc_to_musicxml, health_check, musicxml_to_abc, validate_abc
 from .utils import validate_abc_str, validate_musicxml
@@ -12,10 +13,7 @@ from .utils import validate_abc_str, validate_musicxml
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Server("musicxml-abc-mcp")
 
-
-@app.list_tools()
 async def list_tools():
     return [
         Tool(
@@ -25,7 +23,7 @@ async def list_tools():
                 "ABC is compact and human-readable — ideal for Claude to read and edit scores directly. "
                 "Optionally filter to a single part."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "musicxml": {
@@ -50,7 +48,7 @@ async def list_tools():
                 "Use this after Claude has read or edited an ABC score to produce "
                 "MusicXML for synthesis or rendering."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "abc": {
@@ -67,7 +65,7 @@ async def list_tools():
                 "Validate an ABC notation string. "
                 "Returns whether the ABC is parseable and lists any errors or warnings."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "abc": {
@@ -81,7 +79,7 @@ async def list_tools():
         Tool(
             name="list_capabilities",
             description="List supported formats and available tools for this server",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {},
                 "required": [],
@@ -95,7 +93,7 @@ async def list_tools():
                 "human-readable status summary. Ask your AI assistant to run this tool "
                 "to confirm the server is set up correctly."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {},
                 "required": [],
@@ -108,7 +106,6 @@ def _error(message: str, code: str) -> list[TextContent]:
     return [TextContent(type="text", text=json.dumps({"error": message, "error_code": code}))]
 
 
-@app.call_tool()
 async def call_tool(name: str, arguments: dict):
     if name == "musicxml_to_abc":
         musicxml = arguments.get("musicxml", "")
@@ -188,6 +185,34 @@ async def call_tool(name: str, arguments: dict):
             return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     raise ValueError(f"Unknown tool: {name}")
+
+
+def _error_result(message: str) -> CallToolResult:
+    return CallToolResult(content=[TextContent(type="text", text=message)], is_error=True)
+
+
+async def _on_list_tools(ctx, params) -> ListToolsResult:
+    return ListToolsResult(tools=await list_tools())
+
+
+async def _on_call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
+    # mcp 2.x low-level handlers neither validate input nor catch tool errors;
+    # keep the 1.x decorator behaviour clients rely on.
+    arguments = params.arguments or {}
+    tool = next((t for t in await list_tools() if t.name == params.name), None)
+    if tool is not None:
+        try:
+            jsonschema.validate(instance=arguments, schema=tool.input_schema)
+        except jsonschema.ValidationError as e:
+            return _error_result(f"Input validation error: {e.message}")
+    try:
+        return CallToolResult(content=await call_tool(params.name, arguments))
+    except Exception as e:
+        logger.error("Tool %s failed: %s", params.name, e)
+        return _error_result(str(e))
+
+
+app = Server("musicxml-abc-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
 
 
 def main():

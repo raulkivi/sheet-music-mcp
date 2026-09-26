@@ -62,7 +62,7 @@ class TestListTools:
     async def test_compare_musicxml_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "compare_musicxml")
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert set(schema["required"]) == {"reference_xml", "target_xml"}
         assert "options" in schema["properties"]
         assert "options" not in schema["required"]
@@ -70,19 +70,19 @@ class TestListTools:
     async def test_compare_musicxml_files_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "compare_musicxml_files")
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert set(schema["required"]) == {"reference_path", "target_path"}
 
     async def test_quick_similarity_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "quick_similarity")
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert set(schema["required"]) == {"reference_xml", "target_xml"}
 
     async def test_list_changes_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "list_changes")
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert set(schema["required"]) == {"reference_xml", "target_xml"}
         assert "part" in schema["properties"]
         assert "measure_range" in schema["properties"]
@@ -92,26 +92,26 @@ class TestListTools:
     async def test_generate_comparison_report_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "generate_comparison_report")
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert set(schema["required"]) == {"reference_xml", "target_xml"}
         assert "options" in schema["properties"]
 
     async def test_export_annotated_musicxml_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "export_annotated_musicxml")
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert set(schema["required"]) == {"reference_xml", "target_xml"}
         assert "options" in schema["properties"]
 
     async def test_list_capabilities_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "list_capabilities")
-        assert tool.inputSchema["required"] == []
+        assert tool.input_schema["required"] == []
 
     async def test_health_check_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "health_check")
-        assert tool.inputSchema["required"] == []
+        assert tool.input_schema["required"] == []
 
 
 class TestCallToolListCapabilities:
