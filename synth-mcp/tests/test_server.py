@@ -1,6 +1,7 @@
 """Tests for synth_mcp MCP server — tool schemas, list_capabilities, error propagation."""
 
 import json
+from importlib.metadata import version as package_version
 
 import pytest
 
@@ -85,7 +86,7 @@ class TestListCapabilities:
         data = json.loads(result[0].text)
 
         assert data["server"] == "synth-mcp"
-        assert data["version"] == "0.1.3"
+        assert data["version"] == package_version("synth-mcp")
         assert "musicxml" in data["input_formats"]
         assert "wav" in data["output_formats"]
         assert "get_parts" in data["tools"]

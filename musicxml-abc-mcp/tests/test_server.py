@@ -1,6 +1,7 @@
 """MCP protocol and tool schema tests for musicxml-abc-mcp."""
 
 import json
+from importlib.metadata import version as package_version
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -81,7 +82,7 @@ class TestCallToolListCapabilities:
         result = await call_tool("list_capabilities", {})
         payload = json.loads(result[0].text)
         assert payload["server"] == "musicxml-abc-mcp"
-        assert payload["version"] == "0.1.2"
+        assert payload["version"] == package_version("musicxml-abc-mcp")
         assert "musicxml" in payload["input_formats"]
         assert "abc" in payload["input_formats"]
         assert "abc" in payload["output_formats"]

@@ -8,6 +8,7 @@ import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
 
+from . import __version__
 from .engine import (
     ProcessingError,
     analyze_recording,
@@ -263,7 +264,7 @@ async def call_tool(name: str, arguments: dict):
 
         result = {
             "server": "pitch-mcp",
-            "version": "0.2.0",
+            "version": __version__,
             "input_formats": ["musicxml", "wav"],
             "output_formats": ["json"],
             "tools": [

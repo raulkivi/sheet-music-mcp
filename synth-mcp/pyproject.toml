@@ -1,6 +1,6 @@
 [project]
 name = "synth-mcp"
-version = "0.1.3"
+version = "0.2.0"
 description = "MCP server that synthesizes audio from MusicXML with selectable voice parts and tempo control"
 readme = "README.md"
 authors = [

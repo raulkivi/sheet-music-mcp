@@ -7,6 +7,7 @@ import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
 
+from . import __version__
 from .engine import (
     ProcessingError,
     cairosvg_available,
@@ -216,7 +217,7 @@ async def call_tool(name: str, arguments: dict):
                 text=json.dumps(
                     {
                         "server": "render-mcp",
-                        "version": "0.1.2",
+                        "version": __version__,
                         "input_formats": ["musicxml"],
                         "output_formats": ["pdf", "png", "svg"],
                         "tools": ["render_to_pdf", "render_to_image", "list_capabilities"],

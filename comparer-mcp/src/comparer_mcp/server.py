@@ -7,6 +7,7 @@ import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
 
+from . import __version__
 from .annotator import annotate
 from .engine import ProcessingError, compare, compare_files, health_check
 from .report import generate_report
@@ -387,7 +388,7 @@ async def call_tool(name: str, arguments: dict):
 
         result = {
             "server": "comparer-mcp",
-            "version": "0.1.0",
+            "version": __version__,
             "input_formats": ["musicxml"],
             "output_formats": ["json"],
             "tools": [
