@@ -1,5 +1,7 @@
 # render-mcp
 
+<!-- mcp-name: io.github.raulkivi/render-mcp -->
+
 MCP server that renders MusicXML scores to PDF or PNG images.
 
 ## What it does

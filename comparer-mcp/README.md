@@ -1,5 +1,7 @@
 # comparer-mcp
 
+<!-- mcp-name: io.github.raulkivi/comparer-mcp -->
+
 MCP server for music-aware comparison of MusicXML files. Provides structured, multi-level diffs
 that report what changed between two scores — from global similarity down to individual notes.
 

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.raulkivi/synth-mcp",
+  "title": "MusicXML Synthesizer",
+  "description": "Synthesizes audio from MusicXML, with voice-part selection and tempo control",
+  "repository": {
+    "url": "https://github.com/raulkivi/sheet-music-mcp",
+    "source": "github",
+    "subfolder": "synth-mcp"
+  },
+  "version": "0.2.1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "synth-mcp",
+      "version": "0.2.1",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "SYNTH_SOUNDFONT_PATH",
+          "description": "Path to an SF2 soundfont file",
+          "isRequired": true,
+          "isSecret": false,
+          "format": "filepath"
+        }
+      ]
+    }
+  ]
+}

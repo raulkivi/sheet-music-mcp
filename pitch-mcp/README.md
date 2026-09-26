@@ -1,5 +1,7 @@
 # pitch-mcp
 
+<!-- mcp-name: io.github.raulkivi/pitch-mcp -->
+
 MCP server for real-time pitch detection and score alignment. Listens to a singer via microphone and reports their current position in a score and whether they are singing in tune.
 
 ## What it does

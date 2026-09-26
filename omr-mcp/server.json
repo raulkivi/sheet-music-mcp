@@ -1,0 +1,31 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.raulkivi/omr-mcp",
+  "title": "Sheet Music OMR",
+  "description": "Converts photos or scans of printed sheet music to MusicXML with optical music recognition",
+  "repository": {
+    "url": "https://github.com/raulkivi/sheet-music-mcp",
+    "source": "github",
+    "subfolder": "omr-mcp"
+  },
+  "version": "0.2.1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "omr-mcp",
+      "version": "0.2.1",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "OMR_AUDIVERIS_HOME",
+          "description": "Directory Audiveris is downloaded to on first use (default ~/.cache/omr-mcp/audiveris)",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

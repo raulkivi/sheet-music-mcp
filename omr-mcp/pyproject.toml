@@ -1,6 +1,6 @@
 [project]
 name = "omr-mcp"
-version = "0.2.0"
+version = "0.2.1"
 description = "MCP server for Optical Music Recognition — converts sheet music images to MusicXML"
 readme = "README.md"
 authors = [
