@@ -4,7 +4,7 @@
 Only the latest release of each package receives security fixes.
 
 ## Reporting a vulnerability
-Report vulnerabilities privately through [GitHub private vulnerability reporting](https://github.com/raulkivi/music-assistant/security/advisories/new). Do not open a public issue.
+Report vulnerabilities privately through [GitHub private vulnerability reporting](https://github.com/raulkivi/sheet-music-mcp/security/advisories/new). Do not open a public issue.
 
 Include:
 - affected version or commit

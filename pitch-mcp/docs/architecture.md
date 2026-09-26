@@ -2,7 +2,7 @@
 
 ## Overview
 
-pitch-mcp is the most complex server in the choir-music-assistant pipeline. It has two modes of operation:
+pitch-mcp is the most complex server in the sheet-music-mcp pipeline. It has two modes of operation:
 
 - **Phase A — Offline analysis:** accepts a pre-recorded WAV file and a reference MusicXML score; returns a per-note pitch accuracy report
 - **Phase B — Real-time monitoring:** opens the microphone, tracks the singer's position in the score live, and reports pitch accuracy on demand via polling

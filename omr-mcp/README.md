@@ -4,7 +4,7 @@ MCP server that converts sheet music images to MusicXML using optical music reco
 
 ## What it does
 
-Takes a photo or scan of printed sheet music and returns a MusicXML document. Handles single pages or multi-page scores. Feeds directly into the rest of the choir-music-assistant pipeline.
+Takes a photo or scan of printed sheet music and returns a MusicXML document. Handles single pages or multi-page scores. Feeds directly into the rest of the sheet-music-mcp pipeline.
 
 Two selectable OMR backends, via an optional `engine` argument on the recognition tools:
 - **`oemer`** (default) — fast, no extra download beyond the ~100 MB model checkpoints. Best for
