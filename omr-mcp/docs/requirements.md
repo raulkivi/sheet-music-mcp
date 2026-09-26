@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Convert photographs or scans of printed sheet music into MusicXML documents. This is the entry point of the choir-music-assistant pipeline — its output feeds every other server.
+Convert photographs or scans of printed sheet music into MusicXML documents. This is the entry point of the sheet-music-mcp pipeline — its output feeds every other server.
 
 Covers **Goal 1**: Digitize paper sheet music (photograph → digital score).
 

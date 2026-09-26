@@ -36,9 +36,9 @@ dev = [
 comparer-mcp = "comparer_mcp.server:main"
 
 [project.urls]
-Homepage = "https://github.com/raulkivi/music-assistant"
-Repository = "https://github.com/raulkivi/music-assistant"
-"Bug Tracker" = "https://github.com/raulkivi/music-assistant/issues"
+Homepage = "https://github.com/raulkivi/sheet-music-mcp"
+Repository = "https://github.com/raulkivi/sheet-music-mcp"
+"Bug Tracker" = "https://github.com/raulkivi/sheet-music-mcp/issues"
 
 [build-system]
 requires = ["hatchling"]

@@ -35,7 +35,7 @@ before writing any code.
 ## Repository Structure
 
 ```
-choir-music-assistant/
+sheet-music-mcp/
 ├── docs/
 │   ├── Intro.md                # Vision, goals, phases, data flow
 │   ├── conventions.md          # Shared conventions for all MCP servers
