@@ -1,0 +1,51 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: dropdown
+    id: server
+    attributes:
+      label: Server
+      options:
+        - omr-mcp
+        - render-mcp
+        - synth-mcp
+        - musicxml-abc-mcp
+        - pitch-mcp
+        - comparer-mcp
+        - Repo / docs
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Package version from PyPI, or the commit if you run from source.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS and MCP client
+      placeholder: "Ubuntu 24.04, Claude Desktop 1.x"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Attach a small MusicXML or image file if you can share one.
+    validations:
+      required: true
+  - type: textarea
+    id: health
+    attributes:
+      label: health_check output and logs
+      description: Run the server's `health_check` tool and paste the result.
+      render: text
