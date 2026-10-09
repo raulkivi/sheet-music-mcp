@@ -55,7 +55,8 @@ Each server's `SETUP.md` walks through installation for non-developers, and `exa
 
 - PyPI releases use [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) from GitHub Actions and carry PEP 740 attestations; no API tokens are stored.
 - Workflow actions are pinned to commit SHAs; Dependabot keeps them and the Python dependencies current.
-- Pull requests run CodeQL, a Claude security review and [unicode-smuggling-guard](https://github.com/raulkivi/unicode-smuggling-guard), which blocks hidden Unicode in code, docs and agent files.
+- Pull requests run a Claude security review and [unicode-smuggling-guard](https://github.com/raulkivi/unicode-smuggling-guard), which blocks hidden Unicode in code, docs and agent files.
+- Tools that write files (`output_path`) accept only paths inside `SHEET_MUSIC_OUTPUT_ROOT` (default: the server working directory), with the expected file extension, and never overwrite an existing file. The omr-mcp Audiveris download is verified against a pinned SHA-256.
 - Secret scanning and push protection are on.
 - Report vulnerabilities privately: see [SECURITY.md](SECURITY.md).
 

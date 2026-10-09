@@ -342,6 +342,8 @@ class TestAudiverisEngine:
         monkeypatch.setattr(eng, "_audiveris_home", lambda: home)
         # Binary doesn't exist until "extraction" (simulated below) creates it.
         monkeypatch.setattr(eng, "_audiveris_binary_path", lambda: fake_binary)
+        import hashlib
+        monkeypatch.setattr(eng, "_AUDIVERIS_DEB_SHA256", hashlib.sha256(b"fake deb").hexdigest())
 
         downloaded = {}
 
@@ -442,3 +444,34 @@ class TestRunOemer:
              patch("oemer.ete.extract", side_effect=lambda args: calls.append("extract") or "out.musicxml"):
             assert omr_engine._run_oemer("page.png") == "out.musicxml"
         assert calls == ["download", ("fix", model), "extract"]
+
+
+class TestAudiverisIntegrity:
+    """The downloaded .deb is executed code; it must match the pinned SHA-256."""
+
+    def _setup(self, tmp_path, monkeypatch, payload: bytes):
+        from omr_mcp import omr_engine as eng
+
+        monkeypatch.setenv("OMR_AUDIVERIS_HOME", str(tmp_path))
+        monkeypatch.setattr(
+            eng.urllib.request, "urlretrieve", lambda url, dest: open(dest, "wb").write(payload)
+        )
+        calls = []
+        monkeypatch.setattr(eng.subprocess, "run", lambda *a, **k: calls.append(a))
+        return eng, calls
+
+    def test_rejects_deb_with_wrong_hash(self, tmp_path, monkeypatch):
+        eng, calls = self._setup(tmp_path, monkeypatch, b"tampered")
+        with pytest.raises(RuntimeError, match="SHA-256"):
+            eng._ensure_audiveris_installed()
+        assert calls == []
+        assert not (tmp_path / "audiveris.deb").exists()
+
+    def test_accepts_deb_with_pinned_hash(self, tmp_path, monkeypatch):
+        import hashlib
+
+        eng, calls = self._setup(tmp_path, monkeypatch, b"genuine")
+        monkeypatch.setattr(eng, "_AUDIVERIS_DEB_SHA256", hashlib.sha256(b"genuine").hexdigest())
+        with pytest.raises(RuntimeError, match="expected binary not found"):
+            eng._ensure_audiveris_installed()
+        assert len(calls) == 1

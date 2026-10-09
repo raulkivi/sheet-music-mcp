@@ -126,7 +126,10 @@ async def call_tool(name: str, arguments: dict):
         if not ok:
             return _error(err, "INVALID_INPUT")
 
-        resolved_output = generate_pdf_path(output_path)
+        try:
+            resolved_output = generate_pdf_path(output_path)
+        except ValueError as e:
+            return _error(str(e), "INVALID_PARAMETER")
 
         try:
             pdf_path, page_count = render_to_pdf(musicxml, resolved_output)
@@ -173,7 +176,10 @@ async def call_tool(name: str, arguments: dict):
         if not ok:
             return _error(err, "INVALID_PARAMETER")
 
-        resolved_output = generate_image_path(output_path, fmt)
+        try:
+            resolved_output = generate_image_path(output_path, fmt)
+        except ValueError as e:
+            return _error(str(e), "INVALID_PARAMETER")
 
         try:
             result = render_to_image(musicxml, page, fmt, dpi, resolved_output)

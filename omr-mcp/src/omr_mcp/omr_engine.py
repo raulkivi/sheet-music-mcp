@@ -8,10 +8,12 @@ import zipfile
 import xml.etree.ElementTree as ET
 from defusedxml.ElementTree import fromstring as _fromstring  # type: ignore[import-untyped]
 from pathlib import Path
+import hashlib
 import logging
 from typing import Any, Optional
 
 from .onnx_compat import fix_negative_convtranspose_pads
+from .utils import confine_output_path
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,9 @@ _AUDIVERIS_DEB_URL = (
     f"https://github.com/Audiveris/audiveris/releases/download/"
     f"{_AUDIVERIS_VERSION}/Audiveris-{_AUDIVERIS_VERSION}-ubuntu24.04-x86_64.deb"
 )
+# Pinned so a tampered or substituted download is never extracted. Update together with
+# _AUDIVERIS_VERSION (sha256sum of the .deb from the GitHub release).
+_AUDIVERIS_DEB_SHA256 = "f20113aaa33b3149ec8d6a09b2a7963360e65fafd92d69389987a85bbc3ec7a3"
 _AUDIVERIS_TIMEOUT_SECONDS = 300
 
 
@@ -212,6 +217,11 @@ def _ensure_audiveris_installed() -> Path:
     urllib.request.urlretrieve(_AUDIVERIS_DEB_URL, deb_path)
 
     try:
+        digest = hashlib.sha256(deb_path.read_bytes()).hexdigest()
+        if digest != _AUDIVERIS_DEB_SHA256:
+            raise RuntimeError(
+                f"Audiveris download failed the SHA-256 check (got {digest}); not extracting it."
+            )
         subprocess.run(
             ["dpkg-deb", "-x", str(deb_path), str(home)],
             check=True, capture_output=True, text=True,
@@ -470,6 +480,11 @@ def recognize_image_to_file(input_path: str, output_path: Optional[str] = None, 
     # Determine output path
     if output_path is None:
         output_path = str(path.with_suffix(".musicxml"))
+    else:
+        try:
+            output_path = confine_output_path(output_path, (".musicxml", ".xml", ".mxl"))
+        except ValueError as e:
+            return {"error": str(e), "error_code": "INVALID_PARAMETER"}
 
     start_time = time.time()
 
