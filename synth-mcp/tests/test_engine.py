@@ -134,6 +134,89 @@ class TestExtractMidi:
         assert result[:4] == b"MThd"
 
 
+# Two-part score with the tempo marking only in the top part, as most
+# MusicXML exporters write it: 60 BPM at measure 1, 90 BPM at measure 2.
+TEMPO_IN_TOP_PART_MUSICXML = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1">
+  <part-list>
+    <score-part id="P1"><part-name>Soprano</part-name></score-part>
+    <score-part id="P2"><part-name>Alto</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+      </attributes>
+      <direction placement="above">
+        <direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>60</per-minute></metronome></direction-type>
+        <sound tempo="60"/>
+      </direction>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>4</duration><type>whole</type></note>
+    </measure>
+    <measure number="2">
+      <direction placement="above">
+        <direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>90</per-minute></metronome></direction-type>
+        <sound tempo="90"/>
+      </direction>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>4</duration><type>whole</type></note>
+    </measure>
+  </part>
+  <part id="P2">
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+      </attributes>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>4</duration><type>whole</type></note>
+    </measure>
+    <measure number="2">
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>4</duration><type>whole</type></note>
+    </measure>
+  </part>
+</score-partwise>"""
+
+
+def _midi_tempos(midi_bytes: bytes) -> list[tuple[int, float]]:
+    """Return (tick, BPM) for every SET_TEMPO event in the MIDI data, deduplicated."""
+    import music21.midi
+
+    mf = music21.midi.MidiFile()
+    mf.readstr(midi_bytes)
+    tempos = set()
+    for track in mf.tracks:
+        tick = 0
+        for event in track.events:
+            if event.isDeltaTime():
+                tick += event.time
+            elif event.type == music21.midi.MetaEvents.SET_TEMPO:
+                usec_per_beat = int.from_bytes(event.data, "big")
+                tempos.add((tick, round(60_000_000 / usec_per_beat, 3)))
+    return sorted(tempos)
+
+
+class TestExtractMidiTempo:
+    """A part exported alone must keep the score tempo, even when only the top part carries it."""
+
+    def test_lower_part_alone_keeps_score_tempo(self):
+        midi = extract_midi(TEMPO_IN_TOP_PART_MUSICXML, ["Alto"], 1.0)
+        assert [bpm for _, bpm in _midi_tempos(midi)] == [60.0, 90.0]
+
+    def test_lower_part_alone_keeps_tempo_change_offset(self):
+        alone = _midi_tempos(extract_midi(TEMPO_IN_TOP_PART_MUSICXML, ["Alto"], 1.0))
+        both = _midi_tempos(extract_midi(TEMPO_IN_TOP_PART_MUSICXML, None, 1.0))
+        assert alone == both
+
+    def test_lower_part_alone_scales_score_tempo_by_factor(self):
+        midi = extract_midi(TEMPO_IN_TOP_PART_MUSICXML, ["Alto"], 2.0)
+        assert [bpm for _, bpm in _midi_tempos(midi)] == [120.0, 180.0]
+
+    def test_all_parts_tempo_scaled_once(self):
+        midi = extract_midi(TEMPO_IN_TOP_PART_MUSICXML, None, 0.5)
+        assert [bpm for _, bpm in _midi_tempos(midi)] == [30.0, 45.0]
+
+
 # ---------------------------------------------------------------------------
 # synthesize_midi — unit tests (mocked environment)
 # ---------------------------------------------------------------------------

@@ -132,6 +132,10 @@ def extract_midi(
     for part in selected:
         new_score.append(copy.deepcopy(part))
 
+    # MusicXML usually carries the tempo only in the top part; borrow it so a
+    # lower part exported alone doesn't fall back to MIDI's 120 BPM default.
+    _carry_over_tempo_marks(score, new_score)
+
     # Apply tempo factor to all MetronomeMarks
     if tempo_factor != 1.0:
         marks = list(new_score.recurse().getElementsByClass(music21.tempo.MetronomeMark))
@@ -162,6 +166,32 @@ def extract_midi(
             Path(tmp_path).unlink(missing_ok=True)
     except Exception as e:
         raise ProcessingError(f"Failed to export MIDI: {e}", "PROCESSING_FAILED")
+
+
+def _carry_over_tempo_marks(source_score, target_score) -> None:
+    """Copy the source score's tempo marks into target_score if it has none.
+
+    Each mark is placed at its original score offset, in the first part of
+    target_score. When several parts carry a mark at the same offset, the one
+    from the topmost part wins.
+    """
+    import music21.tempo
+
+    if target_score.recurse().getElementsByClass(music21.tempo.MetronomeMark).first():
+        return
+
+    marks_by_offset = {}
+    for mm in source_score.recurse().getElementsByClass(music21.tempo.MetronomeMark):
+        marks_by_offset.setdefault(mm.getOffsetInHierarchy(source_score), mm)
+    if not marks_by_offset:
+        return
+
+    measures = list(target_score.parts[0].getElementsByClass("Measure"))
+    for offset, mm in sorted(marks_by_offset.items()):
+        for measure in reversed(measures):
+            if measure.offset <= offset:
+                measure.insert(offset - measure.offset, copy.deepcopy(mm))
+                break
 
 
 # ---------------------------------------------------------------------------

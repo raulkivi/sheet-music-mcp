@@ -36,6 +36,8 @@ The server MUST accept a `tempo_factor` parameter and scale the score tempo acco
 
 - Range: 0.25–4.0 (inclusive)
 - Default: 1.0 (score tempo)
+- The score tempo applies to every part selection, including a lower part exported alone when
+  the tempo marking is written only in the top part
 - Values below 1.0 slow down the playback; values above 1.0 speed it up
 - Pitch MUST NOT be affected by tempo changes
 - Values outside the valid range MUST be rejected with a clear error
