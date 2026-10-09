@@ -86,8 +86,10 @@ asyncio.run(_run())
 - **music21 9.x has NO ABC write support.** `ConverterABC.registerOutputExtensions = ()` means
   `music21.converter.toData(score, fmt='abc')` fails silently or errors. The engine uses a custom
   ABC serializer that walks music21's note model directly.
-- **ABC octave convention (v2.1):** lowercase `c` = C4 (middle C); uppercase `C` = C3.
-  Notes above middle C: `c d e f g a b` (C4–B4); `c' d'...` (C5+). Notes below: `C D...` (C3–B3).
+- **ABC octave convention (v2.1):** uppercase `C` = C4 (middle C); lowercase `c` = C5.
+  `C D E F G A B` = C4–B4; `c d e f g a b` = C5–B5; `c' d'...` = C6+; `C, D,...` = C3–B3.
+  music21 parses ABC with the same convention, so the serializer must match it or
+  ABC → MusicXML → ABC round-trips drift by an octave.
 - **Round-trips are not lossless.** Dynamics, complex articulations, and some ornaments have no
   ABC equivalent. Surface these in the `warnings` field.
 - **`X:` header required.** music21's ABC parser requires the tune-number header. It adds it

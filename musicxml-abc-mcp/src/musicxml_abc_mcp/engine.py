@@ -194,16 +194,11 @@ _STEP_LETTERS = {"C": "C", "D": "D", "E": "E", "F": "F", "G": "G", "A": "A", "B"
 def _pitch_to_abc(pitch) -> str:
     """Convert a music21 Pitch to an ABC note token (without duration).
 
-    ABC octave convention (standard v2.1):
-        C3 = C,   C4 = C   (uppercase, no modifier means octave below middle)
-        Hmm — actually in ABC v2.1:
-          C4 (middle C) = uppercase C? Or lowercase c?
-
-    The ABC standard 2.1 §4.1 convention:
-        c d e f g a b  = C4..B4 (middle-C octave, lowercase)
-        C D E F G A B  = C3..B3 (one octave below middle C, uppercase)
-        c' d' ...      = C5..B5
-        C, D, ...      = C2..B2
+    ABC octave convention (standard v2.1 §4.1, also how music21 parses ABC):
+        C D E F G A B  = C4..B4 (middle-C octave, uppercase)
+        c d e f g a b  = C5..B5 (one octave above middle C, lowercase)
+        c' d' ...      = C6..B6 (each apostrophe raises one more octave)
+        C, D, ...      = C3..B3 (each comma lowers one more octave)
     """
     step = pitch.step          # 'C' .. 'B'
     octave = pitch.octave      # scientific octave (C4 = middle C)
@@ -222,18 +217,16 @@ def _pitch_to_abc(pitch) -> str:
         acc = ""
 
     # Note letter and octave modifiers (ABC standard v2.1 §4.1)
-    # Lowercase c = middle C (C4); uppercase C = one octave below (C3).
-    # C4 = c    C5 = c'   C6 = c''
-    # C3 = C    C2 = C,   C1 = C,,
+    # Uppercase C = middle C (C4); lowercase c = one octave above (C5).
+    # C5 = c    C6 = c'   C7 = c''
+    # C4 = C    C3 = C,   C2 = C,,
     if octave is None:
         octave = 4  # fallback
 
-    if octave >= 4:
-        letter = step.lower() + "'" * (octave - 4)
-    elif octave == 3:
-        letter = step.upper()
-    else:  # octave <= 2
-        letter = step.upper() + "," * (3 - octave)
+    if octave >= 5:
+        letter = step.lower() + "'" * (octave - 5)
+    else:  # octave <= 4
+        letter = step.upper() + "," * (4 - octave)
 
     return acc + letter
 

@@ -79,10 +79,10 @@ reading/writing files if needed.
 
 This server uses ABC standard v2.1:
 
-- `c` (lowercase) = C4 (middle C)
-- `C` (uppercase) = C3 (one octave below middle C)
-- Apostrophe raises an octave: `c'` = C5
-- Comma lowers an octave: `C,` = C2
+- `C` (uppercase) = C4 (middle C)
+- `c` (lowercase) = C5 (one octave above middle C)
+- Apostrophe raises an octave: `c'` = C6
+- Comma lowers an octave: `C,` = C3
 
 Round-trips preserve notes within ±2%. Dynamics and complex articulations are not preserved.
 

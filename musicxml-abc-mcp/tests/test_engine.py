@@ -67,58 +67,63 @@ MINIMAL_ABC = "X:1\nT:Test\nM:4/4\nL:1/8\nK:G\nGABc defg|]"
 # ---------------------------------------------------------------------------
 
 class TestPitchToAbc:
-    # ABC standard v2.1: lowercase c = middle C (C4); uppercase C = C3
+    # ABC standard v2.1: uppercase C = middle C (C4); lowercase c = C5
     def test_c4_middle_c(self):
         import music21.pitch
         p = music21.pitch.Pitch("C4")
-        assert _pitch_to_abc(p) == "c"
+        assert _pitch_to_abc(p) == "C"
 
     def test_c5(self):
         import music21.pitch
         p = music21.pitch.Pitch("C5")
-        assert _pitch_to_abc(p) == "c'"
+        assert _pitch_to_abc(p) == "c"
 
     def test_c3(self):
         import music21.pitch
         p = music21.pitch.Pitch("C3")
-        assert _pitch_to_abc(p) == "C"
+        assert _pitch_to_abc(p) == "C,"
 
     def test_c6(self):
         import music21.pitch
         p = music21.pitch.Pitch("C6")
+        assert _pitch_to_abc(p) == "c'"
+
+    def test_c7(self):
+        import music21.pitch
+        p = music21.pitch.Pitch("C7")
         assert _pitch_to_abc(p) == "c''"
 
     def test_c2(self):
         import music21.pitch
         p = music21.pitch.Pitch("C2")
-        assert _pitch_to_abc(p) == "C,"
+        assert _pitch_to_abc(p) == "C,,"
 
     def test_sharp_note(self):
         import music21.pitch
         p = music21.pitch.Pitch("F#4")
         result = _pitch_to_abc(p)
-        assert result == "^f"
+        assert result == "^F"
 
     def test_flat_note(self):
         import music21.pitch
         p = music21.pitch.Pitch("B-4")
         result = _pitch_to_abc(p)
-        assert result == "_b"
+        assert result == "_B"
 
     def test_g4(self):
         import music21.pitch
         p = music21.pitch.Pitch("G4")
-        assert _pitch_to_abc(p) == "g"
+        assert _pitch_to_abc(p) == "G"
 
     def test_b4(self):
         import music21.pitch
         p = music21.pitch.Pitch("B4")
-        assert _pitch_to_abc(p) == "b"
+        assert _pitch_to_abc(p) == "B"
 
     def test_a5(self):
         import music21.pitch
         p = music21.pitch.Pitch("A5")
-        assert _pitch_to_abc(p) == "a'"
+        assert _pitch_to_abc(p) == "a"
 
 
 class TestDurationToAbc:
@@ -243,6 +248,21 @@ class TestAbcToMusicxml:
             abc_to_musicxml("this is not abc")
         # music21 may raise on parse
         assert exc.value.error_code in ("INVALID_INPUT", "PROCESSING_FAILED")
+
+    def test_abc_round_trip_preserves_octaves(self):
+        """ABC -> MusicXML -> ABC must not shift notes by an octave."""
+        import music21.converter
+
+        abc_in = "X:1\nT:Octaves\nM:4/4\nL:1/8\nK:C\nC,2 C2 c2 c'2|]"
+        xml = abc_to_musicxml(abc_in)["musicxml"]
+        abc_out = musicxml_to_abc(xml)["abc"]
+
+        def pitches(abc):
+            score = music21.converter.parseData(abc, format="abc")
+            return [p.nameWithOctave for p in score.flatten().pitches]
+
+        assert pitches(abc_in) == ["C3", "C4", "C5", "C6"]
+        assert pitches(abc_out) == pitches(abc_in)
 
     def test_multi_tune_abc_merges(self):
         multi_abc = "X:1\nT:Soprano\nM:4/4\nL:1/8\nK:C\nCDEF|]\n\nX:2\nT:Alto\nM:4/4\nL:1/8\nK:C\nG,A,B,C|]"

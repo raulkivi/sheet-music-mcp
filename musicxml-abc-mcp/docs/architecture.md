@@ -160,13 +160,14 @@ K:C                 ← key (from first Key/KeySignature in part)
 
 ### Pitch Encoding
 
-ABC v2.1 octave convention (lowercase c = C4 = middle C):
+ABC v2.1 octave convention (uppercase C = C4 = middle C; music21 parses ABC the same way,
+so ABC → MusicXML → ABC round-trips keep every note in its octave):
 
 ```
-Octave 5:  c'  d'  e'  f'  g'  a'  b'
-Octave 4:  c   d   e   f   g   a   b     ← middle C
-Octave 3:  C   D   E   F   G   A   B
-Octave 2:  C,  D,  E,  F,  G,  A,  B,
+Octave 6:  c'  d'  e'  f'  g'  a'  b'
+Octave 5:  c   d   e   f   g   a   b
+Octave 4:  C   D   E   F   G   A   B     ← middle C
+Octave 3:  C,  D,  E,  F,  G,  A,  B,
 ```
 
 Accidentals:
@@ -181,16 +182,10 @@ accidental = pitch.accidental
 
 if octave >= 5:
     base = name.lower()
-    ticks = "'" * (octave - 5 + 1)
-elif octave == 4:
-    base = name.lower()
-    ticks = ""
-elif octave == 3:
-    base = name.upper()
-    ticks = ""
+    ticks = "'" * (octave - 5)
 else:
     base = name.upper()
-    ticks = "," * (3 - octave)
+    ticks = "," * (4 - octave)
 
 return accidental_prefix + base + ticks
 ```
@@ -231,7 +226,7 @@ Any `music21.dynamics.Dynamic` object (forte, piano, crescendo, etc.) encountere
 Measures are serialized as bar strings (a series of note tokens). Multiple bars are joined with `|` separators and lines are wrapped at 78 characters to keep ABC files readable:
 
 ```
-c2 d2 e2 f2 | g2 a2 b2 c'2 | ...
+C2 D2 E2 F2 | G2 A2 B2 c2 | ...
 ```
 
 ---
