@@ -65,10 +65,10 @@ The ABC output for a typical 4-part SATB score MUST be substantially shorter tha
 ### NFR-3 — ABC standard
 
 ABC output MUST conform to ABC standard v2.1 octave conventions:
-- `c` (lowercase) = C4 (middle C)
-- `C` (uppercase) = C3
-- Apostrophe raises one octave: `c'` = C5
-- Comma lowers one octave: `C,` = C2
+- `C` (uppercase) = C4 (middle C)
+- `c` (lowercase) = C5
+- Apostrophe raises one octave: `c'` = C6
+- Comma lowers one octave: `C,` = C3
 
 ### NFR-4 — No system dependencies
 
@@ -171,7 +171,7 @@ Unit tests MUST cover:
 - Unknown part name error
 - `validate_abc` with valid and invalid ABC strings
 - `list_capabilities` response schema
-- ABC octave encoding (middle C = `c`)
+- ABC octave encoding (middle C = `C`)
 
 Unit tests MUST mock music21 `converter.parse`.
 

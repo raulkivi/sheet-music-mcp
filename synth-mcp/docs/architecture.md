@@ -102,6 +102,8 @@ call_tool("synthesize", {musicxml, part_ids, tempo_factor, output_path})
   │     ├─ validate & filter parts by part_ids
   │     │     └─ error if unknown part_id
   │     ├─ deep-copy selected parts into new Score
+  │     ├─ if the selected parts have no MetronomeMarks: copy the score's marks
+  │     │     (usually only in the top part) into the first selected part, at their offsets
   │     ├─ apply tempo_factor to all MetronomeMarks
   │     │     └─ mark.number *= tempo_factor
   │     │     └─ if no marks: insert MetronomeMark(120 * tempo_factor) at measure 1
@@ -160,6 +162,12 @@ if no marks found:
 ```
 
 This scales time uniformly. Pitch is not affected because the MIDI note numbers are unchanged.
+
+MusicXML usually carries the tempo marking only in the top part. Before scaling, if none of the
+selected parts has a `MetronomeMark`, `_carry_over_tempo_marks()` copies the full score's marks
+(topmost part wins at a shared offset) into the first selected part at their original offsets.
+So a lower part exported alone plays at the score tempo, not MIDI's 120 BPM default. The 120 BPM
+fallback only applies when the whole score has no tempo marking.
 
 ---
 
