@@ -1,3 +1,4 @@
+import os
 import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -5,7 +6,8 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-RENDER_OUTPUT_DIR = "/tmp/render-mcp"
+# Per-user so another local user cannot pre-create the directory.
+RENDER_OUTPUT_DIR = f"/tmp/render-mcp-{os.getuid()}"
 
 VALID_IMAGE_FORMATS = ("png", "svg")
 DPI_MIN = 72
@@ -83,9 +85,9 @@ def validate_page(page: int) -> tuple[bool, str]:
 def generate_pdf_path(output_path: str | None) -> str:
     """Return output_path if provided, otherwise generate one in RENDER_OUTPUT_DIR."""
     if output_path:
-        return output_path
+        return confine_output_path(output_path, (".pdf",))
     output_dir = Path(RENDER_OUTPUT_DIR)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return str(output_dir / f"score_{timestamp}.pdf")
 
@@ -93,8 +95,27 @@ def generate_pdf_path(output_path: str | None) -> str:
 def generate_image_path(output_path: str | None, fmt: str) -> str:
     """Return output_path if provided, otherwise generate one in RENDER_OUTPUT_DIR."""
     if output_path:
-        return output_path
+        return confine_output_path(output_path, (f".{fmt}",))
     output_dir = Path(RENDER_OUTPUT_DIR)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return str(output_dir / f"score_{timestamp}.{fmt}")
+
+
+def confine_output_path(output_path: str, suffixes: tuple[str, ...]) -> str:
+    """Return *output_path* resolved inside the output root, or raise ValueError.
+
+    The path is chosen by the model, so it must not escape SHEET_MUSIC_OUTPUT_ROOT
+    (default: the server's working directory), carry another file type, or
+    overwrite an existing file.
+    """
+    root = Path(os.environ.get("SHEET_MUSIC_OUTPUT_ROOT") or Path.cwd()).resolve()
+    candidate = Path(output_path).expanduser()
+    resolved = (candidate if candidate.is_absolute() else root / candidate).resolve()
+    if not resolved.is_relative_to(root):
+        raise ValueError(f"output_path must be inside {root}")
+    if resolved.suffix.lower() not in suffixes:
+        raise ValueError(f"output_path must end with one of {', '.join(suffixes)}")
+    if resolved.exists():
+        raise ValueError(f"output_path already exists: {resolved}")
+    return str(resolved)

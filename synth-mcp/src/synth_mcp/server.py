@@ -128,7 +128,10 @@ async def call_tool(name: str, arguments: dict):
         if part_ids is not None and not isinstance(part_ids, list):
             return _error("part_ids must be a list of strings", "INVALID_PARAMETER")
 
-        resolved_output = generate_output_path(output_path)
+        try:
+            resolved_output = generate_output_path(output_path)
+        except ValueError as e:
+            return _error(str(e), "INVALID_PARAMETER")
 
         try:
             midi_bytes = extract_midi(musicxml, part_ids, tempo_factor)
