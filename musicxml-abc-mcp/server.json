@@ -8,12 +8,12 @@
     "source": "github",
     "subfolder": "musicxml-abc-mcp"
   },
-  "version": "0.2.1",
+  "version": "0.2.2",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "musicxml-abc-mcp",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
