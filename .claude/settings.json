@@ -9,9 +9,7 @@
       "Bash(uv sync:*)",
       "Bash(VIRTUAL_ENV= .venv/bin/pytest:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git push:*)",
-      "Bash(git tag:*)"
+      "Bash(git commit:*)"
     ]
   }
 }
