@@ -1,13 +1,32 @@
 import os
 import logging
+import stat
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Per-user so another local user cannot pre-create the directory.
+# Per-user path; ensure_private_dir() rejects one that another user pre-created.
 SYNTH_OUTPUT_DIR = f"/tmp/synth-mcp-{os.getuid()}"
+
+
+def ensure_private_dir(path: str | Path) -> Path:
+    """Create *path* as a private directory, or accept it only if it already is one.
+
+    Raises PermissionError if the path is a symlink, is not a directory, is
+    owned by another user, or is accessible to group or others.
+    """
+    p = Path(path)
+    p.mkdir(mode=0o700, parents=True, exist_ok=True)
+    st = os.lstat(p)
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+        raise PermissionError(f"{p} is not a real directory")
+    if st.st_uid != os.getuid():
+        raise PermissionError(f"{p} is owned by another user")
+    if st.st_mode & 0o077:
+        raise PermissionError(f"{p} is accessible to other users")
+    return p
 
 
 def validate_musicxml(musicxml_str: str) -> tuple[bool, str]:
@@ -57,8 +76,7 @@ def generate_output_path(output_path: str | None) -> str:
     if output_path:
         return confine_output_path(output_path, (".mid", ".midi", ".wav"))
 
-    output_dir = Path(SYNTH_OUTPUT_DIR)
-    output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    output_dir = ensure_private_dir(SYNTH_OUTPUT_DIR)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return str(output_dir / f"output_{timestamp}.wav")
 
