@@ -1,7 +1,10 @@
 """Tests for render_mcp.utils."""
 
+import os
+
 import pytest
 from render_mcp.utils import (
+    ensure_private_dir,
     validate_musicxml,
     validate_image_format,
     validate_dpi,
@@ -191,3 +194,50 @@ class TestConfineOutputPath:
         (tmp_path / "a.pdf").write_text("x")
         with pytest.raises(ValueError, match="exists"):
             self._confine("a.pdf", tmp_path, monkeypatch)
+
+
+class TestEnsurePrivateDir:
+    def test_creates_new_dir_without_group_or_other_bits(self, tmp_path):
+        out = ensure_private_dir(tmp_path / "new")
+        assert out == tmp_path / "new"
+        assert out.is_dir()
+        assert out.stat().st_mode & 0o077 == 0
+
+    def test_accepts_existing_private_dir(self, tmp_path):
+        d = tmp_path / "private"
+        d.mkdir()
+        d.chmod(0o700)
+        assert ensure_private_dir(d) == d
+
+    def test_rejects_symlink(self, tmp_path):
+        target = tmp_path / "target"
+        target.mkdir()
+        target.chmod(0o700)
+        link = tmp_path / "link"
+        link.symlink_to(target, target_is_directory=True)
+        with pytest.raises(PermissionError, match="not a real directory"):
+            ensure_private_dir(link)
+
+    def test_rejects_world_readable_dir(self, tmp_path):
+        d = tmp_path / "shared"
+        d.mkdir()
+        d.chmod(0o755)
+        with pytest.raises(PermissionError, match="accessible to other users"):
+            ensure_private_dir(d)
+
+    def test_rejects_dir_owned_by_another_user(self, tmp_path, monkeypatch):
+        import render_mcp.utils as utils_mod
+
+        d = tmp_path / "theirs"
+        d.mkdir()
+        d.chmod(0o700)
+        real_uid = os.getuid()
+        monkeypatch.setattr(utils_mod.os, "getuid", lambda: real_uid + 1)
+        with pytest.raises(PermissionError, match="owned by another user"):
+            ensure_private_dir(d)
+
+    def test_rejects_file_path(self, tmp_path):
+        f = tmp_path / "file"
+        f.write_text("x")
+        with pytest.raises(FileExistsError):
+            ensure_private_dir(f)
