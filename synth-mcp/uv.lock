@@ -1652,7 +1652,7 @@ wheels = [
 
 [[package]]
 name = "synth-mcp"
-version = "0.2.3"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "mcp" },
