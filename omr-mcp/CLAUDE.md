@@ -116,7 +116,10 @@ asyncio.run(_run())
   Requires `dpkg-deb` (present on virtually all Debian/Ubuntu systems).
 - **Audiveris needs genuinely 300+ DPI input** — unlike oemer, which normalizes every input to a
   fixed internal pixel budget and is DPI-insensitive in practice. Audiveris explicitly rejects
-  lower-resolution sheets rather than degrading gracefully.
+  lower-resolution sheets rather than degrading gracefully. `utils.check_resolution()` pre-checks
+  pixel size (not DPI metadata) for `engine="audiveris"` only: < 1500 px long side fails with
+  `INVALID_INPUT` before Audiveris starts; 1500–2499 px runs with a top-level `warnings` entry.
+  Test images for it are generated with Pillow in `tests/test_resolution_check.py`.
 - **Audiveris can exit 0 while producing no output** (e.g. it rejected every sheet for low
   resolution) — `_run_audiveris()` detects failure by checking for the expected `.mxl` output
   file's existence, not the subprocess exit code.

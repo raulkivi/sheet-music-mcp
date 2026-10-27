@@ -29,6 +29,13 @@
             "librosa",
             "crepe"
           ]
+        },
+        {
+          "name": "PITCH_SESSION_IDLE_MINUTES",
+          "description": "Close practice sessions idle this many minutes (0 = never)",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "10"
         }
       ]
     }

@@ -12,8 +12,10 @@ import hashlib
 import logging
 from typing import Any, Optional
 
+from sheet_music_mcp_core.errors import error_payload
+
 from .onnx_compat import fix_negative_convtranspose_pads
-from .utils import confine_output_path
+from .utils import RESOLUTION_HINT, ResolutionCheck, check_resolution, confine_output_path
 
 logger = logging.getLogger(__name__)
 
@@ -292,6 +294,33 @@ _ENGINE_RUNNERS = {
 }
 
 
+def _audiveris_precheck(image_path: str, engine: str) -> Optional[ResolutionCheck]:
+    """Run the pixel-size pre-check for Audiveris; ``None`` when it doesn't apply.
+
+    oemer normalizes every input to a fixed internal size, so only Audiveris is
+    checked. An image Pillow can't read is not judged here: the engine reports it
+    as before.
+    """
+    if engine != "audiveris":
+        return None
+    try:
+        return check_resolution(image_path)
+    except Exception as e:
+        logger.debug(f"Resolution pre-check skipped for {image_path}: {e}")
+        return None
+
+
+def _too_small_error(check: ResolutionCheck, message: Optional[str] = None) -> dict[str, Any]:
+    return error_payload(message or check.message or "", "INVALID_INPUT", hint=RESOLUTION_HINT)
+
+
+def _with_warnings(result: dict[str, Any], warnings: list[str]) -> dict[str, Any]:
+    """Add a top-level ``warnings`` list, only when there is something to say."""
+    if warnings:
+        result["warnings"] = warnings
+    return result
+
+
 def recognize_image(image_path: str, engine: str = "oemer") -> dict[str, Any]:
     """Process sheet music image and return MusicXML.
 
@@ -320,6 +349,13 @@ def recognize_image(image_path: str, engine: str = "oemer") -> dict[str, Any]:
             "error_code": "INVALID_PARAMETER",
         }
 
+    warnings: list[str] = []
+    check = _audiveris_precheck(str(path), engine)
+    if check is not None and check.verdict == "too_small":
+        return _too_small_error(check)
+    if check is not None and check.verdict == "low" and check.message:
+        warnings.append(check.message)
+
     start_time = time.time()
 
     try:
@@ -340,7 +376,7 @@ def recognize_image(image_path: str, engine: str = "oemer") -> dict[str, Any]:
 
         logger.info(f"OMR processing completed successfully in {processing_time_ms}ms")
 
-        return {
+        return _with_warnings({
             "musicxml": musicxml_content,
             "metadata": {
                 "source": str(path),
@@ -349,7 +385,7 @@ def recognize_image(image_path: str, engine: str = "oemer") -> dict[str, Any]:
                 "processing_time_ms": processing_time_ms,
                 "engine": engine,
             }
-        }
+        }, warnings)
 
     except ImportError as e:
         hint = "Please install with: pip install oemer" if engine == "oemer" else str(e)
@@ -414,14 +450,23 @@ def recognize_images(image_paths: list[str], engine: str = "oemer") -> dict[str,
     if not image_paths:
         return {"error": "No images provided", "error_code": "INVALID_PARAMETER"}
 
+    # Fail fast: refuse the whole batch before any page runs if one page is too
+    # small for Audiveris, rather than spending minutes on the pages before it.
+    for i, path in enumerate(image_paths):
+        check = _audiveris_precheck(path, engine)
+        if check is not None and check.verdict == "too_small":
+            return _too_small_error(check, f"Page {i + 1} ({path}): {check.message}")
+
     page_results = []
     errors = []
+    warnings: list[str] = []
 
     for i, path in enumerate(image_paths):
         result = recognize_image(path, engine=engine)
         if "error" in result:
             errors.append(f"Page {i + 1} ({path}): {result['error']}")
         else:
+            warnings.extend(f"Page {i + 1}: {w}" for w in result.pop("warnings", []))
             page_results.append(result)
 
     if errors:
@@ -433,13 +478,13 @@ def recognize_images(image_paths: list[str], engine: str = "oemer") -> dict[str,
     if len(page_results) == 1:
         result = page_results[0]
         result["metadata"]["page_count"] = 1
-        return result
+        return _with_warnings(result, warnings)
 
     merged_xml = _merge_musicxml_pages([r["musicxml"] for r in page_results])
     xml_meta = _extract_musicxml_metadata(merged_xml)
     total_time = sum(r["metadata"]["processing_time_ms"] for r in page_results)
 
-    return {
+    return _with_warnings({
         "musicxml": merged_xml,
         "metadata": {
             "page_count": len(page_results),
@@ -448,7 +493,7 @@ def recognize_images(image_paths: list[str], engine: str = "oemer") -> dict[str,
             "processing_time_ms": total_time,
             "engine": engine,
         },
-    }
+    }, warnings)
 
 
 def recognize_image_to_file(input_path: str, output_path: Optional[str] = None, engine: str = "oemer") -> dict[str, Any]:
@@ -476,6 +521,13 @@ def recognize_image_to_file(input_path: str, output_path: Optional[str] = None, 
             "error": f"Unknown engine: {engine!r}. Supported engines: {sorted(_ENGINE_RUNNERS)}",
             "error_code": "INVALID_PARAMETER",
         }
+
+    warnings: list[str] = []
+    check = _audiveris_precheck(str(path), engine)
+    if check is not None and check.verdict == "too_small":
+        return _too_small_error(check)
+    if check is not None and check.verdict == "low" and check.message:
+        warnings.append(check.message)
 
     # Determine output path
     if output_path is None:
@@ -511,7 +563,7 @@ def recognize_image_to_file(input_path: str, output_path: Optional[str] = None, 
 
         logger.info(f"OMR processing completed successfully in {processing_time_ms}ms")
 
-        return {
+        return _with_warnings({
             "output_path": output_path,
             "metadata": {
                 "source": str(path),
@@ -520,7 +572,7 @@ def recognize_image_to_file(input_path: str, output_path: Optional[str] = None, 
                 "processing_time_ms": processing_time_ms,
                 "engine": engine,
             }
-        }
+        }, warnings)
 
     except ImportError as e:
         hint = "Please install with: pip install oemer" if engine == "oemer" else str(e)

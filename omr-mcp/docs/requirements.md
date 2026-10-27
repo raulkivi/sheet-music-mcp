@@ -54,6 +54,26 @@ The server MUST expose a tool that returns:
 
 An unrecognized `engine` value MUST return `{"error": ..., "error_code": "INVALID_PARAMETER"}`.
 
+#### FR-6a — Audiveris resolution pre-check
+
+With `engine="audiveris"`, every recognize tool MUST check each input image's pixel size before
+running Audiveris. DPI metadata is ignored because it is unreliable (phone JPEGs usually claim
+72 DPI). The check uses the image's longest side:
+
+| Longest side | Behaviour |
+|---|---|
+| < 1500 px | Fail at once, without starting Audiveris: `error_code` `INVALID_INPUT`, `hint` "Audiveris needs about 300 DPI: rescan or photograph closer (at least 2500 px on the long side)" |
+| 1500–2499 px | Run as normal; the result carries `warnings: ["low resolution; recognition may fail"]` |
+| ≥ 2500 px | Run as normal, no warning |
+
+`recognize_sheets` checks all pages before recognizing any of them: if one page is too small the
+whole call fails, and the error names the page (`Page 2 (/path/p2.png): ...`). Warnings for
+low-resolution pages are prefixed the same way (`Page 2: low resolution; recognition may fail`).
+
+`warnings` is a top-level list in the success result and is present only when non-empty, so
+`engine="oemer"` results (never checked; oemer is resolution-insensitive) are unchanged. An image
+Pillow cannot read is not judged by the pre-check; the engine reports it as before.
+
 ### FR-5 — Input validation
 
 The server MUST reject input that fails the following checks and return a descriptive error:
@@ -77,7 +97,8 @@ Accuracy on clean, printed scores (300+ DPI) MUST be sufficient for practical ch
 
 This 300+ DPI floor is a hard requirement for `engine="audiveris"` specifically — it explicitly
 rejects sheets whose staff-line spacing implies lower resolution rather than degrading gracefully
-(surfaces as `PROCESSING_FAILED`, not a garbled result). `engine="oemer"` (default) is DPI-insensitive
+(surfaces as `PROCESSING_FAILED`, not a garbled result). The pixel-size pre-check (FR-6a)
+catches clearly too-small images up front as `INVALID_INPUT` with a `hint`. `engine="oemer"` (default) is DPI-insensitive
 in practice: it normalizes every input to a fixed internal pixel budget before recognition, so
 source resolution below 300 DPI doesn't measurably change its output (confirmed empirically —
 see docs/HANDOVER.md).
@@ -112,6 +133,16 @@ The server MUST communicate via MCP stdio transport. It MUST NOT require any net
 
 The server MUST implement the Model Context Protocol using `mcp.server.stdio.stdio_server()`. Tools MUST be registered with correct input schemas.
 
+### IR-1a — Tool metadata and server instructions
+
+Every tool sets a human-readable `title` and an annotation preset from `sheet-music-mcp-core`
+(see [conventions: Tool Annotations and Titles](../../docs/conventions.md#tool-annotations-and-titles)).
+The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The server sends
+`instructions` at initialize ([conventions: Server Instructions](../../docs/conventions.md#server-instructions)).
+
+The recognize tools set `openWorldHint` because first use downloads the oemer models or the
+Audiveris engine.
+
 ### IR-2 — Tool: `recognize_sheet`
 
 ```
@@ -128,6 +159,7 @@ Output:
     measures            integer
     processing_time_ms  integer
     engine              string   "oemer" | "audiveris"
+  warnings     list[string]  optional; only present when non-empty (FR-6a, audiveris only)
 ```
 
 ### IR-3 — Tool: `recognize_sheet_to_file`
@@ -141,7 +173,13 @@ Input:
 Output:
   output_path  string  path of written file
   metadata     object  same structure as recognize_sheet
+  warnings     list[string]  optional; as recognize_sheet
 ```
+
+On success the JSON text block is followed by a `ResourceLink` to the written file (`file://` URI,
+MIME type `application/vnd.recordare.musicxml+xml`), so clients can offer to open it
+([conventions: Result Content](../../docs/conventions.md#result-content)). Error results carry no
+extra blocks.
 
 ### IR-4 — Tool: `recognize_sheets`
 
@@ -154,6 +192,7 @@ Output:
   musicxml     string  merged MusicXML document
   page_count   integer
   metadata     object
+  warnings     list[string]  optional; each entry prefixed "Page N: " (FR-6a)
 ```
 
 ### IR-5 — Tool: `list_capabilities`

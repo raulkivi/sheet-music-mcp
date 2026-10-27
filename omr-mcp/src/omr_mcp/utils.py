@@ -3,7 +3,7 @@
 import os
 import base64
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import NamedTuple, Optional, Tuple
 from PIL import Image
 import logging
 
@@ -11,6 +11,50 @@ logger = logging.getLogger(__name__)
 
 SUPPORTED_IMAGE_FORMATS = {".png", ".jpg", ".jpeg"}
 MAX_IMAGE_SIZE = 50 * 1024 * 1024  # 50MB
+
+# Audiveris resolution pre-check. Pixel size only: DPI metadata is unreliable
+# (phone JPEGs usually claim 72 DPI whatever their real resolution). An A4 page at
+# 300 DPI is 2480 x 3508 px, so ~2500 px on the long side is the realistic floor;
+# Audiveris rejects images well below that after a slow start-up.
+RESOLUTION_MIN_LONG_SIDE_PX = 1500  # below this: fail before running Audiveris
+RESOLUTION_RECOMMENDED_LONG_SIDE_PX = 2500  # below this: run, but warn
+RESOLUTION_LOW_WARNING = "low resolution; recognition may fail"
+RESOLUTION_HINT = (
+    "Audiveris needs about 300 DPI: rescan or photograph closer "
+    f"(at least {RESOLUTION_RECOMMENDED_LONG_SIDE_PX} px on the long side)"
+)
+
+
+class ResolutionCheck(NamedTuple):
+    """Result of :func:`check_resolution`.
+
+    ``verdict`` is ``"ok"``, ``"low"`` (run, but warn) or ``"too_small"`` (refuse).
+    ``message`` is ``None`` for ``"ok"``.
+    """
+
+    long_side_px: int
+    verdict: str
+    message: Optional[str]
+
+
+def check_resolution(path) -> ResolutionCheck:
+    """Classify an image by the pixel length of its longest side.
+
+    Reads only the image header. Raises ``OSError`` (incl. Pillow's
+    ``UnidentifiedImageError``) if the file can't be read as an image.
+    """
+    with Image.open(path) as img:
+        long_side = max(img.size)
+    if long_side < RESOLUTION_MIN_LONG_SIDE_PX:
+        return ResolutionCheck(
+            long_side,
+            "too_small",
+            f"Image is too small for Audiveris: {long_side} px on the long side "
+            f"(minimum {RESOLUTION_MIN_LONG_SIDE_PX} px)",
+        )
+    if long_side < RESOLUTION_RECOMMENDED_LONG_SIDE_PX:
+        return ResolutionCheck(long_side, "low", RESOLUTION_LOW_WARNING)
+    return ResolutionCheck(long_side, "ok", None)
 
 def validate_image_path(image_path: str) -> Tuple[bool, Optional[str]]:
     """

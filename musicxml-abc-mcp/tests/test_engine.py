@@ -192,7 +192,7 @@ class TestMusicxmlToAbc:
         assert "abc" in result
         assert "parts_included" in result
         assert "warnings" in result
-        assert result["parts_included"] == ["Soprano"]
+        assert result["parts_included"] == ["P1"]  # MusicXML score-part id, not the part name
         abc = result["abc"]
         assert "X:1" in abc
         assert "M:4/4" in abc
@@ -221,7 +221,7 @@ class TestMusicxmlToAbc:
 
     def test_valid_part_id_filters(self):
         result = musicxml_to_abc(MINIMAL_MUSICXML, part_id="Soprano")
-        assert result["parts_included"] == ["Soprano"]
+        assert result["parts_included"] == ["P1"]  # MusicXML score-part id, not the part name
 
     def test_part_filter_only_returns_one_tune(self):
         result = musicxml_to_abc(MINIMAL_MUSICXML, part_id="Soprano")
@@ -330,8 +330,11 @@ class TestIntegrationRoundTrip:
     def test_satb_musicxml_to_abc(self):
         musicxml = _load_mxl_fixture()
         result = musicxml_to_abc(musicxml)
-        assert result["parts_included"] == ["Soprano", "Alto", "Tenor", "Bass"]
+        # parts_included holds the MusicXML score-part ids; the names label the ABC tunes
+        assert len(result["parts_included"]) == 4
         abc = result["abc"]
+        for name in ("Soprano", "Alto", "Tenor", "Bass"):
+            assert name in abc
         assert abc.count("X:") == 4
         assert len(abc) > 100
 
@@ -359,8 +362,9 @@ class TestIntegrationRoundTrip:
 
     def test_part_id_filter_soprano_only(self):
         musicxml = _load_mxl_fixture()
+        soprano_id = musicxml_to_abc(musicxml)["parts_included"][0]
         result = musicxml_to_abc(musicxml, part_id="Soprano")
-        assert result["parts_included"] == ["Soprano"]
+        assert result["parts_included"] == [soprano_id]
         abc = result["abc"]
         assert abc.count("X:") == 1
         assert "Soprano" in abc

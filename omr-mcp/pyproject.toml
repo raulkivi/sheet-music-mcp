@@ -48,7 +48,7 @@ dependencies = [
     "opencv-python-headless==4.14.0.94",
     "Pillow>=10.0.0",
     "defusedxml>=0.7.0",
-    "jsonschema>=4.20.0",
+    "sheet-music-mcp-core>=0.1.0,<0.2.0",
 ]
 
 [project.scripts]
@@ -84,3 +84,6 @@ markers = [
 # installed; oemer's `import onnxruntime` still resolves fine since both
 # distributions provide the same module.
 override-dependencies = ["onnxruntime-gpu; sys_platform == 'never'"]
+
+[tool.uv.sources]
+sheet-music-mcp-core = { path = "../sheet-music-mcp-core", editable = true }

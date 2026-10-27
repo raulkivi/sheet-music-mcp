@@ -18,6 +18,9 @@ from pathlib import Path
 from typing import Optional
 
 from music21 import converter
+from sheet_music_mcp_core.errors import ProcessingError  # re-exported for server.py
+from sheet_music_mcp_core.params import aliased
+from sheet_music_mcp_core.parts import music21_part_infos, resolve_parts
 
 from comparer_mcp.measure_comparator import (
     compare_key_signatures,
@@ -43,14 +46,6 @@ _PARTIAL_MATCH_OPS = {"PITCH_CHANGE", "DURATION_CHANGE"}
 
 _STRUCTURE_WEIGHT = 0.3
 _NOTE_WEIGHT = 0.7
-
-
-class ProcessingError(Exception):
-    """Raised when a comparison step fails in an expected, reportable way."""
-
-    def __init__(self, message: str, error_code: str = "PROCESSING_FAILED"):
-        super().__init__(message)
-        self.error_code = error_code
 
 
 # Input formats (docs/requirements.md "Interfaces"): .musicxml, .xml, or
@@ -113,9 +108,26 @@ def _validate_part_filter(part_filter) -> None:
         return
     if not isinstance(part_filter, list) or not all(isinstance(n, str) for n in part_filter):
         raise ProcessingError(
-            "options.part_filter must be a list of part name strings.",
+            "options.parts must be a list of strings (part IDs, names or voices).",
             "INVALID_PARAMETER",
         )
+
+
+def _select_parts(requested, reference_parts, reference_infos, target_parts, target_infos):
+    """Resolve options.parts against the reference score (IDs, names or voices) and pick the
+    target parts with the same names, or the same IDs when the selected parts are unnamed."""
+    wanted = set(resolve_parts(requested, reference_infos))
+    selected = [(p, i) for p, i in zip(reference_parts, reference_infos) if i.id in wanted]
+    names = [i.name for _, i in selected]
+    if all(names):
+        targets = _filter_parts_by_name(target_parts, names)
+    else:
+        targets = [p for p, i in zip(target_parts, target_infos) if i.id in wanted]
+    return [p for p, _ in selected], targets
+
+
+def _part_label(info) -> str:
+    return info.name or info.id
 
 
 def _filter_parts_by_name(parts: list, part_filter: list) -> list:
@@ -149,7 +161,8 @@ def _apply_score_options(reference, target, options: Optional[dict]):
     """
     options = options or {}
     _validate_measure_range(options.get("measure_range"))
-    _validate_part_filter(options.get("part_filter"))
+    requested_parts = aliased(options, "parts", "part_filter")
+    _validate_part_filter(requested_parts)
 
     if options.get("expand_repeats"):
         reference = _expand_repeats(reference, "reference")
@@ -162,7 +175,7 @@ def _apply_score_options(reference, target, options: Optional[dict]):
     return (
         reference,
         target,
-        options.get("part_filter"),
+        requested_parts,
         options.get("measure_range"),
         bool(options.get("ignore_articulations")),
     )
@@ -228,6 +241,8 @@ def _note_score(note_diffs: list) -> float:
 def _compare_part(
     ref_part,
     tgt_part,
+    ref_info,
+    tgt_info,
     measure_range: Optional[list] = None,
     ignore_articulations: bool = False,
     aligned_collector: Optional[list] = None,
@@ -279,9 +294,9 @@ def _compare_part(
         time_sig_diffs = [d for d in time_sig_diffs if start <= d.measure_number <= end]
 
     return PartDiff(
-        part_name=ref_part.partName or tgt_part.partName or "",
-        reference_part_id=str(ref_part.id),
-        target_part_id=str(tgt_part.id),
+        part_name=ref_info.name or tgt_info.name or ref_info.id,
+        reference_part_id=ref_info.id,
+        target_part_id=tgt_info.id,
         similarity_score=similarity,
         key_sig_diffs=key_sig_diffs,
         time_sig_diffs=time_sig_diffs,
@@ -291,7 +306,7 @@ def _compare_part(
     )
 
 
-def _build_summary(match_result, part_diffs: list) -> ComparisonSummary:
+def _build_summary(match_result, part_diffs: list, info_of: dict) -> ComparisonSummary:
     all_note_diffs = [nd for pd in part_diffs for md in pd.measure_diffs for nd in md.note_diffs]
 
     def _count(op):
@@ -305,8 +320,8 @@ def _build_summary(match_result, part_diffs: list) -> ComparisonSummary:
         total_parts_reference=len(match_result.matched) + len(match_result.missing),
         total_parts_target=len(match_result.matched) + len(match_result.extra),
         parts_matched=len(match_result.matched),
-        parts_missing=[p.partName for p in match_result.missing],
-        parts_extra=[p.partName for p in match_result.extra],
+        parts_missing=[_part_label(info_of[id(p)]) for p in match_result.missing],
+        parts_extra=[_part_label(info_of[id(p)]) for p in match_result.extra],
         total_measures=total_measures,
         measures_missing=measures_missing,
         measures_extra=measures_extra,
@@ -354,21 +369,32 @@ def _compare_scores(reference, target, options: Optional[dict] = None, aligned_c
         reference, target, options
     )
 
+    # Stable MusicXML part IDs, never music21's part.id (docs/conventions.md, Part Selection)
     reference_parts = list(reference.parts)
     target_parts = list(target.parts)
+    reference_infos = music21_part_infos(reference_parts)
+    target_infos = music21_part_infos(target_parts)
+    info_of = {
+        id(part): info
+        for part, info in [*zip(reference_parts, reference_infos), *zip(target_parts, target_infos)]
+    }
     if part_filter:
-        reference_parts = _filter_parts_by_name(reference_parts, part_filter)
-        target_parts = _filter_parts_by_name(target_parts, part_filter)
+        reference_parts, target_parts = _select_parts(
+            part_filter, reference_parts, reference_infos, target_parts, target_infos
+        )
 
     match_result = match_parts(reference_parts, target_parts)
     part_diffs = [
-        _compare_part(ref, tgt, measure_range, ignore_articulations, aligned_collector)
+        _compare_part(
+            ref, tgt, info_of[id(ref)], info_of[id(tgt)], measure_range, ignore_articulations,
+            aligned_collector,
+        )
         for ref, tgt in match_result.matched
     ]
 
     result = ComparisonResult(
         similarity_score=_overall_similarity(match_result, part_diffs),
-        summary=_build_summary(match_result, part_diffs),
+        summary=_build_summary(match_result, part_diffs, info_of),
         part_diffs=part_diffs,
     )
     return result, reference, target

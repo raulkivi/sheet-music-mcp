@@ -133,7 +133,7 @@ class TestCallToolMusicxmlToAbc:
         )
         payload = json.loads(result[0].text)
         assert "abc" in payload
-        assert payload["parts_included"] == ["Soprano"]
+        assert payload["parts_included"] == ["P1"]  # MusicXML score-part id
 
 
 class TestCallToolAbcToMusicxml:

@@ -58,7 +58,9 @@ MCP protocol layer. Contains no business logic.
 
 - Registers three tools: `get_parts`, `synthesize`, `list_capabilities`
 - Validates parameters (delegates to `utils.py`) before calling engine
-- Converts engine results and `ProcessingError` exceptions to `TextContent` JSON
+- Converts engine results and `ProcessingError` exceptions to `TextContent` JSON (always `content[0]`)
+- After a successful `synthesize`, appends a `resource_link` to the written WAV (`file://` URI,
+  `audio/wav`) via `sheet_music_mcp_core.content.file_link`
 - Checks `SYNTH_SOUNDFONT_PATH` at `list_capabilities` time to report soundfont status
 - Entry point via `mcp.server.stdio.stdio_server()`
 
@@ -69,6 +71,7 @@ Core synthesis logic. No MCP imports.
 | Function | Description |
 |----------|-------------|
 | `parse_parts(musicxml_str)` | Parse MusicXML with music21; return list of `{id, name, measure_count}` |
+| `resolve_part_ids(musicxml_str, requested)` | Resolve part IDs, names or voices to stable MusicXML part IDs |
 | `extract_midi(musicxml_str, part_ids, tempo_factor)` | Filter parts, apply tempo, export to MIDI bytes |
 | `synthesize_midi(midi_bytes, output_path)` | Write MIDI to temp file; render to WAV via pyfluidsynth |
 | `_get_wav_duration(wav_path)` | Read WAV header; return duration in seconds |
@@ -91,16 +94,19 @@ Input validation and path generation.
 ### `synthesize` tool
 
 ```
-call_tool("synthesize", {musicxml, part_ids, tempo_factor, output_path})
+call_tool("synthesize", {musicxml, parts, tempo_factor, output_path})
   │
   ├─ utils: validate_musicxml
   ├─ utils: validate_tempo_factor (if provided)
   ├─ utils: generate_output_path
   │
+  ├─ params.aliased(parts, part_ids)       (deprecated alias)
+  ├─ engine: resolve_part_ids(musicxml, parts) → stable IDs ("P1", …)
+  │     └─ PartSelectionError (INVALID_PARAMETER + choices) if a part matches nothing
+  │
   ├─ engine: extract_midi(musicxml, part_ids, tempo_factor)
   │     ├─ music21.converter.parseData(musicxml)
-  │     ├─ validate & filter parts by part_ids
-  │     │     └─ error if unknown part_id
+  │     ├─ select parts by position against music21_part_infos(score.parts)
   │     ├─ deep-copy selected parts into new Score
   │     ├─ if the selected parts have no MetronomeMarks: copy the score's marks
   │     │     (usually only in the top part) into the first selected part, at their offsets
@@ -192,11 +198,14 @@ fs.delete()                        ← cleanup
 
 ---
 
-## Part Identification (music21 9.x)
+## Part Identification
 
-In music21 9.x, `part.id` returns the part's *name* (e.g. `"Soprano"`), not the XML attribute `<part id="P1">`. The engine uses this as the part identifier throughout. When a caller passes `part_ids=["Soprano"]`, the engine matches against `part.id` values.
-
-This is a non-obvious music21 9.x behaviour documented in the project memory.
+music21 replaces `part.id` with the part's *name* (e.g. `"Soprano"`), repeats it for same-named
+parts, and gives unnamed parts a new integer on every parse. The engine therefore never uses
+`part.id`: `sheet_music_mcp_core.parts.music21_part_infos` gives each part its MusicXML
+`<score-part id>` (`"P1"`), and parts are selected by position against that list.
+`get_parts` reports these IDs. Requests are resolved with the shared resolver (ID, name or voice;
+see [docs/conventions.md](../../docs/conventions.md#part-selection)).
 
 ---
 
@@ -228,6 +237,7 @@ Engine errors are raised as `ProcessingError(message, error_code)`. The server l
 | `music21` ≥9.0 | MusicXML parsing, part/note model, MIDI export |
 | `pyfluidsynth` ≥1.3 | Python bindings for libfluidsynth |
 | `mcp` | MCP protocol SDK |
+| `sheet-music-mcp-core` | Shared error envelope, `ProcessingError` and handler wiring (input validation, error results); see [docs/conventions.md](../../docs/conventions.md#shared-core-library) |
 
 **System library:** `libfluidsynth.so.3` (Linux) / `libfluidsynth.dylib` (macOS) must be installed separately. pyfluidsynth loads it via ctypes at import time; if missing, import fails and the server exits.
 

@@ -6,6 +6,7 @@ No MCP SDK imports here — this module is independently unit-testable.
 Pipeline:
     MusicXML string
         → parse_parts()       → list of part metadata dicts
+        → resolve_part_ids()  → stable part IDs for the requested parts (ID, name or voice)
         → extract_midi()      → MIDI bytes
         → synthesize_midi()   → WAV file at output_path, returns duration (seconds)
 """
@@ -18,15 +19,10 @@ import wave
 from pathlib import Path
 from typing import Optional
 
+from sheet_music_mcp_core.errors import ProcessingError  # re-exported for server.py
+from sheet_music_mcp_core.parts import music21_part_infos, resolve_parts
+
 logger = logging.getLogger(__name__)
-
-
-class ProcessingError(Exception):
-    """Raised when a synthesis step fails in an expected, reportable way."""
-
-    def __init__(self, message: str, error_code: str = "PROCESSING_FAILED"):
-        super().__init__(message)
-        self.error_code = error_code
 
 
 # ---------------------------------------------------------------------------
@@ -35,6 +31,9 @@ class ProcessingError(Exception):
 
 def parse_parts(musicxml_str: str) -> list[dict]:
     """Parse a MusicXML string and return metadata for each voice part.
+
+    Part IDs are the MusicXML score-part ids (docs/conventions.md, Part Selection), never
+    music21's part.id.
 
     Returns:
         List of dicts: [{"id": "P1", "name": "Soprano", "measure_count": 32}, ...]
@@ -61,17 +60,35 @@ def parse_parts(musicxml_str: str) -> list[dict]:
         )
 
     result = []
-    for part in parts:
+    for part, info in zip(parts, music21_part_infos(parts)):
         measure_count = len(list(part.getElementsByClass("Measure")))
         result.append(
             {
-                "id": part.id,
-                "name": part.partName or part.id,
+                "id": info.id,
+                "name": info.name or info.id,
                 "measure_count": measure_count,
             }
         )
 
     return result
+
+
+def resolve_part_ids(musicxml_str: str, requested: list[str]) -> list[str]:
+    """Return the stable IDs of the parts matching ``requested`` (IDs, names or voices).
+
+    Raises:
+        ProcessingError: on parse failure; PartSelectionError (INVALID_PARAMETER, with choices)
+        when a request matches no part.
+    """
+    try:
+        import music21
+        score = music21.converter.parseData(musicxml_str, format="musicxml")
+    except ImportError as e:
+        raise ProcessingError(f"music21 is not available: {e}", "PROCESSING_FAILED")
+    except Exception as e:
+        raise ProcessingError(f"Failed to parse MusicXML: {e}", "INVALID_INPUT")
+
+    return resolve_parts(requested, music21_part_infos(score.parts))
 
 
 # ---------------------------------------------------------------------------
@@ -87,14 +104,14 @@ def extract_midi(
 
     Args:
         musicxml_str: MusicXML document as a string.
-        part_ids: Part IDs to include; None means all parts.
+        part_ids: Parts to include (IDs, names or voices, see resolve_part_ids); None means all.
         tempo_factor: Tempo multiplier applied to all MetronomeMarks (0.25–4.0).
 
     Returns:
         Raw MIDI file bytes.
 
     Raises:
-        ProcessingError: on parse error, invalid part ID, or MIDI export failure.
+        ProcessingError: on parse error, unknown part, or MIDI export failure.
     """
     try:
         import music21
@@ -114,16 +131,11 @@ def extract_midi(
     if not all_parts:
         raise ProcessingError("No parts found in score", "INVALID_INPUT")
 
-    # Validate and filter by part_ids
+    # Select by position against the stable part IDs, never by music21's part.id
     if part_ids is not None:
-        available_ids = {p.id for p in all_parts}
-        invalid = [pid for pid in part_ids if pid not in available_ids]
-        if invalid:
-            raise ProcessingError(
-                f"Invalid part IDs: {invalid}. Valid IDs: {sorted(available_ids)}",
-                "INVALID_PARAMETER",
-            )
-        selected = [p for p in all_parts if p.id in part_ids]
+        infos = music21_part_infos(all_parts)
+        wanted = set(resolve_parts(part_ids, infos))
+        selected = [p for p, info in zip(all_parts, infos) if info.id in wanted]
     else:
         selected = all_parts
 

@@ -61,11 +61,10 @@ class TestParseParts:
         assert len(parts) == 2
 
     def test_part_ids(self):
-        # music21 9.x uses the part name as the id (e.g. "Soprano", not "P1")
+        # IDs are the MusicXML score-part ids, not music21's part.id (the part name)
         parts = parse_parts(SIMPLE_MUSICXML)
         ids = [p["id"] for p in parts]
-        assert "Soprano" in ids
-        assert "Alto" in ids
+        assert ids == ["P1", "P2"]
 
     def test_part_names(self):
         parts = parse_parts(SIMPLE_MUSICXML)

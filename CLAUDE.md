@@ -17,6 +17,10 @@ Six independent MCP servers for choir practice. Each server lives in its own dir
 | pitch-mcp | `pitch-mcp/` | Mic audio + score → position + accuracy | Sing-along feedback |
 | comparer-mcp | `comparer-mcp/` | Two MusicXML → structured diff | Score comparison |
 
+Shared code (errors, part selection, deprecated parameter names, tool annotations, result content,
+handler wiring) lives in the library [`sheet-music-mcp-core/`](sheet-music-mcp-core/), which every
+server depends on. It is not an MCP server; its tests run from its own directory like a server's.
+
 See [README.md](README.md) for the full vision and data flow.
 
 ---
@@ -43,12 +47,18 @@ before writing any code.
 
 | Server | Status | Tests |
 |--------|--------|-------|
-| omr-mcp | ⚠️ Phase 1-4 complete; default (oemer) engine loses SATB voice structure — fixed via opt-in `engine="audiveris"`, not yet the default (see omr-mcp/docs/HANDOVER.md) | 111 unit |
-| synth-mcp | ✅ Phase 1 + UX complete | 64 unit + 7 integration |
-| render-mcp | ✅ Phase 1 + UX complete | 73/73 incl. integration |
-| musicxml-abc-mcp | ✅ Phase 1 + UX complete | 74/74 incl. integration |
-| pitch-mcp | ✅ Phase A+B + UX complete (audio-driven position tracking, DTW via dtaidistance) | 112 unit + 4 integration |
-| comparer-mcp | ✅ Phase 4 (Advanced features) complete — all originally-scoped phases done | 134/134 (127 unit + 7 integration) |
+| omr-mcp | ⚠️ Phase 1-4 complete; default (oemer) engine loses SATB voice structure — fixed via opt-in `engine="audiveris"`, not yet the default (see omr-mcp/docs/HANDOVER.md) | 134 unit (+48 skipped) + 41 integration |
+| synth-mcp | ✅ Phase 1 + UX complete | 121 unit + 7 integration |
+| render-mcp | ✅ Phase 1 + UX complete | 104 unit + 9 integration |
+| musicxml-abc-mcp | ✅ Phase 1 + UX complete | 105 unit + 4 integration |
+| pitch-mcp | ✅ Phase A+B + UX complete (audio-driven position tracking, DTW via dtaidistance) | 192 unit (+2 skipped) + 4 integration |
+| comparer-mcp | ✅ Phase 4 (Advanced features) complete — all originally-scoped phases done | 167 unit + 7 integration |
+
+| sheet-music-mcp-core | ✅ 0.1.0 shared library (not yet on PyPI — publish before the next server release) | 94 unit |
+
+Unit counts are the default `pytest` run (`-m "not integration"`). UX Wave 1 (all servers): tool titles
+and annotations, server instructions, part selection by ID/name/voice, inline PNG and file links,
+pitch idle timeout, Audiveris pre-check — see [docs/research/ux-wave1-plan.md](docs/research/ux-wave1-plan.md).
 
 UX deliverables (all servers): PyPI packaging, `install.sh`, `SETUP.md`, `examples/` client configs, `health_check` tool, `TROUBLESHOOTING.md`. See [docs/SETUP_UX_PLAN.md](docs/SETUP_UX_PLAN.md).
 
@@ -62,6 +72,8 @@ UX deliverables (all servers): PyPI packaging, `install.sh`, `SETUP.md`, `exampl
 - **All tool handlers must be `async def`**
 - **All error responses** must use `{"error": "...", "error_code": "..."}` — see [docs/conventions.md](docs/conventions.md) for the full code list
 - **Integration tests** must be marked `@pytest.mark.integration` and must not run in the default `pytest` invocation
+- **Shared code lives in `sheet-music-mcp-core/`**. Use it for errors, part selection, deprecated parameter names, tool annotations, result content and handler wiring; don't copy that code into a server. Engines may import only its MCP-free modules (`errors`, `parts`, `params`, `annotations`). See [docs/conventions.md](docs/conventions.md#shared-core-library)
+- **Every tool** sets a `title` and an annotation preset; **every part parameter** uses the shared resolver (see [docs/conventions.md](docs/conventions.md#part-selection))
 
 ---
 
@@ -101,10 +113,19 @@ asyncio.run(_run())
 ```
 
 mcp 2.x has no `@app.list_tools()`/`@app.call_tool()` decorators. Wire the handlers at the end of
-`server.py` with `Server(name, on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)`.
-`_on_call_tool` validates arguments against the tool's `input_schema` and returns exceptions as
-`isError` results, which 2.x no longer does itself. Tools needing the request context (progress)
-take it as a `ctx` argument; `app.request_context` no longer exists.
+`server.py` with the shared helper, which validates arguments against the tool's `input_schema` and
+returns validation failures and unhandled exceptions as `isError` results in the
+`{"error", "error_code"}` envelope (2.x no longer does either itself):
+
+```python
+from sheet_music_mcp_core.wiring import make_handlers
+
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
+app = Server(name, on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
+```
+
+Tools needing the request context (progress) take it as a `ctx` argument; pass
+`pass_context=True` (as omr-mcp does). `app.request_context` no longer exists.
 
 ---
 

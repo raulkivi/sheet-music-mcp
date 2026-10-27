@@ -22,6 +22,7 @@ Supports both offline analysis of pre-recorded audio and real-time microphone in
 | `start_monitoring` | Open the microphone and begin real-time pitch detection |
 | `get_current_position` | Poll the current score position and pitch accuracy |
 | `stop_monitoring` | Stop the microphone and return a session summary |
+| `list_sessions` | List open practice sessions with their part, state (`loaded` / `monitoring`) and idle time |
 | `list_capabilities` | Return server metadata: pitch backend, microphone availability |
 | `health_check` | Check that runtime dependencies (librosa, sounddevice/portaudio) are available |
 
@@ -55,6 +56,7 @@ uv run pitch-mcp
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PITCH_BACKEND` | `librosa` | Pitch detection algorithm: `librosa` or `crepe` |
+| `PITCH_SESSION_IDLE_MINUTES` | `10` | Close a practice session (and its microphone) after this many idle minutes; `0` never closes. `stop_monitoring` still returns the summary of a closed session for an hour, with `"timed_out": true`. |
 
 `crepe` requires a manual TensorFlow install (~500 MB) and downloads ~50 MB of model weights on first use. The default `librosa` backend (pYIN algorithm) works well for singing voice with no extra setup.
 

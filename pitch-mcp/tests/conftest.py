@@ -19,3 +19,12 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_integration)
         if mark_expr != "manual" and item.get_closest_marker("manual"):
             item.add_marker(skip_manual)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _stop_session_reaper():
+    """load_score starts the idle-session reaper thread lazily; stop it when the run ends."""
+    yield
+    from pitch_mcp import engine
+
+    engine._stop_reaper()

@@ -1,10 +1,13 @@
-import jsonschema
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
+from mcp.types import TextContent, Tool, ToolAnnotations
+from sheet_music_mcp_core.annotations import READ_ONLY, READ_ONLY_DOWNLOADS, WRITES_FILE_DOWNLOADS
+from sheet_music_mcp_core.content import error_content, file_link
+from sheet_music_mcp_core.wiring import make_handlers
 import asyncio
 import json
 import logging
+import os
 import time
 
 from . import __version__
@@ -15,10 +18,23 @@ from .utils import decode_base64_image, SUPPORTED_IMAGE_FORMATS
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Sent to the client at initialize (docs/conventions.md, Server Instructions).
+INSTRUCTIONS = (
+    "Converts photos or scans of printed sheet music (PNG or JPEG) to MusicXML. "
+    "For choir (SATB, multi-staff) scores use engine='audiveris' with 300+ DPI images; the default "
+    "oemer engine merges the staves into one part. recognize_sheets merges several pages into one score. "
+    "First use downloads models (oemer ~100 MB, Audiveris ~80 MB) and a page can take minutes."
+)
+
+MUSICXML_MIME_TYPE = "application/vnd.recordare.musicxml+xml"
+
+
 async def list_tools():
     return [
         Tool(
             name="recognize_sheet",
+            title="Recognize sheet music",
+            annotations=ToolAnnotations(**READ_ONLY_DOWNLOADS),
             description="Recognize music notation from an image and return MusicXML",
             input_schema={
                 "type": "object",
@@ -49,6 +65,8 @@ async def list_tools():
         ),
         Tool(
             name="recognize_sheet_to_file",
+            title="Recognize sheet music to file",
+            annotations=ToolAnnotations(**WRITES_FILE_DOWNLOADS),
             description="Process sheet music image and save MusicXML result to filesystem",
             input_schema={
                 "type": "object",
@@ -72,6 +90,8 @@ async def list_tools():
         ),
         Tool(
             name="recognize_sheets",
+            title="Recognize multi-page sheet music",
+            annotations=ToolAnnotations(**READ_ONLY_DOWNLOADS),
             description="Process multiple pages of sheet music in order and return a single merged MusicXML",
             input_schema={
                 "type": "object",
@@ -92,6 +112,8 @@ async def list_tools():
         ),
         Tool(
             name="list_capabilities",
+            title="OMR capabilities",
+            annotations=ToolAnnotations(**READ_ONLY),
             description="List supported formats and available tools for this OMR server",
             input_schema={
                 "type": "object",
@@ -101,6 +123,8 @@ async def list_tools():
         ),
         Tool(
             name="list_supported_formats",
+            title="OMR formats (deprecated)",
+            annotations=ToolAnnotations(**READ_ONLY),
             description="(Deprecated — use list_capabilities) List supported input and output formats",
             input_schema={
                 "type": "object",
@@ -110,6 +134,8 @@ async def list_tools():
         ),
         Tool(
             name="health_check",
+            title="OMR health check",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Check that all runtime dependencies are available and return a "
                 "human-readable status summary. Use this to verify the server is "
@@ -174,8 +200,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
                 # Decode base64 to temporary file
                 success, path_or_error = decode_base64_image(image)
                 if not success:
-                    error_result = {"error": path_or_error, "error_code": "INVALID_INPUT"}
-                    return [TextContent(type="text", text=json.dumps(error_result))]
+                    return error_content(path_or_error, "INVALID_INPUT")
                 image_path = path_or_error
             else:
                 image_path = image
@@ -186,8 +211,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except Exception as e:
             logger.error(f"Error processing image: {str(e)}")
-            error_result = {"error": f"Failed to process image: {str(e)}", "error_code": "PROCESSING_FAILED"}
-            return [TextContent(type="text", text=json.dumps(error_result))]
+            return error_content(f"Failed to process image: {str(e)}", "PROCESSING_FAILED")
 
     elif name == "recognize_sheet_to_file":
         input_path = arguments["input_path"]
@@ -205,18 +229,21 @@ async def call_tool(name: str, arguments: dict, ctx=None):
                 ctx=ctx,
                 message_prefix="Running OMR recognition",
             )
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+            content = [TextContent(type="text", text=json.dumps(result, indent=2))]
+            # docs/conventions.md, Result Content. The engine returns (not raises) error dicts.
+            written = result.get("output_path") if "error" not in result else None
+            if written and os.path.isfile(written):
+                content.append(file_link(written, MUSICXML_MIME_TYPE))
+            return content
         except Exception as e:
             logger.error(f"Error processing image: {str(e)}")
-            error_result = {"error": f"Failed to process image: {str(e)}", "error_code": "PROCESSING_FAILED"}
-            return [TextContent(type="text", text=json.dumps(error_result))]
+            return error_content(f"Failed to process image: {str(e)}", "PROCESSING_FAILED")
     
     elif name == "recognize_sheets":
         images = arguments.get("images", [])
         engine = arguments.get("engine", "oemer")
         if not isinstance(images, list):
-            error_result = {"error": "'images' must be a list", "error_code": "INVALID_PARAMETER"}
-            return [TextContent(type="text", text=json.dumps(error_result))]
+            return error_content("'images' must be a list", "INVALID_PARAMETER")
 
         logger.info(f"Processing {len(images)} sheet music page(s) (engine: {engine})")
 
@@ -235,8 +262,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
                 resolved_paths.append(img)
 
         if resolution_error:
-            error_result = {"error": resolution_error, "error_code": "INVALID_INPUT"}
-            return [TextContent(type="text", text=json.dumps(error_result))]
+            return error_content(resolution_error, "INVALID_INPUT")
 
         try:
             result = await _run_with_progress(
@@ -249,8 +275,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except Exception as e:
             logger.error(f"Error processing images: {str(e)}")
-            error_result = {"error": f"Failed to process images: {str(e)}", "error_code": "PROCESSING_FAILED"}
-            return [TextContent(type="text", text=json.dumps(error_result))]
+            return error_content(f"Failed to process images: {str(e)}", "PROCESSING_FAILED")
 
     elif name in ("list_capabilities", "list_supported_formats"):
         try:
@@ -317,32 +342,14 @@ async def call_tool(name: str, arguments: dict, ctx=None):
 
     raise ValueError(f"Unknown tool: {name}")
 
-def _error_result(message: str) -> CallToolResult:
-    return CallToolResult(content=[TextContent(type="text", text=message)], is_error=True)
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, pass_context=True, logger=logger)
 
-
-async def _on_list_tools(ctx, params) -> ListToolsResult:
-    return ListToolsResult(tools=await list_tools())
-
-
-async def _on_call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
-    # mcp 2.x low-level handlers neither validate input nor catch tool errors;
-    # keep the 1.x decorator behaviour clients rely on.
-    arguments = params.arguments or {}
-    tool = next((t for t in await list_tools() if t.name == params.name), None)
-    if tool is not None:
-        try:
-            jsonschema.validate(instance=arguments, schema=tool.input_schema)
-        except jsonschema.ValidationError as e:
-            return _error_result(f"Input validation error: {e.message}")
-    try:
-        return CallToolResult(content=await call_tool(params.name, arguments, ctx))
-    except Exception as e:
-        logger.error("Tool %s failed: %s", params.name, e)
-        return _error_result(str(e))
-
-
-app = Server("omr-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
+app = Server(
+    "omr-mcp",
+    instructions=INSTRUCTIONS,
+    on_list_tools=_on_list_tools,
+    on_call_tool=_on_call_tool,
+)
 
 
 def main():

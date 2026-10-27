@@ -56,7 +56,7 @@ def _make_wav(freq_hz: float = 440.0, duration_sec: float = 1.0) -> str:
 
 
 class TestListTools:
-    async def test_returns_seven_tools(self):
+    async def test_returns_eight_tools(self):
         tools = await list_tools()
         names = {t.name for t in tools}
         assert names == {
@@ -65,6 +65,7 @@ class TestListTools:
             "start_monitoring",
             "get_current_position",
             "stop_monitoring",
+            "list_sessions",
             "list_capabilities",
             "health_check",
         }
@@ -75,13 +76,14 @@ class TestListTools:
         req = t.input_schema["required"]
         assert "audio_path" in req
         assert "musicxml" in req
-        assert "part_id" in req
+        # `part` (or its deprecated alias `part_id`) is required through anyOf
+        assert {"required": ["part"]} in t.input_schema["anyOf"]
 
     async def test_load_score_schema(self):
         tools = await list_tools()
         t = next(x for x in tools if x.name == "load_score")
         assert "musicxml" in t.input_schema["required"]
-        assert "part_id" in t.input_schema["required"]
+        assert {"required": ["part"]} in t.input_schema["anyOf"]
 
     async def test_start_monitoring_schema(self):
         tools = await list_tools()
@@ -118,6 +120,7 @@ class TestListCapabilities:
             "start_monitoring",
             "get_current_position",
             "stop_monitoring",
+            "list_sessions",
             "list_capabilities",
             "health_check",
         }

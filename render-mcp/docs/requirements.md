@@ -78,6 +78,13 @@ The server MUST communicate via MCP stdio transport.
 
 The server MUST implement MCP using `mcp.server.stdio.stdio_server()`.
 
+### IR-1a — Tool metadata and server instructions
+
+Every tool sets a human-readable `title` and an annotation preset from `sheet-music-mcp-core`
+(see [conventions: Tool Annotations and Titles](../../docs/conventions.md#tool-annotations-and-titles)).
+The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The server sends
+`instructions` at initialize ([conventions: Server Instructions](../../docs/conventions.md#server-instructions)).
+
 ### IR-2 — Tool: `render_to_pdf`
 
 ```
@@ -90,6 +97,10 @@ Output:
   page_count  integer
   backend     string   e.g. "verovio"
 ```
+
+Content blocks: `content[0]` is the JSON text above. On success it is followed by a
+`resource_link` to the PDF (`file://` URI of the resolved path, MIME type `application/pdf`).
+Errors return only the error JSON.
 
 ### IR-3 — Tool: `render_to_image`
 
@@ -110,6 +121,17 @@ Output:
   total_pages  integer
   backend      string
 ```
+
+Content blocks: `content[0]` is the JSON text above. On success, extra blocks follow
+([conventions](../../docs/conventions.md#result-content)):
+
+| `format` | `content[1]` | `content[2]` |
+|----------|--------------|--------------|
+| `png`, file ≤ 1 MB | `image` (base64 PNG, `image/png`) | `resource_link` (`file://`, `image/png`) |
+| `png`, file > 1 MB | `resource_link` (`file://`, `image/png`) | — |
+| `svg` | `resource_link` (`file://`, `image/svg+xml`) | — |
+
+SVG gets no image block because many hosts cannot display SVG. Errors return only the error JSON.
 
 ### IR-4 — Tool: `list_capabilities`
 

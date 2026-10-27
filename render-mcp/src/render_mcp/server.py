@@ -1,11 +1,14 @@
 import asyncio
 import json
 import logging
+from pathlib import Path
 
-import jsonschema
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
+from mcp.types import TextContent, Tool, ToolAnnotations
+from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
+from sheet_music_mcp_core.content import error_content, file_link, png_block
+from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
 from .engine import (
@@ -33,10 +36,38 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# Sent to the client at initialize (docs/conventions.md, Server Instructions).
+INSTRUCTIONS = (
+    "Renders a MusicXML score to PDF (render_to_pdf) or one page to PNG or SVG (render_to_image). "
+    "Output files are written under SHEET_MUSIC_OUTPUT_ROOT and never overwrite an existing file. "
+    "PNG pages are also returned inline when the client shows images."
+)
+
+_IMAGE_MIME_TYPES = {"png": "image/png", "svg": "image/svg+xml"}
+
+
+def _file_blocks(path: str, mime_type: str) -> list:
+    """Blocks appended after the JSON text for a written file (conventions, Result Content).
+
+    A PNG of at most 1 MB is also sent inline; SVG gets only the link.
+    """
+    if not Path(path).is_file():
+        return []
+    blocks = []
+    if mime_type == "image/png":
+        image = png_block(path)
+        if image is not None:
+            blocks.append(image)
+    blocks.append(file_link(path, mime_type))
+    return blocks
+
+
 async def list_tools():
     return [
         Tool(
             name="render_to_pdf",
+            title="Render score to PDF",
+            annotations=ToolAnnotations(**WRITES_FILE),
             description="Render a MusicXML score to a PDF file",
             input_schema={
                 "type": "object",
@@ -55,6 +86,8 @@ async def list_tools():
         ),
         Tool(
             name="render_to_image",
+            title="Render score page to image",
+            annotations=ToolAnnotations(**WRITES_FILE),
             description=(
                 "Render a single page of a MusicXML score to PNG or SVG"
             ),
@@ -91,6 +124,8 @@ async def list_tools():
         ),
         Tool(
             name="list_capabilities",
+            title="Render capabilities",
+            annotations=ToolAnnotations(**READ_ONLY),
             description="List supported formats and available backends for this render server",
             input_schema={
                 "type": "object",
@@ -100,6 +135,8 @@ async def list_tools():
         ),
         Tool(
             name="health_check",
+            title="Render health check",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Check whether all runtime dependencies are available and the server "
                 "is ready to render scores. Returns a human-readable status summary."
@@ -113,10 +150,6 @@ async def list_tools():
     ]
 
 
-def _error(message: str, code: str) -> list[TextContent]:
-    return [TextContent(type="text", text=json.dumps({"error": message, "error_code": code}))]
-
-
 async def call_tool(name: str, arguments: dict):
     if name == "render_to_pdf":
         musicxml = arguments.get("musicxml", "")
@@ -124,20 +157,20 @@ async def call_tool(name: str, arguments: dict):
 
         ok, err = validate_musicxml(musicxml)
         if not ok:
-            return _error(err, "INVALID_INPUT")
+            return error_content(err, "INVALID_INPUT")
 
         try:
             resolved_output = generate_pdf_path(output_path)
         except ValueError as e:
-            return _error(str(e), "INVALID_PARAMETER")
+            return error_content(str(e), "INVALID_PARAMETER")
 
         try:
             pdf_path, page_count = render_to_pdf(musicxml, resolved_output)
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("render_to_pdf unexpected error: %s", e)
-            return _error(f"Rendering failed: {e}", "PROCESSING_FAILED")
+            return error_content(f"Rendering failed: {e}", "PROCESSING_FAILED")
 
         return [
             TextContent(
@@ -150,7 +183,8 @@ async def call_tool(name: str, arguments: dict):
                     },
                     indent=2,
                 ),
-            )
+            ),
+            *_file_blocks(pdf_path, "application/pdf"),
         ]
 
     elif name == "render_to_image":
@@ -162,34 +196,37 @@ async def call_tool(name: str, arguments: dict):
 
         ok, err = validate_musicxml(musicxml)
         if not ok:
-            return _error(err, "INVALID_INPUT")
+            return error_content(err, "INVALID_INPUT")
 
         ok, err = validate_page(page)
         if not ok:
-            return _error(err, "INVALID_PARAMETER")
+            return error_content(err, "INVALID_PARAMETER")
 
         ok, err = validate_image_format(fmt)
         if not ok:
-            return _error(err, "INVALID_PARAMETER")
+            return error_content(err, "INVALID_PARAMETER")
 
         ok, err = validate_dpi(dpi)
         if not ok:
-            return _error(err, "INVALID_PARAMETER")
+            return error_content(err, "INVALID_PARAMETER")
 
         try:
             resolved_output = generate_image_path(output_path, fmt)
         except ValueError as e:
-            return _error(str(e), "INVALID_PARAMETER")
+            return error_content(str(e), "INVALID_PARAMETER")
 
         try:
             result = render_to_image(musicxml, page, fmt, dpi, resolved_output)
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("render_to_image unexpected error: %s", e)
-            return _error(f"Rendering failed: {e}", "PROCESSING_FAILED")
+            return error_content(f"Rendering failed: {e}", "PROCESSING_FAILED")
 
-        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+        return [
+            TextContent(type="text", text=json.dumps(result, indent=2)),
+            *_file_blocks(result["image_path"], _IMAGE_MIME_TYPES[fmt]),
+        ]
 
     elif name == "list_capabilities":
         backend = detect_backend()
@@ -256,32 +293,14 @@ async def call_tool(name: str, arguments: dict):
     raise ValueError(f"Unknown tool: {name}")
 
 
-def _error_result(message: str) -> CallToolResult:
-    return CallToolResult(content=[TextContent(type="text", text=message)], is_error=True)
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
 
-
-async def _on_list_tools(ctx, params) -> ListToolsResult:
-    return ListToolsResult(tools=await list_tools())
-
-
-async def _on_call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
-    # mcp 2.x low-level handlers neither validate input nor catch tool errors;
-    # keep the 1.x decorator behaviour clients rely on.
-    arguments = params.arguments or {}
-    tool = next((t for t in await list_tools() if t.name == params.name), None)
-    if tool is not None:
-        try:
-            jsonschema.validate(instance=arguments, schema=tool.input_schema)
-        except jsonschema.ValidationError as e:
-            return _error_result(f"Input validation error: {e.message}")
-    try:
-        return CallToolResult(content=await call_tool(params.name, arguments))
-    except Exception as e:
-        logger.error("Tool %s failed: %s", params.name, e)
-        return _error_result(str(e))
-
-
-app = Server("render-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
+app = Server(
+    "render-mcp",
+    instructions=INSTRUCTIONS,
+    on_list_tools=_on_list_tools,
+    on_call_tool=_on_call_tool,
+)
 
 
 def main():

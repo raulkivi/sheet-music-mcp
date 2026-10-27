@@ -2,10 +2,13 @@ import asyncio
 import json
 import logging
 
-import jsonschema
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
+from mcp.types import TextContent, Tool, ToolAnnotations
+from sheet_music_mcp_core.annotations import READ_ONLY
+from sheet_music_mcp_core.content import error_content, processing_error_content
+from sheet_music_mcp_core.parts import PartInfo, resolve_parts
+from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
 from .annotator import annotate
@@ -21,22 +24,43 @@ _OPTIONS_SCHEMA = {
     "description": (
         "Comparison options (docs/architecture.md §8). expand_repeats defaults to "
         "false (opt-in — see docs/PLAN.md 'Changed decisions'); normalize_pitch, "
-        "ignore_articulations, part_filter, measure_range all default to off/unset."
+        "ignore_articulations, parts, measure_range all default to off/unset."
     ),
     "properties": {
         "expand_repeats": {"type": "boolean"},
         "normalize_pitch": {"type": "boolean"},
         "ignore_articulations": {"type": "boolean"},
-        "part_filter": {"type": "array", "items": {"type": "string"}},
+        "parts": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Compare only these parts: part IDs, names or voices (e.g. 'P1', 'Soprano', 'S').",
+        },
+        "part_filter": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "(Deprecated: use `parts`) Compare only these parts.",
+        },
         "measure_range": {"type": "array", "items": {"type": "integer"}},
     },
 }
+
+
+# Sent to the client at initialize (docs/conventions.md, Server Instructions).
+INSTRUCTIONS = (
+    "Music-aware comparison of two MusicXML scores (reference and target). Use quick_similarity "
+    "for a 0-1 score, list_changes for targeted questions (one part, a measure range), "
+    "generate_comparison_report for a readable summary and export_annotated_musicxml for "
+    "color-marked scores to render. compare_musicxml returns the full structured diff, which can "
+    "be large."
+)
 
 
 async def list_tools():
     return [
         Tool(
             name="compare_musicxml",
+            title="Compare scores",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Full music-aware diff of two MusicXML strings. Returns a structured "
                 "ComparisonResult with global similarity score, summary statistics, and "
@@ -60,6 +84,8 @@ async def list_tools():
         ),
         Tool(
             name="compare_musicxml_files",
+            title="Compare score files",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Full music-aware diff of two MusicXML files on disk (.musicxml, .xml, or "
                 "compressed .mxl). Returns the same structured ComparisonResult as "
@@ -83,6 +109,8 @@ async def list_tools():
         ),
         Tool(
             name="quick_similarity",
+            title="Score similarity",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Fast similarity check between two MusicXML strings: returns only the "
                 "0.0-1.0 similarity score and summary statistics, without per-note detail."
@@ -104,6 +132,8 @@ async def list_tools():
         ),
         Tool(
             name="list_changes",
+            title="List score changes",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "List only the note-level differences (operation != MATCH) between two "
                 "MusicXML strings, optionally filtered to one part and/or a measure range. "
@@ -122,7 +152,7 @@ async def list_tools():
                     },
                     "part": {
                         "type": "string",
-                        "description": "Restrict results to this part name (case-insensitive). Omit for all parts.",
+                        "description": "Restrict results to this part: a part ID, name or voice (e.g. 'P1', 'Alto', 'A'). Omit for all parts.",
                     },
                     "measure_range": {
                         "type": "array",
@@ -137,6 +167,8 @@ async def list_tools():
         ),
         Tool(
             name="generate_comparison_report",
+            title="Comparison report",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Human-readable version comparison report: overall similarity headline, "
                 "missing/extra parts, missing/extra measures, key/time signature changes, "
@@ -161,6 +193,8 @@ async def list_tools():
         ),
         Tool(
             name="export_annotated_musicxml",
+            title="Export color-annotated diff",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Export both scores as MusicXML with per-note color annotations marking "
                 "the diff (pitch changes, duration changes, substitutions, insertions, "
@@ -188,6 +222,8 @@ async def list_tools():
         ),
         Tool(
             name="list_capabilities",
+            title="Comparer capabilities",
+            annotations=ToolAnnotations(**READ_ONLY),
             description="List supported formats and available tools for this server",
             input_schema={
                 "type": "object",
@@ -197,6 +233,8 @@ async def list_tools():
         ),
         Tool(
             name="health_check",
+            title="Comparer health check",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Check that the server and all its dependencies are working correctly. "
                 "Runs a self-comparison smoke test and returns a structured status summary. "
@@ -211,14 +249,15 @@ async def list_tools():
     ]
 
 
-def _error(message: str, code: str) -> list[TextContent]:
-    return [TextContent(type="text", text=json.dumps({"error": message, "error_code": code}))]
-
-
 def _filter_changes(result, part, measure_range) -> list[dict]:
+    wanted = None
+    if part:
+        # ID, name or voice, resolved against the compared parts by their stable reference IDs
+        compared = [PartInfo(pd.reference_part_id, pd.part_name) for pd in result.part_diffs]
+        wanted = set(resolve_parts([part], compared))
     changes = []
     for part_diff in result.part_diffs:
-        if part and part_diff.part_name.lower() != part.lower():
+        if wanted is not None and part_diff.reference_part_id not in wanted:
             continue
         for measure_diff in part_diff.measure_diffs:
             if measure_range and not (
@@ -242,19 +281,19 @@ async def call_tool(name: str, arguments: dict):
 
         ok, err = validate_musicxml(reference_xml)
         if not ok:
-            return _error(f"reference_xml: {err}", "INVALID_INPUT")
+            return error_content(f"reference_xml: {err}", "INVALID_INPUT")
         ok, err = validate_musicxml(target_xml)
         if not ok:
-            return _error(f"target_xml: {err}", "INVALID_INPUT")
+            return error_content(f"target_xml: {err}", "INVALID_INPUT")
 
         try:
             result = compare(reference_xml, target_xml, options)
             return [TextContent(type="text", text=json.dumps(result.to_dict(), indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("compare_musicxml unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "compare_musicxml_files":
         reference_path = arguments.get("reference_path", "")
@@ -262,18 +301,18 @@ async def call_tool(name: str, arguments: dict):
         options = arguments.get("options")
 
         if not reference_path:
-            return _error("reference_path is required.", "INVALID_PARAMETER")
+            return error_content("reference_path is required.", "INVALID_PARAMETER")
         if not target_path:
-            return _error("target_path is required.", "INVALID_PARAMETER")
+            return error_content("target_path is required.", "INVALID_PARAMETER")
 
         try:
             result = compare_files(reference_path, target_path, options)
             return [TextContent(type="text", text=json.dumps(result.to_dict(), indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("compare_musicxml_files unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "quick_similarity":
         reference_xml = arguments.get("reference_xml", "")
@@ -281,10 +320,10 @@ async def call_tool(name: str, arguments: dict):
 
         ok, err = validate_musicxml(reference_xml)
         if not ok:
-            return _error(f"reference_xml: {err}", "INVALID_INPUT")
+            return error_content(f"reference_xml: {err}", "INVALID_INPUT")
         ok, err = validate_musicxml(target_xml)
         if not ok:
-            return _error(f"target_xml: {err}", "INVALID_INPUT")
+            return error_content(f"target_xml: {err}", "INVALID_INPUT")
 
         try:
             result = compare(reference_xml, target_xml)
@@ -294,10 +333,10 @@ async def call_tool(name: str, arguments: dict):
             }
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("quick_similarity unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "list_changes":
         reference_xml = arguments.get("reference_xml", "")
@@ -307,10 +346,10 @@ async def call_tool(name: str, arguments: dict):
 
         ok, err = validate_musicxml(reference_xml)
         if not ok:
-            return _error(f"reference_xml: {err}", "INVALID_INPUT")
+            return error_content(f"reference_xml: {err}", "INVALID_INPUT")
         ok, err = validate_musicxml(target_xml)
         if not ok:
-            return _error(f"target_xml: {err}", "INVALID_INPUT")
+            return error_content(f"target_xml: {err}", "INVALID_INPUT")
 
         if measure_range is not None:
             if (
@@ -319,7 +358,7 @@ async def call_tool(name: str, arguments: dict):
                 or not all(isinstance(n, int) and not isinstance(n, bool) for n in measure_range)
                 or measure_range[0] > measure_range[1]
             ):
-                return _error(
+                return error_content(
                     "measure_range must be a [start, end] pair of integers with start <= end.",
                     "INVALID_PARAMETER",
                 )
@@ -330,10 +369,10 @@ async def call_tool(name: str, arguments: dict):
             payload = {"changes": changes, "count": len(changes)}
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("list_changes unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "generate_comparison_report":
         reference_xml = arguments.get("reference_xml", "")
@@ -342,20 +381,20 @@ async def call_tool(name: str, arguments: dict):
 
         ok, err = validate_musicxml(reference_xml)
         if not ok:
-            return _error(f"reference_xml: {err}", "INVALID_INPUT")
+            return error_content(f"reference_xml: {err}", "INVALID_INPUT")
         ok, err = validate_musicxml(target_xml)
         if not ok:
-            return _error(f"target_xml: {err}", "INVALID_INPUT")
+            return error_content(f"target_xml: {err}", "INVALID_INPUT")
 
         try:
             result = compare(reference_xml, target_xml, options)
             payload = {"report": generate_report(result), "similarity_score": result.similarity_score}
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("generate_comparison_report unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "export_annotated_musicxml":
         reference_xml = arguments.get("reference_xml", "")
@@ -364,19 +403,19 @@ async def call_tool(name: str, arguments: dict):
 
         ok, err = validate_musicxml(reference_xml)
         if not ok:
-            return _error(f"reference_xml: {err}", "INVALID_INPUT")
+            return error_content(f"reference_xml: {err}", "INVALID_INPUT")
         ok, err = validate_musicxml(target_xml)
         if not ok:
-            return _error(f"target_xml: {err}", "INVALID_INPUT")
+            return error_content(f"target_xml: {err}", "INVALID_INPUT")
 
         try:
             payload = annotate(reference_xml, target_xml, options)
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("export_annotated_musicxml unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "list_capabilities":
         backend_version = "unknown"
@@ -412,37 +451,19 @@ async def call_tool(name: str, arguments: dict):
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except Exception as e:
             logger.error("health_check unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     raise ValueError(f"Unknown tool: {name}")
 
 
-def _error_result(message: str) -> CallToolResult:
-    return CallToolResult(content=[TextContent(type="text", text=message)], is_error=True)
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
 
-
-async def _on_list_tools(ctx, params) -> ListToolsResult:
-    return ListToolsResult(tools=await list_tools())
-
-
-async def _on_call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
-    # mcp 2.x low-level handlers neither validate input nor catch tool errors;
-    # keep the 1.x decorator behaviour clients rely on.
-    arguments = params.arguments or {}
-    tool = next((t for t in await list_tools() if t.name == params.name), None)
-    if tool is not None:
-        try:
-            jsonschema.validate(instance=arguments, schema=tool.input_schema)
-        except jsonschema.ValidationError as e:
-            return _error_result(f"Input validation error: {e.message}")
-    try:
-        return CallToolResult(content=await call_tool(params.name, arguments))
-    except Exception as e:
-        logger.error("Tool %s failed: %s", params.name, e)
-        return _error_result(str(e))
-
-
-app = Server("comparer-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
+app = Server(
+    "comparer-mcp",
+    instructions=INSTRUCTIONS,
+    on_list_tools=_on_list_tools,
+    on_call_tool=_on_call_tool,
+)
 
 
 def main():

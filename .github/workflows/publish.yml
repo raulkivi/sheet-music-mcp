@@ -1,5 +1,6 @@
 # publish.yml — publishes one server to PyPI (Trusted Publishing) and the
-# MCP Registry (GitHub OIDC), selected by the tag prefix.
+# MCP Registry (GitHub OIDC), selected by the tag prefix. The shared library
+# sheet-music-mcp-core is published to PyPI only: it is not an MCP server.
 #
 # ONE-TIME SETUP (per server, on PyPI):
 #   1. Create an account at https://pypi.org and log in.
@@ -11,15 +12,17 @@
 #      - Repository name:    sheet-music-mcp
 #      - Workflow filename:  publish.yml
 #      - Environment name:   pypi
-#   4. Repeat for each of the six packages:
-#      omr-mcp, synth-mcp, render-mcp, musicxml-abc-mcp, pitch-mcp, comparer-mcp
+#   4. Repeat for each of the seven packages:
+#      omr-mcp, synth-mcp, render-mcp, musicxml-abc-mcp, pitch-mcp, comparer-mcp,
+#      sheet-music-mcp-core
 #
 #   Full guide: https://docs.pypi.org/trusted-publishers/
 #   The MCP Registry needs no setup: GitHub OIDC proves the io.github.raulkivi/* namespace,
 #   and the `mcp-name:` marker in each README proves ownership of the PyPI package.
 #
 # PUBLISHING A RELEASE:
-#   Bump the version in pyproject.toml, __init__.py, uv.lock and server.json, then
+#   Bump the version in pyproject.toml, __init__.py, uv.lock and server.json (servers
+#   only), then
 #   push a tag matching the server prefix, one tag per push, e.g.:
 #     git tag omr-mcp/v0.2.1 && git push origin omr-mcp/v0.2.1
 
@@ -34,6 +37,7 @@ on:
       - "musicxml-abc-mcp/v*"
       - "pitch-mcp/v*"
       - "comparer-mcp/v*"
+      - "sheet-music-mcp-core/v*"
 
 permissions:
   contents: read
@@ -58,14 +62,23 @@ jobs:
         run: |
           echo "server=${GITHUB_REF_NAME%%/v*}" >> "$GITHUB_OUTPUT"
           echo "version=${GITHUB_REF_NAME##*/v}" >> "$GITHUB_OUTPUT"
+          # Only MCP servers have a server.json and go to the MCP Registry.
+          if [ "${GITHUB_REF_NAME%%/v*}" = "sheet-music-mcp-core" ]; then
+            echo "mcp_server=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "mcp_server=true" >> "$GITHUB_OUTPUT"
+          fi
       # Fails before anything is uploaded if a version file was not bumped.
       - name: Check tag matches package and server.json versions
         working-directory: ${{ steps.tag.outputs.server }}
         env:
           VERSION: ${{ steps.tag.outputs.version }}
+          MCP_SERVER: ${{ steps.tag.outputs.mcp_server }}
         run: |
           python3 -c 'import sys, tomllib; v = tomllib.load(open("pyproject.toml", "rb"))["project"]["version"]; sys.exit(v != sys.argv[1] and f"pyproject.toml has {v}")' "$VERSION"
-          jq -e --arg v "$VERSION" '.version == $v and all(.packages[]; .version == $v)' server.json
+          if [ "$MCP_SERVER" = "true" ]; then
+            jq -e --arg v "$VERSION" '.version == $v and all(.packages[]; .version == $v)' server.json
+          fi
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       - name: Build
         working-directory: ${{ steps.tag.outputs.server }}
@@ -75,12 +88,14 @@ jobs:
         with:
           packages-dir: ${{ steps.tag.outputs.server }}/dist/
       - name: Install mcp-publisher
+        if: steps.tag.outputs.mcp_server == 'true'
         run: |
           curl -sSfL -o mcp-publisher.tar.gz \
             "https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
           echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
           tar xzf mcp-publisher.tar.gz -C "$RUNNER_TEMP" mcp-publisher
       - name: Publish to MCP Registry
+        if: steps.tag.outputs.mcp_server == 'true'
         working-directory: ${{ steps.tag.outputs.server }}
         run: |
           "$RUNNER_TEMP/mcp-publisher" login github-oidc

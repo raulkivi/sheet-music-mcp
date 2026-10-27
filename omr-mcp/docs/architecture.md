@@ -234,6 +234,15 @@ sheet's warning is `WARN ... too low interline value ... try 300 DPI`, but the p
 still "succeeds." `_run_audiveris()` checks for the expected output `.mxl` file's existence rather
 than trusting the subprocess return code.
 
+**Resolution pre-check**: before dispatching to `_run_audiveris()`, `recognize_image`,
+`recognize_image_to_file` and `recognize_images` call `utils.check_resolution(path)`, a pure
+function that reads only the image header and classifies the longest side against
+`RESOLUTION_MIN_LONG_SIDE_PX` (1500) and `RESOLUTION_RECOMMENDED_LONG_SIDE_PX` (2500) into
+`ok` / `low` / `too_small`. `too_small` returns `INVALID_INPUT` with a `hint` in milliseconds,
+where Audiveris would otherwise start a JVM and then reject the sheet; `low` adds a top-level
+`warnings` entry. `recognize_images` checks every page first and fails fast, naming the page.
+oemer is never checked, and an image Pillow can't read skips the check.
+
 Verified 2026-08-16 against both a case oemer crashes on (`Ave_verum_corpus_-_William_Byrd`, 5
 simultaneous tracks) and a case oemer silently flattens (a single-page PDMX SATB sample): Audiveris
 correctly exported 4 separate parts in both, matching the ground-truth Soprano/Alto/Tenor/Bass
@@ -260,6 +269,7 @@ All errors are returned as JSON text content rather than raising MCP protocol er
 | Image too large (> 50 MB) | `INVALID_INPUT` |
 | Base64 decode failure | `INVALID_INPUT` |
 | Pillow cannot open image | `INVALID_INPUT` |
+| `engine="audiveris"` and the image's long side is < 1500 px (pre-check, with `hint`) | `INVALID_INPUT` |
 | oemer processing error | `PROCESSING_FAILED` |
 | Audiveris rejects the sheet (e.g. resolution too low) or any other Audiveris failure | `PROCESSING_FAILED` |
 
@@ -273,6 +283,7 @@ All errors are returned as JSON text content rather than raising MCP protocol er
 | `Pillow` | Image validation and info extraction |
 | `defusedxml` | Safe XML parsing (prevents XXE attacks) |
 | `mcp` | MCP protocol SDK |
+| `sheet-music-mcp-core` | Shared error envelope, `ProcessingError` and handler wiring (input validation, error results); see [docs/conventions.md](../../docs/conventions.md#shared-core-library) |
 
 No system libraries are required for the default (`oemer`) path. ONNX Runtime is bundled with the
 oemer pip package. `engine="audiveris"` is not a Python dependency — it's a self-contained binary

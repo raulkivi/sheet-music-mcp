@@ -1164,12 +1164,12 @@ version = "0.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "dtaidistance" },
-    { name = "jsonschema" },
     { name = "librosa" },
     { name = "mcp" },
     { name = "music21" },
     { name = "numpy" },
     { name = "scipy" },
+    { name = "sheet-music-mcp-core" },
     { name = "sounddevice" },
 ]
 
@@ -1182,7 +1182,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "dtaidistance", specifier = ">=2.4.0" },
-    { name = "jsonschema", specifier = ">=4.20.0" },
     { name = "librosa", specifier = ">=1.0.0" },
     { name = "mcp", specifier = ">=2.2.0,<3.0.0" },
     { name = "music21", specifier = ">=9.0.0" },
@@ -1190,6 +1189,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
     { name = "scipy", specifier = ">=1.10.0" },
+    { name = "sheet-music-mcp-core", editable = "../sheet-music-mcp-core" },
     { name = "sounddevice", specifier = ">=0.4.0" },
 ]
 provides-extras = ["dev"]
@@ -1660,6 +1660,24 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/5c/a2/5b7d5270621ab7cfa3f7766067bf95dc360b5efb6394694e8143b4156e2b/scipy-1.18.1-cp315-cp315t-win_amd64.whl", hash = "sha256:5632e3ae3d09197c446310cd5187de63e28448ce22f0f67b2b93d97503c0c230", size = 37408295, upload-time = "2026-08-21T23:28:40.724Z" },
     { url = "https://files.pythonhosted.org/packages/63/ad/741c19fcb66755ff953daf9243af8480e4bf3d7fbe57583c178c7d2b6b51/scipy-1.18.1-cp315-cp315t-win_arm64.whl", hash = "sha256:eda632a7981f69730d6281f451db9c1c370993a2c0d7ddb43e2a809a2862b83a", size = 25319710, upload-time = "2026-08-21T23:28:45.713Z" },
 ]
+
+[[package]]
+name = "sheet-music-mcp-core"
+version = "0.1.0"
+source = { editable = "../sheet-music-mcp-core" }
+dependencies = [
+    { name = "jsonschema" },
+    { name = "mcp" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jsonschema", specifier = ">=4.20.0" },
+    { name = "mcp", specifier = ">=2.2.0,<3.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "six"

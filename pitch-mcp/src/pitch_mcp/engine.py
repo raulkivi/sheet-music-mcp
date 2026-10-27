@@ -7,22 +7,20 @@ Phase B: Real-time monitoring via microphone (stateful session management).
 No MCP SDK imports here.
 """
 
+from __future__ import annotations  # SessionRegistry.list shadows the builtin in its class body
+
 import logging
 import os
 import threading
+import time
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Mapping, Optional
+
+from sheet_music_mcp_core.errors import ProcessingError  # re-exported for server.py
 
 logger = logging.getLogger(__name__)
-
-
-class ProcessingError(Exception):
-    """Raised when a processing step fails in an expected, reportable way."""
-
-    def __init__(self, message: str, error_code: str = "PROCESSING_FAILED"):
-        super().__init__(message)
-        self.error_code = error_code
 
 
 # ---------------------------------------------------------------------------
@@ -35,7 +33,7 @@ def analyze_recording(audio_path: str, musicxml_str: str, part_id: str) -> dict:
     Args:
         audio_path: Path to a 16-bit PCM WAV file.
         musicxml_str: MusicXML document as a string.
-        part_id: Part ID to compare against (e.g. 'Soprano').
+        part_id: Part to compare against: ID, name or voice (e.g. 'P1', 'Soprano', 'S').
 
     Returns:
         {
@@ -50,7 +48,7 @@ def analyze_recording(audio_path: str, musicxml_str: str, part_id: str) -> dict:
     """
     from .aligner import align, summarize
     from .pitch_detector import detect_pitches
-    from .utils import extract_note_sequence
+    from .utils import extract_part_notes
 
     if not Path(audio_path).exists():
         raise ProcessingError(
@@ -59,7 +57,9 @@ def analyze_recording(audio_path: str, musicxml_str: str, part_id: str) -> dict:
 
     # Extract reference note sequence
     try:
-        note_sequence = extract_note_sequence(musicxml_str, part_id)
+        info, note_sequence = extract_part_notes(musicxml_str, part_id)
+    except ProcessingError:
+        raise
     except ValueError as e:
         msg = str(e)
         if "not found" in msg.lower():
@@ -97,6 +97,8 @@ def analyze_recording(audio_path: str, musicxml_str: str, part_id: str) -> dict:
     summary = summarize(note_results)
 
     return {
+        "part_id": info.id,
+        "part_name": info.name or info.id,
         "measures_covered": summary["measures_covered"],
         "avg_accuracy_cents": summary["avg_accuracy_cents"],
         "note_accuracy": note_results,
@@ -112,13 +114,14 @@ class ScoreSession:
     """Holds state for one active monitoring session."""
 
     def __init__(self, musicxml_str: str, part_id: str):
-        from .utils import extract_nominal_tempo_bpm, extract_note_sequence
+        from .utils import extract_nominal_tempo_bpm, extract_part_notes
 
         self.session_id = str(uuid.uuid4())
-        self.part_id = part_id
 
         try:
-            self.note_sequence = extract_note_sequence(musicxml_str, part_id)
+            info, self.note_sequence = extract_part_notes(musicxml_str, part_id)
+        except ProcessingError:
+            raise
         except ValueError as e:
             msg = str(e)
             if "not found" in msg.lower():
@@ -131,6 +134,9 @@ class ScoreSession:
             raise ProcessingError(
                 f"Part '{part_id}' has no notes.", "INVALID_INPUT"
             )
+
+        self.part_id = info.id
+        self._part_name = info.name or info.id
 
         try:
             self._nominal_bpm = extract_nominal_tempo_bpm(musicxml_str)
@@ -151,7 +157,12 @@ class ScoreSession:
 
     @property
     def part_name(self) -> str:
-        return self.part_id
+        return self._part_name
+
+    @property
+    def is_monitoring(self) -> bool:
+        """True while the microphone stream and pitch worker are running."""
+        return self._worker_thread is not None
 
     @property
     def measure_count(self) -> int:
@@ -393,17 +404,21 @@ class ScoreSession:
 
         self._stop_event.set()
 
-        if self._stream is not None:
+        # Take the stream and worker under the lock, so a reaper and a stop_monitoring call
+        # racing each other close them only once.
+        with self._lock:
+            stream, self._stream = self._stream, None
+            worker, self._worker_thread = self._worker_thread, None
+
+        if stream is not None:
             try:
-                self._stream.stop()
-                self._stream.close()
+                stream.stop()
+                stream.close()
             except Exception as e:
                 logger.warning("Error closing audio stream: %s", e)
-            self._stream = None
 
-        if self._worker_thread is not None:
-            self._worker_thread.join(timeout=2.0)
-            self._worker_thread = None
+        if worker is not None:
+            worker.join(timeout=2.0)
 
         with self._lock:
             history = list(self._history)
@@ -424,11 +439,239 @@ class ScoreSession:
 
 
 # ---------------------------------------------------------------------------
-# Session registry (module-level, lives for the process lifetime)
+# Session registry and idle timeout (lives for the process lifetime)
 # ---------------------------------------------------------------------------
 
-_sessions: dict[str, ScoreSession] = {}
-_sessions_lock = threading.Lock()
+IDLE_MINUTES_ENV = "PITCH_SESSION_IDLE_MINUTES"
+DEFAULT_IDLE_MINUTES = 10
+REAP_INTERVAL_SECONDS = 30.0
+# How long a timed-out session's summary stays available to stop_monitoring.
+EXPIRED_RETENTION_SECONDS = 3600.0
+
+
+def idle_minutes_from_env(environ: Optional[Mapping[str, str]] = None) -> int:
+    """Read PITCH_SESSION_IDLE_MINUTES: whole minutes, 0 disables the timeout.
+
+    Unset or empty gives the default. Anything else that is not an integer >= 0 logs a
+    warning and gives the default too, so a typo never disables the timeout.
+    """
+    environ = os.environ if environ is None else environ
+    raw = environ.get(IDLE_MINUTES_ENV, "").strip()
+    if not raw:
+        return DEFAULT_IDLE_MINUTES
+    try:
+        minutes = int(raw)
+    except ValueError:
+        minutes = -1
+    if minutes < 0:
+        logger.warning(
+            "%s=%r is not a whole number of minutes (0 or more); using the default %d.",
+            IDLE_MINUTES_ENV, raw, DEFAULT_IDLE_MINUTES,
+        )
+        return DEFAULT_IDLE_MINUTES
+    return minutes
+
+
+@dataclass
+class _Expired:
+    """A session closed by the idle timeout, kept so stop_monitoring can still report it."""
+
+    expired_at: float
+    idle_minutes: int
+    session: Optional[ScoreSession]  # set until reap() has finished stopping it
+    result: Optional[dict] = None  # the stop() result once it has
+
+
+class SessionRegistry:
+    """Holds the open sessions, when each was last used, and the ones the timeout closed.
+
+    Activity (creation, ``touch``) resets a session's idle time. ``reap(now)`` stops every
+    session idle longer than the timeout and keeps its summary for an hour.
+
+    One lock guards all maps. It is held only for dict operations, never while a stream
+    closes, and it is never taken in the audio callback (that only queues chunks).
+    """
+
+    def __init__(
+        self,
+        idle_minutes: int = DEFAULT_IDLE_MINUTES,
+        clock: Callable[[], float] = time.monotonic,
+        expired_retention_seconds: float = EXPIRED_RETENTION_SECONDS,
+    ):
+        self._idle_minutes = idle_minutes
+        self._clock = clock
+        self._retention = expired_retention_seconds
+        self._lock = threading.Lock()
+        self._sessions: dict[str, ScoreSession] = {}
+        self._last_active: dict[str, float] = {}
+        self._expired: dict[str, _Expired] = {}
+
+    @property
+    def idle_minutes(self) -> int:
+        """The timeout in minutes; 0 means sessions never time out."""
+        return self._idle_minutes
+
+    @property
+    def clock(self) -> Callable[[], float]:
+        return self._clock
+
+    def add(self, session: ScoreSession) -> None:
+        with self._lock:
+            self._sessions[session.session_id] = session
+            self._last_active[session.session_id] = self._clock()
+
+    def get(self, session_id: str) -> Optional[ScoreSession]:
+        """Look a session up without counting it as activity."""
+        with self._lock:
+            return self._sessions.get(session_id)
+
+    def touch(self, session_id: str) -> Optional[ScoreSession]:
+        """Record activity on a session and return it (None if it is not open)."""
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is not None:
+                self._last_active[session_id] = self._clock()
+            return session
+
+    def remove(self, session_id: str) -> Optional[ScoreSession]:
+        with self._lock:
+            self._last_active.pop(session_id, None)
+            return self._sessions.pop(session_id, None)
+
+    def list(self) -> list[dict]:
+        """One row per open session, in the order they were loaded."""
+        now = self._clock()
+        with self._lock:
+            return [
+                {
+                    "session_id": session_id,
+                    "part_id": session.part_id,
+                    "part_name": session.part_name,
+                    "state": "monitoring" if session.is_monitoring else "loaded",
+                    "idle_seconds": round(max(0.0, now - self._last_active[session_id]), 1),
+                }
+                for session_id, session in self._sessions.items()
+            ]
+
+    def expired_minutes(self, session_id: str) -> Optional[int]:
+        """The timeout that closed this session, or None if the timeout did not close it."""
+        with self._lock:
+            entry = self._expired.get(session_id)
+            return None if entry is None else entry.idle_minutes
+
+    def pop_expired(self, session_id: str) -> Optional[dict]:
+        """Hand out (once) the stop() result of a session the timeout closed."""
+        with self._lock:
+            entry = self._expired.pop(session_id, None)
+        if entry is None:
+            return None
+        if entry.result is not None:
+            return entry.result
+        # reap() is still closing it; ScoreSession.stop() is safe to call twice.
+        return entry.session.stop()
+
+    def reap(self, now: float) -> list[str]:
+        """Stop every session idle longer than the timeout; return their IDs.
+
+        Also forgets timed-out summaries older than the retention period.
+        """
+        with self._lock:
+            for session_id in [
+                sid for sid, e in self._expired.items() if now - e.expired_at > self._retention
+            ]:
+                del self._expired[session_id]
+
+            if self._idle_minutes <= 0:
+                return []
+            limit = self._idle_minutes * 60
+            idle = [
+                session
+                for session_id, session in self._sessions.items()
+                if now - self._last_active[session_id] > limit
+            ]
+            for session in idle:
+                del self._sessions[session.session_id]
+                del self._last_active[session.session_id]
+                self._expired[session.session_id] = _Expired(now, self._idle_minutes, session)
+
+        # Close the streams outside the lock, so tool calls are not held up meanwhile.
+        for session in idle:
+            try:
+                result = session.stop()
+            except Exception as e:
+                logger.warning("Error stopping idle session %s: %s", session.session_id, e)
+                result = {"session_id": session.session_id, "summary": None}
+            with self._lock:
+                entry = self._expired.get(session.session_id)
+                if entry is not None and entry.session is session:
+                    entry.result, entry.session = result, None
+            logger.info(
+                "Closed session %s after %d minutes idle.", session.session_id, self._idle_minutes
+            )
+        return [session.session_id for session in idle]
+
+
+class Reaper(threading.Thread):
+    """Daemon thread that calls ``registry.reap(clock())`` every ``interval`` seconds.
+
+    ``sleep`` defaults to waiting on the stop event, so ``stop()`` wakes it at once. Tests
+    inject ``sleep`` and ``stop_event`` and call ``run()`` directly.
+    """
+
+    def __init__(
+        self,
+        registry,
+        interval: float = REAP_INTERVAL_SECONDS,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Optional[Callable[[float], object]] = None,
+        stop_event: Optional[threading.Event] = None,
+    ):
+        super().__init__(name="pitch-session-reaper", daemon=True)
+        self._registry = registry
+        self._interval = interval
+        self._clock = clock
+        self._stop_event = threading.Event() if stop_event is None else stop_event
+        self._sleep = self._stop_event.wait if sleep is None else sleep
+
+    def run(self) -> None:
+        while True:
+            self._sleep(self._interval)
+            if self._stop_event.is_set():
+                return
+            try:
+                self._registry.reap(self._clock())
+            except Exception:
+                logger.exception("Session reaper failed; retrying next tick.")
+
+    def stop(self, timeout: float = 5.0) -> None:
+        self._stop_event.set()
+        if self.is_alive():
+            self.join(timeout)
+
+
+_registry = SessionRegistry(idle_minutes=idle_minutes_from_env())
+_reaper: Optional[Reaper] = None
+_reaper_lock = threading.Lock()
+
+
+def _ensure_reaper() -> None:
+    """Start the reaper thread on first use (not at import), unless the timeout is off."""
+    global _reaper
+    if _registry.idle_minutes <= 0:
+        return
+    with _reaper_lock:
+        if _reaper is None or not _reaper.is_alive():
+            _reaper = Reaper(_registry, clock=_registry.clock)
+            _reaper.start()
+
+
+def _stop_reaper() -> None:
+    """Stop the reaper thread if it is running (used by the test suite)."""
+    global _reaper
+    with _reaper_lock:
+        if _reaper is not None:
+            _reaper.stop()
+            _reaper = None
 
 
 def load_score(musicxml_str: str, part_id: str) -> dict:
@@ -437,17 +680,19 @@ def load_score(musicxml_str: str, part_id: str) -> dict:
     Returns:
         {
             "session_id": "...",
+            "part_id": "P1",            # stable MusicXML score-part id
             "part_name": "Soprano",
             "measure_count": 32,
             "duration_seconds": 142.0,
         }
     """
     session = ScoreSession(musicxml_str, part_id)
-    with _sessions_lock:
-        _sessions[session.session_id] = session
+    _registry.add(session)
+    _ensure_reaper()
 
     return {
         "session_id": session.session_id,
+        "part_id": session.part_id,
         "part_name": session.part_name,
         "measure_count": session.measure_count,
         "duration_seconds": round(session.duration_seconds, 2),
@@ -456,36 +701,60 @@ def load_score(musicxml_str: str, part_id: str) -> dict:
 
 def start_monitoring(session_id: str, tempo_bpm: Optional[int] = None) -> dict:
     """Start microphone monitoring for a session."""
-    session = _get_session(session_id)
+    session = _active_session(session_id)
     session.start(tempo_bpm=tempo_bpm)
+    _registry.touch(session_id)
     return {"status": "started", "session_id": session_id}
 
 
 def get_position(session_id: str) -> dict:
     """Get the current score position and pitch accuracy for a session."""
-    session = _get_session(session_id)
-    return session.get_position()
+    return _active_session(session_id).get_position()
 
 
 def stop_monitoring(session_id: str) -> dict:
-    """Stop monitoring and return the session summary."""
-    session = _get_session(session_id)
-    result = session.stop()
-    with _sessions_lock:
-        _sessions.pop(session_id, None)
-    return result
+    """Stop monitoring and return the session summary.
+
+    A session the idle timeout already closed returns the summary kept at that moment,
+    with ``timed_out: true``.
+    """
+    session = _registry.remove(session_id)
+    if session is not None:
+        return {**session.stop(), "timed_out": False}
+    result = _registry.pop_expired(session_id)
+    if result is not None:
+        return {**result, "timed_out": True}
+    raise _session_not_found(session_id)
 
 
-def _get_session(session_id: str) -> ScoreSession:
-    """Return session or raise ProcessingError."""
-    with _sessions_lock:
-        session = _sessions.get(session_id)
+def list_sessions() -> dict:
+    """List the open sessions and the idle timeout that applies to them."""
+    return {"idle_timeout_minutes": _registry.idle_minutes, "sessions": _registry.list()}
+
+
+def _active_session(session_id: str) -> ScoreSession:
+    """Return an open session, counting the call as activity, or raise SESSION_NOT_FOUND."""
+    session = _registry.touch(session_id)
     if session is None:
-        raise ProcessingError(
+        raise _session_not_found(session_id)
+    return session
+
+
+def _session_not_found(session_id: str) -> ProcessingError:
+    minutes = _registry.expired_minutes(session_id)
+    if minutes is None:
+        return ProcessingError(
             f"Session '{session_id}' not found. Call load_score first.",
             "SESSION_NOT_FOUND",
         )
-    return session
+    return ProcessingError(
+        f"Session '{session_id}' was closed after {minutes} minutes idle.",
+        "SESSION_NOT_FOUND",
+        hint=(
+            f"The session timed out after {minutes} minutes idle; call stop_monitoring for "
+            "the summary, then load_score to start again."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------

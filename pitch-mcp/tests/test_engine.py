@@ -19,8 +19,8 @@ from pitch_mcp.engine import (
     get_position,
     load_score,
     stop_monitoring,
-    _sessions,
 )
+from pitch_mcp import engine
 from pitch_mcp.utils import note_name_to_hz
 
 MINIMAL_MUSICXML = """\
@@ -241,7 +241,7 @@ class TestStopMonitoring:
         result = load_score(MINIMAL_MUSICXML, "Soprano")
         sid = result["session_id"]
         # Session should be in registry
-        assert sid in _sessions
+        assert engine._registry.get(sid) is not None
         # First stop succeeds and removes session
         stop_monitoring(sid)
         # Second stop raises SESSION_NOT_FOUND
@@ -255,12 +255,10 @@ class TestStopMonitoring:
         # Manually remove from registry to simulate stopping:
         # Actually just call stop - it should return a summary even without audio
         # We need to simulate: stop without a running stream
-        from pitch_mcp.engine import _sessions
-        session = _sessions.get(sid)
+        session = engine._registry.remove(sid)
         if session:
             # Call stop directly on session (no stream running)
             summary_result = session.stop()
-            del _sessions[sid]
             assert "session_id" in summary_result
             assert "summary" in summary_result
 

@@ -149,6 +149,10 @@ Once the server is connected, try prompts like these:
 - *"Give me a summary of how my practice session went — which notes did I struggle with?"*
 - *"Stop listening and show me a report of my accuracy for each note in the piece."*
 
+If you forget to stop, the microphone closes by itself after 10 minutes without activity. To change
+that, add `"env": { "PITCH_SESSION_IDLE_MINUTES": "30" }` to the server's entry in your client
+config (`"0"` turns it off).
+
 ---
 
 ## Something went wrong?

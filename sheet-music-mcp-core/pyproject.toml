@@ -1,0 +1,41 @@
+[project]
+name = "sheet-music-mcp-core"
+version = "0.1.0"
+description = "Shared helpers for the sheet-music MCP servers: errors, part selection, annotations, result content and handler wiring"
+readme = "README.md"
+authors = [
+    { name = "Raul Kivi", email = "raulkivi@users.noreply.github.com" },
+]
+license = { text = "MIT" }
+keywords = ["mcp", "musicxml", "choir", "music"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=2.2.0,<3.0.0",
+    "jsonschema>=4.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/raulkivi/sheet-music-mcp"
+Repository = "https://github.com/raulkivi/sheet-music-mcp"
+"Bug Tracker" = "https://github.com/raulkivi/sheet-music-mcp/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

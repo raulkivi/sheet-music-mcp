@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 from typing import Optional
 
+from sheet_music_mcp_core.parts import PartInfo, music21_part_infos, resolve_part
+
 
 # ---------------------------------------------------------------------------
 # Input validation
@@ -97,14 +99,20 @@ def classify_accuracy(cents: int, threshold: int = 25) -> str:
 # ---------------------------------------------------------------------------
 
 def extract_note_sequence(musicxml_str: str, part_id: str) -> list[dict]:
-    """Extract notes from a specific part as a time-stamped sequence.
+    """Extract notes from one part as a time-stamped sequence; see extract_part_notes."""
+    return extract_part_notes(musicxml_str, part_id)[1]
+
+
+def extract_part_notes(musicxml_str: str, part_id: str) -> tuple[PartInfo, list[dict]]:
+    """Resolve one part and extract its notes as a time-stamped sequence.
 
     Args:
         musicxml_str: MusicXML document as a string.
-        part_id: Part ID to extract (e.g. 'Soprano').
+        part_id: The part to extract: ID, name or voice (e.g. 'P1', 'Soprano', 'S'). Parts are
+            selected by position against stable MusicXML part IDs, never music21's part.id.
 
     Returns:
-        List of dicts:
+        (PartInfo of the resolved part, list of dicts):
             {
                 "note_name": "G4",
                 "freq_hz": 392.0,
@@ -116,7 +124,8 @@ def extract_note_sequence(musicxml_str: str, part_id: str) -> list[dict]:
             }
 
     Raises:
-        ValueError: if part_id is not found or score cannot be parsed.
+        ValueError: if the score cannot be parsed or has no parts.
+        PartSelectionError: if part_id matches no part, or several (INVALID_PARAMETER, choices).
     """
     try:
         import music21
@@ -135,10 +144,9 @@ def extract_note_sequence(musicxml_str: str, part_id: str) -> list[dict]:
     if not all_parts:
         raise ValueError("No parts found in score.")
 
-    part = next((p for p in all_parts if p.id == part_id), None)
-    if part is None:
-        valid = [p.id for p in all_parts]
-        raise ValueError(f"Part '{part_id}' not found. Valid IDs: {valid}")
+    infos = music21_part_infos(all_parts)
+    chosen = resolve_part(part_id, infos)
+    part, info = next((p, i) for p, i in zip(all_parts, infos) if i.id == chosen)
 
     # Build a MetronomeMap so we can convert offsets to seconds
     metronome_map = _build_metronome_map(score)
@@ -181,7 +189,7 @@ def extract_note_sequence(musicxml_str: str, part_id: str) -> list[dict]:
             }
         )
 
-    return result
+    return info, result
 
 
 # ---------------------------------------------------------------------------

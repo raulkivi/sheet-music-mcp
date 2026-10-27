@@ -7,7 +7,7 @@ pitch-mcp is the most complex server in the sheet-music-mcp pipeline. It has two
 - **Phase A — Offline analysis:** accepts a pre-recorded WAV file and a reference MusicXML score; returns a per-note pitch accuracy report
 - **Phase B — Real-time monitoring:** opens the microphone, tracks the singer's position in the score live, and reports pitch accuracy on demand via polling
 
-The server is stateful in Phase B: sessions are stored in a module-level dictionary for the lifetime of the process.
+The server is stateful in Phase B: sessions live in a module-level `SessionRegistry` until they are stopped, the idle timeout closes them (`PITCH_SESSION_IDLE_MINUTES`, default 10), or the process ends.
 
 ---
 
@@ -21,7 +21,7 @@ The server is stateful in Phase B: sessions are stored in a module-level diction
 ┌──────────────────────────▼────────────────────────────────┐
 │                       server.py                           │
 │                                                           │
-│  list_tools()         → 6 tool definitions               │
+│  list_tools()         → 8 tool definitions               │
 │  call_tool()          → dispatches to engine             │
 │  _active_backend()    → reads PITCH_BACKEND env var      │
 │  _check_microphone()  → queries sounddevice devices      │
@@ -38,7 +38,8 @@ The server is stateful in Phase B: sessions are stored in a module-level diction
      │    start() / get_position() / stop()           │
      │  load_score() / start_monitoring()             │
      │  get_position() / stop_monitoring()            │
-     │  _sessions: dict[str, ScoreSession]            │
+     │  list_sessions()                               │
+     │  _registry: SessionRegistry (+ Reaper thread)  │
      └─────┬─────────────────┬─────────────────────┘
            │                 │
   ┌────────▼──────┐  ┌───────▼──────────────────────────┐
@@ -71,7 +72,7 @@ The server is stateful in Phase B: sessions are stored in a module-level diction
 
 MCP protocol layer. Contains no analysis logic.
 
-- Registers six tools: `analyze_recording`, `load_score`, `start_monitoring`, `get_current_position`, `stop_monitoring`, `list_capabilities`
+- Registers eight tools: `analyze_recording`, `load_score`, `start_monitoring`, `get_current_position`, `stop_monitoring`, `list_sessions`, `list_capabilities`, `health_check`
 - Reads `PITCH_BACKEND` environment variable; defaults to `"librosa"`
 - Checks microphone availability via `sounddevice.query_devices()`
 - Converts engine results and `ProcessingError` exceptions to `TextContent` JSON
@@ -98,10 +99,14 @@ Session management and offline analysis orchestration.
 | `ScoreSession._worker_loop(sr, hop)` | Background thread: buffer audio → YIN pitch → `_process_pitch_frame` |
 | `ScoreSession._process_pitch_frame(freq, confidence, elapsed_sec)` | Per-frame update: tempo-scale elapsed time, pick the current note via `_find_best_note_index`, update `_current_position` and append to `_history` |
 | `ScoreSession._find_best_note_index(score_time, freq_hz)` | Audio-driven note selection: best pitch match among plausible upcoming notes, with a timeline fallback |
-| `load_score(musicxml, part_id)` | Create ScoreSession; store in `_sessions`; return session_id |
-| `start_monitoring(session_id, tempo_bpm)` | Call session.start() |
-| `get_position(session_id)` | Call session.get_position() |
-| `stop_monitoring(session_id)` | Call session.stop(); remove from `_sessions` |
+| `SessionRegistry` | Open sessions, their last-activity times and the timed-out summaries; `add`, `get`, `touch`, `remove`, `list`, `reap(now)`, `expired_minutes`, `pop_expired`. Injected `clock` (default `time.monotonic`) |
+| `Reaper` | Daemon thread: `registry.reap(clock())` every 30 s; injected `sleep` and `stop_event` |
+| `idle_minutes_from_env()` | Parse `PITCH_SESSION_IDLE_MINUTES` (default 10, `0` = off, invalid → warning + 10) |
+| `load_score(musicxml, part_id)` | Create ScoreSession; `_registry.add`; start the reaper on first use; return session_id |
+| `start_monitoring(session_id, tempo_bpm)` | `_registry.touch`; session.start(); touch again |
+| `get_position(session_id)` | `_registry.touch`; session.get_position() |
+| `stop_monitoring(session_id)` | `_registry.remove` + session.stop() (`timed_out: false`), else the timed-out summary (`timed_out: true`), else `SESSION_NOT_FOUND` |
+| `list_sessions()` | `{idle_timeout_minutes, sessions: _registry.list()}` |
 
 ### `pitch_detector.py`
 
@@ -131,7 +136,8 @@ Score parsing, time conversion, and validation.
 
 | Function | Description |
 |----------|-------------|
-| `extract_note_sequence(musicxml, part_id)` | Parse score; build time-stamped note list |
+| `extract_part_notes(musicxml, part)` | Parse score; resolve the part (ID, name or voice) by position against stable MusicXML IDs; return `(PartInfo, notes)` |
+| `extract_note_sequence(musicxml, part)` | Notes only (`extract_part_notes(...)[1]`) |
 | `_build_metronome_map(score)` | List of `(offset_ql, sec_per_ql)` from MetronomeMarks |
 | `_offset_to_seconds(offset_ql, map)` | Convert score offset (quarter notes) to wall-clock seconds |
 | `_offset_to_measure_beat(element, part)` | Extract `(measure_number, beat)` from element context |
@@ -151,9 +157,10 @@ analyze_recording(audio_path, musicxml_str, part_id)
   │
   ├─ validate audio file exists + is .wav
   │
-  ├─ utils.extract_note_sequence(musicxml_str, part_id)
+  ├─ utils.extract_part_notes(musicxml_str, part_id)
   │     ├─ music21.converter.parseData(musicxml)
-  │     ├─ find part where part.id == part_id
+  │     ├─ resolve_part(part_id, music21_part_infos(score.parts))  never music21's part.id
+  │     │     └─ PartSelectionError (INVALID_PARAMETER + choices) if unknown or ambiguous
   │     ├─ _build_metronome_map(score)
   │     │     └─ extract all MetronomeMarks, sort by offset
   │     └─ for each Note in part (skip Rests, take highest pitch of Chord):
@@ -216,12 +223,13 @@ analyze_recording(audio_path, musicxml_str, part_id)
 load_score(musicxml, part_id)
   → create ScoreSession(musicxml, part_id)
        ├─ session_id = str(uuid4())
-       └─ note_sequence = extract_note_sequence(musicxml, part_id)
-  → _sessions[session_id] = session
-  → return {session_id, part_name, measure_count, duration_seconds}
+       └─ info, note_sequence = extract_part_notes(musicxml, part_id)
+  → _registry.add(session)            ← creation counts as activity
+  → _ensure_reaper()                  ← first call starts the Reaper thread (not if timeout = 0)
+  → return {session_id, part_id, part_name, measure_count, duration_seconds}
 
 start_monitoring(session_id, tempo_bpm)
-  → session = _sessions[session_id]
+  → session = _registry.touch(session_id)   ← activity
   → session.start(tempo_bpm)
        ├─ open sounddevice.InputStream(
        │       samplerate=22050,
@@ -234,19 +242,52 @@ start_monitoring(session_id, tempo_bpm)
   → return {status: "started"}
 
 get_current_position(session_id)
+  → session = _registry.touch(session_id)   ← activity
   → session._lock.acquire()
   → return copy of session._current_position
   → session._lock.release()
 
 stop_monitoring(session_id)
+  → session = _registry.remove(session_id)
   → session.stop()
-       ├─ stream.stop(); stream.close()
        ├─ _stop_event.set()
+       ├─ take _stream and _worker_thread under session._lock (safe if the reaper races us)
+       ├─ stream.stop(); stream.close()
        ├─ worker_thread.join()
        └─ build summary from accumulated results
-  → del _sessions[session_id]
-  → return {session_id, summary}
+  → return {session_id, summary, timed_out: false}
+  (not open but timed out < 1 h ago → return the stored summary with timed_out: true, once)
 ```
+
+### Idle Timeout (Registry and Reaper)
+
+```
+Reaper thread (daemon, started by the first load_score)
+  loop:
+    sleep(30 s)                      ← default: stop_event.wait, so stop() wakes it at once
+    if stop_event set: exit
+    registry.reap(clock())
+
+SessionRegistry.reap(now)
+  with registry lock:
+    drop _expired entries older than 1 h
+    if idle_minutes == 0: return []
+    idle = sessions with now − last_active > idle_minutes × 60
+    move each from _sessions to _expired[sid] = (now, idle_minutes, session)
+  without the lock (streams close slowly; tool calls are not held up):
+    result = session.stop()          ← closes the microphone stream, joins the worker
+    _expired[sid].result = result    ← the session object itself is dropped
+```
+
+- **Activity** is creation, `start_monitoring` and `get_current_position` (`touch`). Loaded but
+  never started sessions expire too.
+- **After a reap**, `get_current_position` and `start_monitoring` raise `SESSION_NOT_FOUND` with a
+  `hint` ("timed out after N minutes idle; call stop_monitoring for the summary …").
+  `stop_monitoring` pops the stored summary and adds `timed_out: true`. If it arrives while the
+  reap is still closing the stream, it calls `session.stop()` itself; `stop()` is safe to call twice.
+- **`PITCH_SESSION_IDLE_MINUTES`** is read once at import. `0` disables reaping and the thread.
+- **Testing:** the clock, the sleep and the stop event are injected, so unit tests call
+  `reap(now)` and `Reaper.run()` directly with a fake clock and never wait on real time.
 
 ### Worker Thread (YIN Autocorrelation)
 
@@ -396,8 +437,12 @@ def _offset_to_seconds(offset_ql, map):
 ## Session State and Thread Safety
 
 ```
-_sessions: dict[str, ScoreSession]     ← module-level
-_sessions_lock: threading.Lock          ← protects dict access
+_registry: SessionRegistry             ← module-level
+  _sessions: dict[str, ScoreSession]
+  _last_active: dict[str, float]       (clock() of the last activity)
+  _expired: dict[str, _Expired]        (timed-out summaries, kept 1 h)
+  _lock: threading.Lock                (guards the three maps; held only for dict operations)
+_reaper: Reaper | None                 ← daemon thread, started lazily
 
 ScoreSession:
   session_id: str                  (UUID4)
@@ -416,6 +461,9 @@ ScoreSession:
 
 `_current_position` is written only by the worker thread and read by `get_position()` (called from the MCP handler). Access is guarded by `_lock` to prevent torn reads.
 
+Neither the registry lock nor `session._lock` is ever taken in the audio callback, which only
+queues chunks. The reaper takes the registry lock briefly and stops sessions outside it.
+
 ---
 
 ## Error Handling
@@ -431,6 +479,7 @@ ScoreSession:
 | MusicXML parse failure | `INVALID_INPUT` |
 | Part name not found | `INVALID_PARAMETER` |
 | Unknown session ID | `SESSION_NOT_FOUND` |
+| Session closed by the idle timeout (position / start) | `SESSION_NOT_FOUND` with a `hint` naming the timeout and `stop_monitoring` |
 | Microphone unavailable / access denied | `PROCESSING_FAILED` |
 | No pitch detected in recording | `PROCESSING_FAILED` |
 
@@ -447,6 +496,7 @@ ScoreSession:
 | `numpy` ≥1.24 | Audio buffers, DSP arithmetic |
 | `scipy` ≥1.10 | WAV file reading (crepe backend) |
 | `mcp` | MCP protocol SDK |
+| `sheet-music-mcp-core` | Shared error envelope, `ProcessingError` and handler wiring (input validation, error results); see [docs/conventions.md](../../docs/conventions.md#shared-core-library) |
 
 `crepe` (optional): CNN pitch detection. Manual install only. Requires TensorFlow.
 

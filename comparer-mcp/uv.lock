@@ -368,9 +368,9 @@ name = "comparer-mcp"
 version = "0.2.1"
 source = { editable = "." }
 dependencies = [
-    { name = "jsonschema" },
     { name = "mcp" },
     { name = "music21" },
+    { name = "sheet-music-mcp-core" },
 ]
 
 [package.optional-dependencies]
@@ -381,11 +381,11 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "jsonschema", specifier = ">=4.20.0" },
     { name = "mcp", specifier = ">=2.2.0,<3.0.0" },
     { name = "music21", specifier = ">=9.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
+    { name = "sheet-music-mcp-core", editable = "../sheet-music-mcp-core" },
 ]
 provides-extras = ["dev"]
 
@@ -1598,6 +1598,24 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/f6/40/02355f0e134f783a8f9814c4680a1bd311d37671577a5964ea838573ff37/rpds_py-2026.6.3-pp311-pypy311_pp73-musllinux_1_2_i686.whl", hash = "sha256:ca6546b66be9dc4738b1b043d5ebd5488c66c578c5ff0fd0e8065313fe3afb76", size = 623138, upload-time = "2026-06-30T07:17:49.355Z" },
     { url = "https://files.pythonhosted.org/packages/10/85/48f0abdcef5cce4e034c7a5b0ceeceba0b01bf0d942824f4bb720afe2dec/rpds_py-2026.6.3-pp311-pypy311_pp73-musllinux_1_2_x86_64.whl", hash = "sha256:8e65860d238379ed982fd9ba690579b5e95af2f4840f99c772816dbe573cb826", size = 586486, upload-time = "2026-06-30T07:17:51.141Z" },
 ]
+
+[[package]]
+name = "sheet-music-mcp-core"
+version = "0.1.0"
+source = { editable = "../sheet-music-mcp-core" }
+dependencies = [
+    { name = "jsonschema" },
+    { name = "mcp" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jsonschema", specifier = ">=4.20.0" },
+    { name = "mcp", specifier = ">=2.2.0,<3.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "six"

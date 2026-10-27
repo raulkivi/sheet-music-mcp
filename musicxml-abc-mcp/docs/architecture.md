@@ -66,7 +66,7 @@ All conversion and serialization logic. No MCP imports.
 
 | Function | Description |
 |----------|-------------|
-| `musicxml_to_abc(musicxml_str, part_id)` | Parse MusicXML; serialize each part to ABC tune |
+| `musicxml_to_abc(musicxml_str, part_id)` | Parse MusicXML; resolve the part (ID, name or voice); serialize each part to ABC tune |
 | `abc_to_musicxml(abc_str)` | Parse ABC with music21; export to MusicXML |
 | `validate_abc(abc_str)` | Check ABC syntax; return errors and warnings |
 
@@ -99,7 +99,7 @@ Minimal input validation.
 ### MusicXML → ABC
 
 ```
-call_tool("musicxml_to_abc", {musicxml, part_name: "Soprano"})
+call_tool("musicxml_to_abc", {musicxml, part: "Soprano"})   (part_id: deprecated alias)
   │
   ├─ utils: validate_musicxml
   │
@@ -107,16 +107,17 @@ call_tool("musicxml_to_abc", {musicxml, part_name: "Soprano"})
         │
         ├─ score = music21.converter.parseData(musicxml, format="musicxml")
         │
+        ├─ infos = music21_part_infos(score.parts)   stable IDs "P1"…, never music21's part.id
         ├─ if part_id given:
-        │     find part where part.id == "Soprano"
-        │     error if not found (list valid part IDs)
-        │     parts = [soprano_part]
+        │     resolve_part("Soprano", infos) → "P1"   (ID, name or voice)
+        │     PartSelectionError with choices if unknown or ambiguous
+        │     parts = [soprano_part]                  selected by position
         │
-        ├─ for i, part in enumerate(parts):
-        │     (tune_str, warnings) = _part_to_abc_tune(part, tune_num=i+1, score)
+        ├─ for i, (part, info) in enumerate(parts):
+        │     (tune_str, warnings) = _part_to_abc_tune(part, i+1, score, info.name or info.id)
         │
         ├─ join tune strings with "\n\n"
-        └─ return {abc: str, parts_included: [...], warnings: [...]}
+        └─ return {abc: str, parts_included: ["P1", ...], warnings: [...]}
 ```
 
 ### ABC → MusicXML
@@ -269,6 +270,7 @@ C2 D2 E2 F2 | G2 A2 B2 c2 | ...
 | `music21` ≥9.0 | MusicXML parsing, ABC parsing, MusicXML export |
 | `fractions.Fraction` | Duration arithmetic (stdlib) |
 | `mcp` | MCP protocol SDK |
+| `sheet-music-mcp-core` | Shared error envelope, `ProcessingError` and handler wiring (input validation, error results); see [docs/conventions.md](../../docs/conventions.md#shared-core-library) |
 
 No system libraries required. Pure Python.
 
