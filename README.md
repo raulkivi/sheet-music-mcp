@@ -56,7 +56,8 @@ Each server's `SETUP.md` walks through installation for non-developers, and `exa
 - PyPI releases use [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) from GitHub Actions and carry PEP 740 attestations; no API tokens are stored.
 - Workflow actions are pinned to commit SHAs; Dependabot keeps them and the Python dependencies current.
 - Pull requests run a Claude security review and [unicode-smuggling-guard](https://github.com/raulkivi/unicode-smuggling-guard), which blocks hidden Unicode in code, docs and agent files.
-- Tools that write files (`output_path`) accept only paths inside `SHEET_MUSIC_OUTPUT_ROOT` (default: the server working directory), with the expected file extension, and never overwrite an existing file. The omr-mcp Audiveris download is verified against a pinned SHA-256.
+- Tools that write files (`output_path`) accept only paths inside `SHEET_MUSIC_OUTPUT_ROOT` (default: the server working directory), with the expected file extension, and never overwrite an existing file.
+- Tools that read scores by path (`musicxml_path`, `reference_path`, `target_path`) read only `.musicxml`, `.xml` or `.mxl` files inside the output root, the client's MCP roots or the folders in `SHEET_MUSIC_INPUT_ROOTS`, up to `SHEET_MUSIC_MAX_SCORE_BYTES` (16 MiB). Error messages never include file contents. See [docs/conventions.md](docs/conventions.md#score-references). The omr-mcp Audiveris download is verified against a pinned SHA-256.
 - Secret scanning and push protection are on.
 - Report vulnerabilities privately: see [SECURITY.md](SECURITY.md).
 
