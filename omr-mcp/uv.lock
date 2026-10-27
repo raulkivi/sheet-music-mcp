@@ -1971,7 +1971,7 @@ wheels = [
 
 [[package]]
 name = "sheet-music-mcp-core"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "../sheet-music-mcp-core" }
 dependencies = [
     { name = "defusedxml" },
