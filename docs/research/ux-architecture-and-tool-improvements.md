@@ -98,8 +98,8 @@ path sibling, with exactly one of the two required:
 ```
 
 - `musicxml_path` accepts `.musicxml`, `.xml` and compressed `.mxl` everywhere. Today only
-  comparer-mcp reads `.mxl`. `.mxl` is about 10× smaller and is what Audiveris and MuseScore
-  export.
+  comparer-mcp reads `.mxl`. `.mxl` is much smaller (BWV 269: 87 KB as MusicXML, 4.9 KB as
+  `.mxl`, about 18×) and is what Audiveris and MuseScore export.
 - Producers return a path and a small summary by default when the score is large:
   - `recognize_sheet` gains `return: "auto" | "path" | "inline"`. `auto` returns inline below
     about 8 KB and a path above it, so small scores keep today's behaviour.
