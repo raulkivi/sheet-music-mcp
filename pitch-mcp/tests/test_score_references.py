@@ -404,7 +404,7 @@ class TestDescribeScore:
 
         assert "describe_score" in payload["tools"]
         assert "mxl" in payload["input_formats"]
-        assert payload["input_parameters"] == ["musicxml", "musicxml_path"]
+        assert payload["input_parameters"] == ["musicxml", "musicxml_path", "measures"]
 
 
 # --- Server wiring ---------------------------------------------------------------------------

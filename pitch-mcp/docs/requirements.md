@@ -94,6 +94,35 @@ The server MUST expose the shared `describe_score` tool (title, composer, key, t
 parts with IDs, names, clefs and ranges, measures, lyrics, duration) so a client can learn the
 part IDs without loading the score into a session.
 
+### FR-9 — Measure ranges (UX Wave 3, B2)
+
+`analyze_recording`, `load_score` and `start_practice` MUST accept an optional
+`measures: [start, end]` of printed, inclusive bar numbers
+([conventions: Measure Ranges](../../docs/conventions.md#measure-ranges)). The engine cuts the score
+with `sheet_music_mcp_core.measures.select_measures()` before extracting the part's notes, so a
+session's timeline starts at `start` (at the tempo in force there) and every reported `measure`
+keeps its printed number. `measure_count` counts bars from `start` (bar 1 without `measures`) to
+the last note. A range outside the score, reversed or malformed is `INVALID_PARAMETER` with a
+`hint` naming the score's first and last bars. Without `measures` the whole score is used, as
+before.
+
+### FR-10 — One-call practice start (UX Wave 3, C19)
+
+`start_practice` MUST do `load_score` then `start_monitoring` in one call and return both results'
+fields (`session_id` once). If the microphone fails to open, the session it just loaded MUST be
+removed before the error is returned, so `list_sessions` shows no orphan.
+
+### FR-11 — Highlights (UX Wave 3, C22)
+
+`analyze_recording` and the `stop_monitoring` summary MUST carry `highlights`: up to 3 runs of at
+least 2 consecutive notes that are all flat (< −25 cents) or all sharp (> +25 cents), ranked by
+notes × |average cents|, each with a plain-words `text` such as
+`"flat on E5 in m.12–14 (-35 cents avg)"` (one pitch) or
+`"flat in m.12–14 (-35 cents avg over 4 notes)"`; sharp averages carry a `+`. Consecutive
+entries for the same note (measure, beat, expected pitch) count as one note with their median
+cents, so the per-frame live history and the per-note offline results give the same highlights.
+A `no_signal` or on-pitch note ends a run. A summary with no data has `highlights: []`.
+
 ---
 
 ## Non-Functional Requirements
@@ -137,7 +166,7 @@ Every tool sets a human-readable `title` and an annotation preset from `sheet-mu
 The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The server sends
 `instructions` at initialize ([conventions: Server Instructions](../../docs/conventions.md#server-instructions)).
 
-`load_score`, `start_monitoring` and `stop_monitoring` use the `SESSION_STATE` preset, never
+`load_score`, `start_practice`, `start_monitoring` and `stop_monitoring` use the `SESSION_STATE` preset, never
 `READ_ONLY`, so hosts that auto-approve read-only tools still ask before the microphone opens.
 `list_sessions` and `describe_score` only read and are `READ_ONLY`. The instructions mention that idle
 sessions close after `PITCH_SESSION_IDLE_MINUTES` (default 10).
@@ -152,6 +181,7 @@ Input:
                                    exactly one of musicxml / musicxml_path (schema oneOf)
   part        string  required  part to compare against: ID, name or voice (e.g. "P1", "Soprano", "S")
   part_id     string            deprecated alias of `part` (removed next minor); one of the two is required
+  measures    [int, int]        optional printed bar range [start, end]; the recording covers those bars (FR-9)
 
 Output:
   part_id             string   MusicXML score-part id of the analysed part (e.g. "P1")
@@ -170,6 +200,12 @@ Output:
     sharp      integer
     flat       integer
     no_signal  integer
+  highlights          list[object]   up to 3 worst flat/sharp runs (FR-11)
+    direction  string        "flat" | "sharp"
+    measures   [int, int]    first and last measure of the run
+    notes      integer
+    avg_cents  integer       signed mean of the notes' cents
+    text       string        e.g. "flat on E5 in m.12–14 (-35 cents avg)"
 ```
 
 ### IR-3 — Tool: `load_score`
@@ -181,13 +217,30 @@ Input:
                                    exactly one of musicxml / musicxml_path (schema oneOf)
   part           string  required  part to monitor: ID, name or voice (e.g. "P1", "Soprano", "S")
   part_id        string            deprecated alias of `part` (removed next minor); one of the two is required
+  measures       [int, int]        optional printed bar range [start, end] to practise (FR-9)
 
 Output:
   session_id       string
   part_id          string   MusicXML score-part id (e.g. "P1")
   part_name        string   the part's name, or its ID when unnamed
-  measure_count    integer
+  measure_count    integer  bars from the first practised bar to the last note
   duration_seconds float
+```
+
+### IR-3a — Tool: `start_practice`
+
+`load_score` + `start_monitoring` in one call (FR-10), `SESSION_STATE`, title "Start practice".
+
+```
+Input:
+  musicxml       string            MusicXML text of the score to practise
+  musicxml_path  string            path to the score; exactly one of musicxml / musicxml_path
+  part           string  required  part to sing: ID, name or voice (no deprecated `part_id`)
+  tempo_bpm      integer optional  override score tempo; default: score tempo
+  measures       [int, int]        optional printed bar range [start, end] (FR-9)
+
+Output: load_score's fields plus start_monitoring's
+  session_id, part_id, part_name, measure_count, duration_seconds, status ("started")
 ```
 
 ### IR-4 — Tool: `start_monitoring`
@@ -218,6 +271,9 @@ Output:
   status          string   "on_pitch" | "sharp" | "flat" | "no_signal"
 ```
 
+Before the first detected pitch, `measure`, `beat` and `expected_note` are those of the
+session's first note (with `measures`, a note in the first selected bar or later).
+
 Status thresholds:
 - `on_pitch`: deviation within ±25 cents
 - `sharp`: deviation > +25 cents
@@ -236,6 +292,7 @@ Output:
     measures_covered     integer
     avg_accuracy_cents   float
     accuracy_histogram   object (same structure as analyze_recording)
+    highlights           list[object] (same structure as analyze_recording; [] with no data)
   timed_out   boolean  true when the idle timeout had already closed the session (FR-7)
 ```
 
@@ -312,7 +369,7 @@ folders, `os.pathsep`-separated) and `SHEET_MUSIC_MAX_SCORE_BYTES` (default 16 M
 | `FILE_TOO_LARGE` | `musicxml_path` (or an `.mxl` member) is larger than `SHEET_MUSIC_MAX_SCORE_BYTES` |
 | `UNSUPPORTED_FORMAT` | Audio file is not 16-bit PCM WAV |
 | `INVALID_INPUT` | MusicXML cannot be parsed (inline or from `musicxml_path`) |
-| `INVALID_PARAMETER` | Part name not found in score; both or neither of `musicxml` / `musicxml_path`; `musicxml_path` outside the read roots or with a wrong suffix |
+| `INVALID_PARAMETER` | Part name not found in score; both or neither of `musicxml` / `musicxml_path`; `musicxml_path` outside the read roots or with a wrong suffix; `measures` reversed, malformed or outside the score (with a `hint` naming its first and last bars) |
 | `SESSION_NOT_FOUND` | session_id is unknown; call `load_score` first. If the idle timeout closed it, the error adds a `hint`: "The session timed out after N minutes idle; call stop_monitoring for the summary, then load_score to start again." |
 | `PROCESSING_FAILED` | Microphone unavailable; no pitch detected; audio hardware error |
 
@@ -354,6 +411,11 @@ Unit tests MUST cover:
 - Score references (`tests/test_score_references.py`): a path gives the same result as inline
   text (same session for `load_score`), `.mxl` paths, both or neither parameter, paths outside
   the read roots (absolute, `/etc/passwd`, `..`, symlink) without echoing the file, `describe_score`
+- Practice (`tests/test_practice.py`): `measures` on `load_score` / `analyze_recording` (measure
+  count, printed numbers, timeline and carried tempo, range errors with hint), `start_practice`
+  fields, tempo and orphan-free mic failures with a fake `sounddevice` module, `<sound tempo>`-only
+  scores
+- Highlights (`tests/test_highlights.py`): runs, splitting, ranking, text, frame-level history
 
 Unit tests MUST mock sounddevice (no real audio hardware in CI). `dtaidistance` is pure-Python-
 compatible and deterministic, so alignment unit tests run it directly rather than mocking it —

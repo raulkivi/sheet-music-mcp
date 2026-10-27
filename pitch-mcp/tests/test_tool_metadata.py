@@ -13,6 +13,7 @@ EXPECTED = {
     "analyze_recording": ("Analyze a recording", READ_ONLY),
     "describe_score": ("Describe score", READ_ONLY),
     "load_score": ("Load score for practice", SESSION_STATE),
+    "start_practice": ("Start practice", SESSION_STATE),
     "start_monitoring": ("Start listening (microphone)", SESSION_STATE),
     "get_current_position": ("Current singing position", READ_ONLY),
     "stop_monitoring": ("Stop listening", SESSION_STATE),
@@ -24,7 +25,7 @@ EXPECTED = {
 # Phrases the instructions must contain: the routing knowledge the model needs up front.
 INSTRUCTION_PHRASES = (
     'load_score', 'stop_monitoring', 'microphone', 'PITCH_SESSION_IDLE_MINUTES', 'musicxml_path',
-    'describe_score',
+    'describe_score', 'start_practice', 'measures',
 )
 
 
