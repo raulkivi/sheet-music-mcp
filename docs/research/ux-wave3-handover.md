@@ -123,7 +123,7 @@ yields one highlight naming the measures and average cents.
   after a squash merge, use `git checkout -B <branch> origin/main && git merge -s ours origin/<branch>`
   and push normally.
 - **Hidden-Unicode guard** (`scan` job) fails on literal invisible characters such as U+FEFF in
-  source. Write them as escapes (`"﻿"`).
+  source. Write them as escapes (`"\ufeff"`).
 - **Untrusted numbers:** anything parsed from a score must go through bounded parsing (see
   `scores._fraction` / `_signed` / `_int`); `Fraction("1e999999999")` is a DoS.
 - **Server docs:** no server has `docs/HANDOVER.md`, `docs/PLAN.md` or a changelog in git; Wave notes
