@@ -131,7 +131,8 @@ Score parsing, time conversion, and validation.
 
 | Function | Description |
 |----------|-------------|
-| `extract_note_sequence(musicxml, part_id)` | Parse score; build time-stamped note list |
+| `extract_part_notes(musicxml, part)` | Parse score; resolve the part (ID, name or voice) by position against stable MusicXML IDs; return `(PartInfo, notes)` |
+| `extract_note_sequence(musicxml, part)` | Notes only (`extract_part_notes(...)[1]`) |
 | `_build_metronome_map(score)` | List of `(offset_ql, sec_per_ql)` from MetronomeMarks |
 | `_offset_to_seconds(offset_ql, map)` | Convert score offset (quarter notes) to wall-clock seconds |
 | `_offset_to_measure_beat(element, part)` | Extract `(measure_number, beat)` from element context |
@@ -151,9 +152,10 @@ analyze_recording(audio_path, musicxml_str, part_id)
   │
   ├─ validate audio file exists + is .wav
   │
-  ├─ utils.extract_note_sequence(musicxml_str, part_id)
+  ├─ utils.extract_part_notes(musicxml_str, part_id)
   │     ├─ music21.converter.parseData(musicxml)
-  │     ├─ find part where part.id == part_id
+  │     ├─ resolve_part(part_id, music21_part_infos(score.parts))  never music21's part.id
+  │     │     └─ PartSelectionError (INVALID_PARAMETER + choices) if unknown or ambiguous
   │     ├─ _build_metronome_map(score)
   │     │     └─ extract all MetronomeMarks, sort by offset
   │     └─ for each Note in part (skip Rests, take highest pitch of Chord):
@@ -216,9 +218,9 @@ analyze_recording(audio_path, musicxml_str, part_id)
 load_score(musicxml, part_id)
   → create ScoreSession(musicxml, part_id)
        ├─ session_id = str(uuid4())
-       └─ note_sequence = extract_note_sequence(musicxml, part_id)
+       └─ info, note_sequence = extract_part_notes(musicxml, part_id)
   → _sessions[session_id] = session
-  → return {session_id, part_name, measure_count, duration_seconds}
+  → return {session_id, part_id, part_name, measure_count, duration_seconds}
 
 start_monitoring(session_id, tempo_bpm)
   → session = _sessions[session_id]

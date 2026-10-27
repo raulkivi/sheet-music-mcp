@@ -75,13 +75,14 @@ class TestListTools:
         req = t.input_schema["required"]
         assert "audio_path" in req
         assert "musicxml" in req
-        assert "part_id" in req
+        # `part` (or its deprecated alias `part_id`) is required through anyOf
+        assert {"required": ["part"]} in t.input_schema["anyOf"]
 
     async def test_load_score_schema(self):
         tools = await list_tools()
         t = next(x for x in tools if x.name == "load_score")
         assert "musicxml" in t.input_schema["required"]
-        assert "part_id" in t.input_schema["required"]
+        assert {"required": ["part"]} in t.input_schema["anyOf"]
 
     async def test_start_monitoring_schema(self):
         tools = await list_tools()

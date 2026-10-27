@@ -99,14 +99,15 @@ SYNTH_SOUNDFONT_PATH=/usr/share/sounds/sf2/TimGM6mb.sf2 uv run synth-mcp
   "arguments": {
     "musicxml": "<score-partwise>...</score-partwise>",
     "output_path": "/tmp/soprano.wav",
-    "part_ids": ["Soprano"],
+    "parts": ["Soprano"],
     "tempo_factor": 0.8
   }
 }
 ```
 
-Note: `part_ids` are the part **names** returned by `get_parts` (e.g. `"Soprano"`, `"Alto"`),
-not XML `<part id>`-style values like `"P1"` — music21 uses the part name as its `id`.
+`parts` accepts part IDs from `get_parts` (`"P1"`), part names (`"Soprano"`, any case) or voices
+(`"S"`, `"Alto"`, `"Alt"`, `"A1"` for divisi); an unknown part returns the valid choices.
+`part_ids` still works as a deprecated alias for one minor release.
 
 `tempo_factor` range: 0.25–4.0. Values below 1.0 slow down; above 1.0 speed up. Does not affect pitch.
 

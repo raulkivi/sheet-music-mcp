@@ -19,11 +19,25 @@ ECHO = Tool(
         "required": ["word"],
     },
 )
+PART = Tool(
+    name="part",
+    description="Needs a part under either name",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "musicxml": {"type": "string"},
+            "part": {"type": "string"},
+            "part_id": {"type": "string"},
+        },
+        "required": ["musicxml"],
+        "anyOf": [{"required": ["part"]}, {"required": ["part_id"]}],
+    },
+)
 STRUCTURED = Tool(name="structured", description="Return a full result", input_schema={"type": "object"})
 
 
 async def _list_tools():
-    return [ECHO, STRUCTURED]
+    return [ECHO, PART, STRUCTURED]
 
 
 async def _call_tool(name, arguments):
@@ -54,7 +68,7 @@ def _with_client(server, call):
 def test_lists_tools():
     result = _with_client(_server(), lambda c: c.list_tools())
 
-    assert [t.name for t in result.tools] == ["echo", "structured"]
+    assert [t.name for t in result.tools] == ["echo", "part", "structured"]
 
 
 def test_calls_tool_and_wraps_content():
@@ -125,3 +139,14 @@ def test_logs_under_the_core_logger_by_default(caplog):
 
     [record] = [r for r in caplog.records if "failed" in r.getMessage()]
     assert record.name == "sheet_music_mcp_core.wiring"
+
+
+def test_missing_alternative_names_the_parameters_without_echoing_arguments():
+    score = "<score-partwise>" + "x" * 5000 + "</score-partwise>"
+
+    result = _with_client(_server(), lambda c: c.call_tool("part", {"musicxml": score}))
+
+    assert result.is_error
+    text = result.content[0].text
+    assert text == "Input validation error: one of these parameters is required: 'part', 'part_id'"
+    assert "score-partwise" not in text

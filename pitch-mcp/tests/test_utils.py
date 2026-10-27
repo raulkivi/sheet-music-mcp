@@ -222,8 +222,12 @@ class TestExtractNoteSequence:
             assert note["end_sec"] > note["start_sec"]
 
     def test_invalid_part_id_raises(self):
-        with pytest.raises(ValueError, match="not found"):
+        from sheet_music_mcp_core.parts import PartSelectionError
+
+        with pytest.raises(PartSelectionError, match="not found") as excinfo:
             extract_note_sequence(MINIMAL_MUSICXML, "Bass")
+        assert excinfo.value.error_code == "INVALID_PARAMETER"
+        assert excinfo.value.choices
 
 
 class TestExtractNominalTempoBpm:

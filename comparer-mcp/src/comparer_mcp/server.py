@@ -6,7 +6,8 @@ import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY
-from sheet_music_mcp_core.content import error_content
+from sheet_music_mcp_core.content import error_content, processing_error_content
+from sheet_music_mcp_core.parts import PartInfo, resolve_parts
 from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
@@ -23,13 +24,22 @@ _OPTIONS_SCHEMA = {
     "description": (
         "Comparison options (docs/architecture.md §8). expand_repeats defaults to "
         "false (opt-in — see docs/PLAN.md 'Changed decisions'); normalize_pitch, "
-        "ignore_articulations, part_filter, measure_range all default to off/unset."
+        "ignore_articulations, parts, measure_range all default to off/unset."
     ),
     "properties": {
         "expand_repeats": {"type": "boolean"},
         "normalize_pitch": {"type": "boolean"},
         "ignore_articulations": {"type": "boolean"},
-        "part_filter": {"type": "array", "items": {"type": "string"}},
+        "parts": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Compare only these parts: part IDs, names or voices (e.g. 'P1', 'Soprano', 'S').",
+        },
+        "part_filter": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "(Deprecated: use `parts`) Compare only these parts.",
+        },
         "measure_range": {"type": "array", "items": {"type": "integer"}},
     },
 }
@@ -142,7 +152,7 @@ async def list_tools():
                     },
                     "part": {
                         "type": "string",
-                        "description": "Restrict results to this part name (case-insensitive). Omit for all parts.",
+                        "description": "Restrict results to this part: a part ID, name or voice (e.g. 'P1', 'Alto', 'A'). Omit for all parts.",
                     },
                     "measure_range": {
                         "type": "array",
@@ -240,9 +250,14 @@ async def list_tools():
 
 
 def _filter_changes(result, part, measure_range) -> list[dict]:
+    wanted = None
+    if part:
+        # ID, name or voice, resolved against the compared parts by their stable reference IDs
+        compared = [PartInfo(pd.reference_part_id, pd.part_name) for pd in result.part_diffs]
+        wanted = set(resolve_parts([part], compared))
     changes = []
     for part_diff in result.part_diffs:
-        if part and part_diff.part_name.lower() != part.lower():
+        if wanted is not None and part_diff.reference_part_id not in wanted:
             continue
         for measure_diff in part_diff.measure_diffs:
             if measure_range and not (
@@ -275,7 +290,7 @@ async def call_tool(name: str, arguments: dict):
             result = compare(reference_xml, target_xml, options)
             return [TextContent(type="text", text=json.dumps(result.to_dict(), indent=2))]
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("compare_musicxml unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
@@ -294,7 +309,7 @@ async def call_tool(name: str, arguments: dict):
             result = compare_files(reference_path, target_path, options)
             return [TextContent(type="text", text=json.dumps(result.to_dict(), indent=2))]
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("compare_musicxml_files unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
@@ -318,7 +333,7 @@ async def call_tool(name: str, arguments: dict):
             }
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("quick_similarity unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
@@ -354,7 +369,7 @@ async def call_tool(name: str, arguments: dict):
             payload = {"changes": changes, "count": len(changes)}
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("list_changes unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
@@ -376,7 +391,7 @@ async def call_tool(name: str, arguments: dict):
             payload = {"report": generate_report(result), "similarity_score": result.similarity_score}
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("generate_comparison_report unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
@@ -397,7 +412,7 @@ async def call_tool(name: str, arguments: dict):
             payload = annotate(reference_xml, target_xml, options)
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("export_annotated_musicxml unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")

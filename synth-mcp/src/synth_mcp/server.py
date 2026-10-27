@@ -7,11 +7,12 @@ import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
-from sheet_music_mcp_core.content import error_content
+from sheet_music_mcp_core.content import error_content, processing_error_content
+from sheet_music_mcp_core.params import aliased
 from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
-from .engine import ProcessingError, extract_midi, parse_parts, synthesize_midi
+from .engine import ProcessingError, extract_midi, parse_parts, resolve_part_ids, synthesize_midi
 from .utils import generate_output_path, validate_musicxml, validate_tempo_factor
 
 logging.basicConfig(level=logging.INFO)
@@ -21,9 +22,9 @@ logger = logging.getLogger(__name__)
 # Sent to the client at initialize (docs/conventions.md, Server Instructions).
 INSTRUCTIONS = (
     "Renders chosen voice parts of a MusicXML score to a WAV practice track. "
-    "Call get_parts to see the parts, then synthesize with part_ids (default: all parts) and "
-    "tempo_factor (0.75 = 75% speed). Needs an SF2 soundfont in SYNTH_SOUNDFONT_PATH; run "
-    "health_check if synthesis fails."
+    "Call synthesize with parts as IDs, names or voices (e.g. 'P1', 'Alto', 'S'; default: all "
+    "parts) and tempo_factor (0.75 = 75% speed); get_parts lists the parts. Needs an SF2 "
+    "soundfont in SYNTH_SOUNDFONT_PATH; run health_check if synthesis fails."
 )
 
 
@@ -60,10 +61,18 @@ async def list_tools():
                         "type": "string",
                         "description": "MusicXML document as a string",
                     },
+                    "parts": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Parts to include, each a part ID, name or voice "
+                            "(e.g. 'P1', 'Soprano', 'S'). Default: all parts."
+                        ),
+                    },
                     "part_ids": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Part IDs to include (default: all parts)",
+                        "description": "(Deprecated: use `parts`) Parts to include.",
                     },
                     "tempo_factor": {
                         "type": "number",
@@ -121,14 +130,13 @@ async def call_tool(name: str, arguments: dict):
             parts = parse_parts(musicxml)
             return [TextContent(type="text", text=json.dumps({"parts": parts}, indent=2))]
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("get_parts unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "synthesize":
         musicxml = arguments.get("musicxml", "")
-        part_ids = arguments.get("part_ids")  # None → all parts
         tempo_factor = arguments.get("tempo_factor", 1.0)
         output_path = arguments.get("output_path")
 
@@ -140,8 +148,19 @@ async def call_tool(name: str, arguments: dict):
         if not ok:
             return error_content(err, "INVALID_PARAMETER")
 
-        if part_ids is not None and not isinstance(part_ids, list):
-            return error_content("part_ids must be a list of strings", "INVALID_PARAMETER")
+        try:
+            requested = aliased(arguments, "parts", "part_ids")  # None → all parts
+        except ProcessingError as e:
+            return processing_error_content(e)
+        if requested is not None and not isinstance(requested, list):
+            return error_content("parts must be a list of strings", "INVALID_PARAMETER")
+
+        part_ids = None
+        if requested is not None:
+            try:
+                part_ids = resolve_part_ids(musicxml, requested)
+            except ProcessingError as e:
+                return processing_error_content(e)
 
         try:
             resolved_output = generate_output_path(output_path)
@@ -151,7 +170,7 @@ async def call_tool(name: str, arguments: dict):
         try:
             midi_bytes = extract_midi(musicxml, part_ids, tempo_factor)
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("extract_midi unexpected error: %s", e)
             return error_content(f"MIDI extraction failed: {e}", "PROCESSING_FAILED")
@@ -159,7 +178,7 @@ async def call_tool(name: str, arguments: dict):
         try:
             duration = synthesize_midi(midi_bytes, resolved_output)
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("synthesize_midi unexpected error: %s", e)
             return error_content(f"Synthesis failed: {e}", "PROCESSING_FAILED")

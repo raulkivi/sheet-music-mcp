@@ -7,7 +7,8 @@ import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, SESSION_STATE
-from sheet_music_mcp_core.content import error_content
+from sheet_music_mcp_core.content import error_content, processing_error_content
+from sheet_music_mcp_core.params import aliased
 from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
@@ -28,7 +29,8 @@ logger = logging.getLogger(__name__)
 
 # Sent to the client at initialize (docs/conventions.md, Server Instructions).
 INSTRUCTIONS = (
-    "Follows a singer through a score from the microphone. Flow: load_score (score and part), "
+    "Follows a singer through a score from the microphone. Flow: load_score (score and part as "
+    "an ID, name or voice such as 'Alto'), "
     "start_monitoring, get_current_position repeatedly, then stop_monitoring for the summary. "
     "Always call stop_monitoring when done: it closes the microphone. analyze_recording scores a "
     "recorded 16-bit WAV instead. Real-time monitoring needs PortAudio; see health_check."
@@ -56,12 +58,17 @@ async def list_tools():
                         "type": "string",
                         "description": "MusicXML document as a string",
                     },
+                    "part": {
+                        "type": "string",
+                        "description": "Part to compare against: a part ID, name or voice (e.g. 'P1', 'Soprano', 'S')",
+                    },
                     "part_id": {
                         "type": "string",
-                        "description": "Part ID to compare against (e.g. 'Soprano')",
+                        "description": "(Deprecated: use `part`) Part to compare against.",
                     },
                 },
-                "required": ["audio_path", "musicxml", "part_id"],
+                "required": ["audio_path", "musicxml"],
+                "anyOf": [{"required": ["part"]}, {"required": ["part_id"]}],
             },
         ),
         Tool(
@@ -79,12 +86,17 @@ async def list_tools():
                         "type": "string",
                         "description": "MusicXML document as a string",
                     },
+                    "part": {
+                        "type": "string",
+                        "description": "Part to monitor: a part ID, name or voice (e.g. 'P1', 'Soprano', 'S')",
+                    },
                     "part_id": {
                         "type": "string",
-                        "description": "Part ID to monitor (e.g. 'Soprano')",
+                        "description": "(Deprecated: use `part`) Part to monitor.",
                     },
                 },
-                "required": ["musicxml", "part_id"],
+                "required": ["musicxml"],
+                "anyOf": [{"required": ["part"]}, {"required": ["part_id"]}],
             },
         ),
         Tool(
@@ -183,8 +195,6 @@ async def call_tool(name: str, arguments: dict):
     if name == "analyze_recording":
         audio_path = arguments.get("audio_path", "")
         musicxml = arguments.get("musicxml", "")
-        part_id = arguments.get("part_id", "")
-
         ok, err = validate_audio_path(audio_path)
         if not ok:
             code = "FILE_NOT_FOUND" if "not found" in err else "UNSUPPORTED_FORMAT"
@@ -194,34 +204,40 @@ async def call_tool(name: str, arguments: dict):
         if not ok:
             return error_content(err, "INVALID_INPUT")
 
+        try:
+            part_id = aliased(arguments, "part", "part_id")
+        except ProcessingError as e:
+            return processing_error_content(e)
         if not part_id:
-            return error_content("part_id is required.", "INVALID_INPUT")
+            return error_content("part is required.", "INVALID_INPUT")
 
         try:
             result = analyze_recording(audio_path, musicxml, part_id)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("analyze_recording unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "load_score":
         musicxml = arguments.get("musicxml", "")
-        part_id = arguments.get("part_id", "")
-
         ok, err = validate_musicxml(musicxml)
         if not ok:
             return error_content(err, "INVALID_INPUT")
 
+        try:
+            part_id = aliased(arguments, "part", "part_id")
+        except ProcessingError as e:
+            return processing_error_content(e)
         if not part_id:
-            return error_content("part_id is required.", "INVALID_INPUT")
+            return error_content("part is required.", "INVALID_INPUT")
 
         try:
             result = load_score(musicxml, part_id)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("load_score unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
@@ -238,7 +254,7 @@ async def call_tool(name: str, arguments: dict):
             result = start_monitoring(session_id, tempo_bpm)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("start_monitoring unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
@@ -254,7 +270,7 @@ async def call_tool(name: str, arguments: dict):
             result = get_position(session_id)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("get_current_position unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
@@ -270,7 +286,7 @@ async def call_tool(name: str, arguments: dict):
             result = stop_monitoring(session_id)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("stop_monitoring unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")

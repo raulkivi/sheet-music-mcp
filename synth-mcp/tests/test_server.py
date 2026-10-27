@@ -114,10 +114,9 @@ class TestGetParts:
         data = json.loads(result[0].text)
         assert "parts" in data
         assert len(data["parts"]) == 2
-        # music21 9.x uses the part name as the id
+        # IDs are the MusicXML score-part ids, not music21's part.id (the part name)
         ids = [p["id"] for p in data["parts"]]
-        assert "Soprano" in ids
-        assert "Alto" in ids
+        assert ids == ["P1", "P2"]
 
     async def test_part_dicts_have_required_keys(self):
         result = await call_tool("get_parts", {"musicxml": VALID_MUSICXML})

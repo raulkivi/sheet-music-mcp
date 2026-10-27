@@ -29,7 +29,7 @@ def analyze_recording(audio_path: str, musicxml_str: str, part_id: str) -> dict:
     Args:
         audio_path: Path to a 16-bit PCM WAV file.
         musicxml_str: MusicXML document as a string.
-        part_id: Part ID to compare against (e.g. 'Soprano').
+        part_id: Part to compare against: ID, name or voice (e.g. 'P1', 'Soprano', 'S').
 
     Returns:
         {
@@ -44,7 +44,7 @@ def analyze_recording(audio_path: str, musicxml_str: str, part_id: str) -> dict:
     """
     from .aligner import align, summarize
     from .pitch_detector import detect_pitches
-    from .utils import extract_note_sequence
+    from .utils import extract_part_notes
 
     if not Path(audio_path).exists():
         raise ProcessingError(
@@ -53,7 +53,9 @@ def analyze_recording(audio_path: str, musicxml_str: str, part_id: str) -> dict:
 
     # Extract reference note sequence
     try:
-        note_sequence = extract_note_sequence(musicxml_str, part_id)
+        info, note_sequence = extract_part_notes(musicxml_str, part_id)
+    except ProcessingError:
+        raise
     except ValueError as e:
         msg = str(e)
         if "not found" in msg.lower():
@@ -91,6 +93,8 @@ def analyze_recording(audio_path: str, musicxml_str: str, part_id: str) -> dict:
     summary = summarize(note_results)
 
     return {
+        "part_id": info.id,
+        "part_name": info.name or info.id,
         "measures_covered": summary["measures_covered"],
         "avg_accuracy_cents": summary["avg_accuracy_cents"],
         "note_accuracy": note_results,
@@ -106,13 +110,14 @@ class ScoreSession:
     """Holds state for one active monitoring session."""
 
     def __init__(self, musicxml_str: str, part_id: str):
-        from .utils import extract_nominal_tempo_bpm, extract_note_sequence
+        from .utils import extract_nominal_tempo_bpm, extract_part_notes
 
         self.session_id = str(uuid.uuid4())
-        self.part_id = part_id
 
         try:
-            self.note_sequence = extract_note_sequence(musicxml_str, part_id)
+            info, self.note_sequence = extract_part_notes(musicxml_str, part_id)
+        except ProcessingError:
+            raise
         except ValueError as e:
             msg = str(e)
             if "not found" in msg.lower():
@@ -125,6 +130,9 @@ class ScoreSession:
             raise ProcessingError(
                 f"Part '{part_id}' has no notes.", "INVALID_INPUT"
             )
+
+        self.part_id = info.id
+        self._part_name = info.name or info.id
 
         try:
             self._nominal_bpm = extract_nominal_tempo_bpm(musicxml_str)
@@ -145,7 +153,7 @@ class ScoreSession:
 
     @property
     def part_name(self) -> str:
-        return self.part_id
+        return self._part_name
 
     @property
     def measure_count(self) -> int:
@@ -431,6 +439,7 @@ def load_score(musicxml_str: str, part_id: str) -> dict:
     Returns:
         {
             "session_id": "...",
+            "part_id": "P1",            # stable MusicXML score-part id
             "part_name": "Soprano",
             "measure_count": 32,
             "duration_seconds": 142.0,
@@ -442,6 +451,7 @@ def load_score(musicxml_str: str, part_id: str) -> dict:
 
     return {
         "session_id": session.session_id,
+        "part_id": session.part_id,
         "part_name": session.part_name,
         "measure_count": session.measure_count,
         "duration_seconds": round(session.duration_seconds, 2),

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from mcp.types import ImageContent, ResourceLink, TextContent
 
-from .errors import error_payload
+from .errors import ProcessingError, error_payload
 
 IMAGE_MAX_BYTES = 1024 * 1024
 
@@ -23,6 +23,11 @@ def error_content(
     """The error envelope as the single text block a tool returns."""
     payload = error_payload(message, error_code, hint=hint, choices=choices)
     return [TextContent(type="text", text=json.dumps(payload))]
+
+
+def processing_error_content(error: ProcessingError) -> list[TextContent]:
+    """A raised ProcessingError as the error block, keeping its hint and choices."""
+    return error_content(str(error), error.error_code, hint=error.hint, choices=error.choices)
 
 
 def file_link(path: str, mime_type: str) -> ResourceLink:

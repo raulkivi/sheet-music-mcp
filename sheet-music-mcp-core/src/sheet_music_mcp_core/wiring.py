@@ -44,7 +44,7 @@ def make_handlers(
             try:
                 jsonschema.validate(instance=arguments, schema=tool.input_schema)
             except jsonschema.ValidationError as e:
-                return _error_result(f"Input validation error: {e.message}")
+                return _error_result(f"Input validation error: {_describe(e)}")
         try:
             if pass_context:
                 result = await call_tool(params.name, arguments, ctx)
@@ -58,6 +58,25 @@ def make_handlers(
         return CallToolResult(content=result)
 
     return on_list_tools, on_call_tool
+
+
+def _describe(error: jsonschema.ValidationError) -> str:
+    """The validation message, without echoing the arguments for "one of" requirements.
+
+    jsonschema's anyOf/oneOf message repeats the whole instance, which for these tools is a full
+    MusicXML score; name the alternative parameters instead.
+    """
+    if error.validator in ("anyOf", "oneOf"):
+        alternatives = [
+            name
+            for subschema in error.validator_value
+            for name in subschema.get("required", [])
+        ]
+        if alternatives:
+            names = ", ".join(f"'{name}'" for name in alternatives)
+            return f"one of these parameters is required: {names}"
+        return f"arguments do not match any allowed combination ({error.validator})"
+    return error.message
 
 
 def _error_result(message: str) -> CallToolResult:

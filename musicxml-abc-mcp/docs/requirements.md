@@ -15,8 +15,8 @@ This server is a bridge tool rather than an end-user feature. It is used by the 
 The server MUST convert a MusicXML document to ABC notation (standard v2.1).
 
 - All parts MUST be included by default
-- If a `part_name` filter is supplied, only that part MUST appear in the output
-- If the requested part name does not exist in the score, the server MUST return an error listing valid part names
+- If a `part` filter is supplied (part ID, name or voice), only that part MUST appear in the output
+- If the requested part matches no part, or several, the server MUST return `INVALID_PARAMETER` with the valid parts in `choices`
 - The output MUST be valid ABC that music21 can parse back to a score
 
 ### FR-2 — ABC to MusicXML conversion
@@ -98,11 +98,12 @@ The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The s
 ```
 Input:
   musicxml   string  required  MusicXML document as a string
-  part_name  string  optional  filter output to this part name (e.g. "Soprano")
+  part       string  optional  filter output to this part: ID, name or voice (e.g. "P1", "Soprano", "S")
+  part_id    string  optional  deprecated alias of `part` (removed next minor)
 
 Output:
   abc              string        ABC notation string
-  parts_included   list[string]  part names included in the output
+  parts_included   list[string]  MusicXML score-part ids of the parts included (e.g. "P1")
   warnings         list[string]  known lossy conversions (e.g. dynamics dropped)
 ```
 
@@ -152,7 +153,7 @@ Output:
 | Code | Condition |
 |------|-----------|
 | `INVALID_INPUT` | MusicXML parse error; ABC parse error |
-| `INVALID_PARAMETER` | Requested part name not found in score |
+| `INVALID_PARAMETER` | Requested part not found, or ambiguous (`choices` lists the parts) |
 | `PROCESSING_FAILED` | music21 conversion failure |
 
 ---
@@ -163,7 +164,7 @@ Output:
 - Package manager: uv; install dev extras with `uv sync --extra dev` (not `--group dev`)
 - Score parsing and ABC→MusicXML: music21
 - ABC output: custom serializer (music21 9.x has no ABC write support — `ConverterABC.registerOutputExtensions` is empty)
-- Part identification uses the part name (e.g. "Soprano"), extracted from `<part-name>` in MusicXML — not the XML `<part id>` attribute
+- Part IDs are the MusicXML `<score-part id>` (e.g. "P1"), never music21's `part.id` (which is the part name, repeated for same-named parts, or a per-parse integer for unnamed parts); see [conventions: Part Selection](../../docs/conventions.md#part-selection)
 
 ---
 
@@ -175,7 +176,7 @@ Unit tests MUST cover:
 
 - MusicXML parse error path
 - ABC parse error path
-- Unknown part name error
+- Unknown part error with `choices`; selection by ID, name and voice, same-named and unnamed parts (`tests/test_part_selection.py`)
 - `validate_abc` with valid and invalid ABC strings
 - `list_capabilities` response schema
 - ABC octave encoding (middle C = `C`)

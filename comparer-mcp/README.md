@@ -106,7 +106,8 @@ and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if something doesn't work.
   "expand_repeats": false,        // unfold repeats before comparing (default: false — opt-in)
   "normalize_pitch": false,       // transpose transposing instruments to concert/sounding pitch
   "ignore_articulations": false,  // exclude articulations from NoteInfo/diffs
-  "part_filter": ["Soprano"],     // compare only named parts (case-insensitive)
+  "parts": ["Soprano"],           // compare only these parts: IDs, names or voices ("P1", "S");
+                                  //   part_filter is a deprecated alias
   "measure_range": [1, 32]        // compare only measures 1-32, inclusive
 }
 ```

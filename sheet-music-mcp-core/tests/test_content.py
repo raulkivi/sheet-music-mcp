@@ -3,7 +3,8 @@
 import base64
 import json
 
-from sheet_music_mcp_core.content import error_content, file_link, png_block
+from sheet_music_mcp_core.content import error_content, file_link, png_block, processing_error_content
+from sheet_music_mcp_core.errors import ProcessingError
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 
@@ -25,6 +26,25 @@ class TestErrorContent:
             "hint": "h",
             "choices": ["a", "b"],
         }
+
+
+class TestProcessingErrorContent:
+    def test_carries_message_code_hint_and_choices(self):
+        error = ProcessingError("Part 'X' not found.", "INVALID_PARAMETER", hint="h", choices=["Alto (P2)"])
+
+        [block] = processing_error_content(error)
+
+        assert json.loads(block.text) == {
+            "error": "Part 'X' not found.",
+            "error_code": "INVALID_PARAMETER",
+            "hint": "h",
+            "choices": ["Alto (P2)"],
+        }
+
+    def test_plain_error_is_byte_identical_to_error_content(self):
+        error = ProcessingError("Rendering failed", "PROCESSING_FAILED")
+
+        assert processing_error_content(error)[0].text == error_content("Rendering failed", "PROCESSING_FAILED")[0].text
 
 
 class TestFileLink:

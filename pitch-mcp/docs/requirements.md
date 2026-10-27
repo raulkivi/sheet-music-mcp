@@ -23,7 +23,7 @@ The response MUST include:
 
 ### FR-2 — Score loading
 
-The server MUST accept a MusicXML document and a part name, parse the reference note sequence, and return a session ID.
+The server MUST accept a MusicXML document and a part (ID, name or voice), parse the reference note sequence, and return a session ID.
 
 The session MUST persist in server memory until explicitly stopped or the server restarts.
 
@@ -114,9 +114,12 @@ The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The s
 Input:
   audio_path  string  required  absolute path to a 16-bit PCM WAV file
   musicxml    string  required  MusicXML document as a string
-  part_name   string  required  name of the part to compare against (e.g. "Soprano")
+  part        string  required  part to compare against: ID, name or voice (e.g. "P1", "Soprano", "S")
+  part_id     string            deprecated alias of `part` (removed next minor); one of the two is required
 
 Output:
+  part_id             string   MusicXML score-part id of the analysed part (e.g. "P1")
+  part_name           string   its name, or the ID when the part is unnamed
   measures_covered    integer
   avg_accuracy_cents  float
   note_accuracy       list[object]
@@ -138,11 +141,13 @@ Output:
 ```
 Input:
   musicxml   string  required  MusicXML document as a string
-  part_name  string  required  name of the part to monitor against
+  part       string  required  part to monitor: ID, name or voice (e.g. "P1", "Soprano", "S")
+  part_id    string            deprecated alias of `part` (removed next minor); one of the two is required
 
 Output:
   session_id       string
-  part_name        string
+  part_id          string   MusicXML score-part id (e.g. "P1")
+  part_name        string   the part's name, or its ID when unnamed
   measure_count    integer
   duration_seconds float
 ```
@@ -260,7 +265,7 @@ Unit tests MUST cover:
 - Session lifecycle: create, start, poll, stop, verify cleanup
 - `FILE_NOT_FOUND` error for missing audio file
 - `UNSUPPORTED_FORMAT` error for non-WAV input
-- Unknown part name error
+- Unknown part error with `choices`; selection by ID, name and voice, same-named and unnamed parts (`tests/test_part_selection.py`)
 - Unknown session ID error
 - `list_capabilities` response schema
 

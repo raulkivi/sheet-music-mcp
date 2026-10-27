@@ -239,8 +239,8 @@ class ComparisonSummary:
 @dataclass
 class PartDiff:
     """Comparison result for one matched pair of parts."""
-    part_name: str
-    reference_part_id: str
+    part_name: str             # reference name, else target name, else reference ID
+    reference_part_id: str     # MusicXML score-part id ("P1"), never music21's part.id
     target_part_id: str
     similarity_score: float
     key_sig_diffs: list[SignatureDiff]
@@ -434,7 +434,8 @@ All error responses use `{"error": "...", "error_code": "..."}` per conventions.
   "expand_repeats": false,        // unfold repeats before comparing (default: false — opt-in, see docs/PLAN.md)
   "normalize_pitch": false,       // transpose to concert pitch (default: false)
   "ignore_articulations": false,  // skip articulation comparison (default: false)
-  "part_filter": ["Soprano"],     // compare only named parts (default: all)
+  "parts": ["Soprano"],           // compare only these parts: IDs, names or voices (default: all);
+                                  //   resolved against the reference; part_filter = deprecated alias
   "measure_range": [1, 32]        // compare only measures 1–32 (default: all)
 }
 ```
@@ -514,7 +515,7 @@ Dev dependencies: `pytest`, `pytest-asyncio` (per conventions).
 
 ### Phase 4 — Advanced features — COMPLETE
 
-- [x] `options` dict wired up (`part_filter`, `measure_range`, `ignore_articulations`,
+- [x] `options` dict wired up (`parts`, formerly `part_filter`, `measure_range`, `ignore_articulations`,
       `normalize_pitch`, `expand_repeats`)
 - [x] Version comparison report: human-readable summary (`report.py`, `generate_comparison_report`
       tool) — grounded in computed diff data (measure-range grouping, constant-`interval_error`

@@ -109,8 +109,11 @@ asyncio.run(_run())
 
 ## Known Gotchas
 
-- **music21 9.x: `part.id` is the part name** (e.g. `"Soprano"`), not the XML `<part id>`
-  attribute (`"P1"`). Callers must pass part names to `part_ids`, not XML IDs.
+- **Never select parts by music21's `part.id`.** music21 replaces it with the part name, repeats
+  it for same-named parts and gives unnamed parts a new integer on every parse. Part IDs are the
+  MusicXML `<score-part id>` (`"P1"`) from `sheet_music_mcp_core.parts.music21_part_infos`; select
+  by position against that list. Callers pass `parts` as IDs, names or voices (`"P1"`, `"Alto"`,
+  `"A"`); `part_ids` is a deprecated alias.
 - **pyfluidsynth, not CLI.** Use `fluidsynth.Synth` with `audio.driver=file` +
   `fluid_player_join()` to render MIDI → WAV. The `fluidsynth` CLI binary is not needed.
 - **`SYNTH_SOUNDFONT_PATH` must be set for synthesis.** Warn at startup if missing — don't crash.

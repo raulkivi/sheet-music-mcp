@@ -6,6 +6,19 @@
 roadmap wave 1, decisions E1–E8.
 **Servers:** all six, plus the new `sheet-music-mcp-core` package.
 
+## Progress
+
+| Step | Content | Status |
+|---|---|---|
+| 1 | Conventions contract | ✅ `cf32796` |
+| 2 | `sheet-music-mcp-core` library, plus review fixes ([core-library-review.md](core-library-review.md)) | ✅ `46921a0`, `c8e730d` |
+| 3 | Servers adopt core wiring and errors | ✅ `ce38fb3` |
+| 4 | Titles, annotation presets, server instructions | ✅ `8c4afec` |
+| 5 | Part selector, `part`/`parts` renames, `hint`/`choices` in errors | ✅ this step |
+| 6 | Result content (inline PNG, file links) | ⏳ |
+| 7 | Pitch idle timeout and `list_sessions` | ⏳ |
+| 8 | OMR resolution pre-check | ⏳ |
+
 ---
 
 ## 1. Goal and scope

@@ -206,6 +206,8 @@ removed. Use `sheet_music_mcp_core.params.aliased`:
   "(Deprecated: use `<new>`)". If the parameter is required, use
   `anyOf: [{"required": ["<new>"]}, {"required": ["<old>"]}]`.
 - If only the old name is passed, accept it and log one deprecation warning per process.
+- If neither is passed, `make_handlers` reports "one of these parameters is required: '<new>',
+  '<old>'" and never echoes the arguments (which would put a whole score into the model's context).
 - If both are passed with equal values, accept. If they differ, return `INVALID_PARAMETER`.
 - Note the removal in the changelog of the release that removes it.
 
@@ -262,7 +264,7 @@ code every server needs, so it is written and tested once.
 | `parts` | `PartInfo`, `music21_part_infos()`, `resolve_parts()`, `resolve_part()`, `PartSelectionError` (music21 objects are duck-typed, not imported) | no |
 | `params` | `aliased()` for deprecated parameter names | no |
 | `annotations` | Annotation presets | no |
-| `content` | `error_content()`, `file_link()`, `png_block()` | yes |
+| `content` | `error_content()`, `processing_error_content()`, `file_link()`, `png_block()` | yes |
 | `wiring` | `make_handlers()`: input-schema validation and error results for `Server(...)`; pass the server's own `logger=` | yes |
 
 - Engines may import only the modules without `mcp`. This keeps `engine.py` free of MCP imports.

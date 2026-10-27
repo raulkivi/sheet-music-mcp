@@ -35,7 +35,12 @@ Weighted aggregate: 30% structure (parts + measures matched) + 70% note accuracy
 ### FR-5: Filtering
 
 Support filtering comparison by, via `options` on `compare()`/`compare_files()`:
-- `part_filter`: part name(s), applied before part matching
+- `parts` (deprecated alias `part_filter`): part IDs, names or voices, resolved against the
+  reference score and applied before part matching; target parts are picked by the selected
+  parts' names (by ID when unnamed). An unknown part is `INVALID_PARAMETER` with `choices`.
+- `list_changes.part`: one part ID, name or voice, resolved against the compared parts
+- Part IDs in results are MusicXML score-part ids (`"P1"`), never music21's `part.id`; unnamed
+  parts are reported by ID in `part_name`, `parts_missing` and `parts_extra`
 - `measure_range`: `[start, end]` inclusive, applied to measures and key/time signature diffs
 - `ignore_articulations`: blanks `NoteInfo.articulations`
 - `normalize_pitch`: transposes transposing instruments to concert/sounding pitch (`Score.toSoundingPitch()`) before comparing

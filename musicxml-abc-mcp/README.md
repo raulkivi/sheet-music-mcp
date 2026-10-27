@@ -53,13 +53,15 @@ reading/writing files if needed.
   "tool": "musicxml_to_abc",
   "arguments": {"musicxml": "<score-partwise>...</score-partwise>"}
 }
-// → {"abc": "X:1\nT:...\n...", "parts_included": ["Soprano", "Alto", "Tenor", "Bass"], "warnings": []}
+// → {"abc": "X:1\nT:...\n...", "parts_included": ["P1", "P2", "P3", "P4"], "warnings": []}
 
 // Extract just the Soprano part
 {
   "tool": "musicxml_to_abc",
-  "arguments": {"musicxml": "<score-partwise>...</score-partwise>", "part_id": "Soprano"}
+  "arguments": {"musicxml": "<score-partwise>...</score-partwise>", "part": "Soprano"}
 }
+// `part` takes a part ID ("P1"), name ("soprano", any case) or voice ("S"); an unknown part
+// returns the valid choices. `part_id` is a deprecated alias for one minor release.
 
 // Convert edited ABC back to MusicXML
 {

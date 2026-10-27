@@ -6,7 +6,8 @@ import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY
-from sheet_music_mcp_core.content import error_content
+from sheet_music_mcp_core.content import error_content, processing_error_content
+from sheet_music_mcp_core.params import aliased
 from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
@@ -44,12 +45,16 @@ async def list_tools():
                         "type": "string",
                         "description": "MusicXML document as a string",
                     },
-                    "part_id": {
+                    "part": {
                         "type": "string",
                         "description": (
-                            "Export only this part (e.g. 'Soprano'). "
-                            "Omit to include all parts."
+                            "Export only this part: a part ID, name or voice "
+                            "(e.g. 'P1', 'Soprano', 'S'). Omit to include all parts."
                         ),
+                    },
+                    "part_id": {
+                        "type": "string",
+                        "description": "(Deprecated: use `part`) Export only this part.",
                     },
                 },
                 "required": ["musicxml"],
@@ -127,17 +132,16 @@ async def list_tools():
 async def call_tool(name: str, arguments: dict):
     if name == "musicxml_to_abc":
         musicxml = arguments.get("musicxml", "")
-        part_id = arguments.get("part_id")  # optional
-
         ok, err = validate_musicxml(musicxml)
         if not ok:
             return error_content(err, "INVALID_INPUT")
 
         try:
-            result = musicxml_to_abc(musicxml, part_id)
+            part = aliased(arguments, "part", "part_id")  # optional
+            result = musicxml_to_abc(musicxml, part)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("musicxml_to_abc unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
@@ -153,7 +157,7 @@ async def call_tool(name: str, arguments: dict):
             result = abc_to_musicxml(abc)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("abc_to_musicxml unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
@@ -165,7 +169,7 @@ async def call_tool(name: str, arguments: dict):
             result = validate_abc(abc)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("validate_abc unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")

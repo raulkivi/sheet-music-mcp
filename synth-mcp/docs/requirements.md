@@ -105,7 +105,7 @@ Input:
 
 Output:
   parts  list[object]
-    id             string   part identifier (use this in synthesize.part_ids)
+    id             string   MusicXML score-part id (e.g. "P1"), stable across calls
     name           string   e.g. "Soprano"
     measure_count  integer
 ```
@@ -115,7 +115,9 @@ Output:
 ```
 Input:
   musicxml      string        required  MusicXML document as a string
-  part_ids      list[string]  optional  parts to include; default: all parts
+  parts         list[string]  optional  parts to include as IDs, names or voices
+                                        (e.g. "P1", "Soprano", "S"); default: all parts
+  part_ids      list[string]  optional  deprecated alias of `parts` (removed next minor)
   tempo_factor  float         optional  0.25–4.0; default: 1.0
   output_path   string        optional  path to write WAV; auto-generated if omitted
 
@@ -185,7 +187,8 @@ Unit tests MUST cover:
 
 - Part extraction from a SATB MusicXML fixture
 - `tempo_factor` validation (boundary values: 0.24, 0.25, 4.0, 4.01)
-- Unknown `part_id` error path
+- Unknown part error path (`INVALID_PARAMETER` with `choices` and `hint`)
+- Part selection by ID, name and voice, same-named and unnamed parts (`tests/test_part_selection.py`)
 - Missing soundfont error path
 - `list_capabilities` response schema
 - Output path auto-generation

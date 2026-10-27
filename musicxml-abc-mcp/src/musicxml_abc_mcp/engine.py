@@ -26,6 +26,7 @@ from fractions import Fraction
 from typing import Optional
 
 from sheet_music_mcp_core.errors import ProcessingError  # re-exported for server.py
+from sheet_music_mcp_core.parts import music21_part_infos, resolve_part
 
 logger = logging.getLogger(__name__)
 
@@ -39,17 +40,17 @@ def musicxml_to_abc(musicxml_str: str, part_id: Optional[str] = None) -> dict:
 
     Args:
         musicxml_str: MusicXML document as a string.
-        part_id: If given, export only the part with this ID; otherwise all parts.
+        part_id: If given, export only this part (ID, name or voice); otherwise all parts.
 
     Returns:
         {
             "abc": "<ABC text>",
-            "parts_included": ["Soprano", "Alto", …],
+            "parts_included": ["P1", "P2", …],   # MusicXML score-part ids
             "warnings": ["Dynamic markings were dropped …"],
         }
 
     Raises:
-        ProcessingError: on parse failure or invalid part_id.
+        ProcessingError: on parse failure; PartSelectionError for an unknown or ambiguous part.
     """
     _require_music21()
 
@@ -68,29 +69,25 @@ def musicxml_to_abc(musicxml_str: str, part_id: Optional[str] = None) -> dict:
             "INVALID_INPUT",
         )
 
+    # Select by position against the stable part IDs, never by music21's part.id
+    infos = music21_part_infos(all_parts)
+    selected = list(zip(all_parts, infos))
     if part_id is not None:
-        selected = [p for p in all_parts if p.id == part_id]
-        if not selected:
-            valid = [p.id for p in all_parts]
-            raise ProcessingError(
-                f"Part '{part_id}' not found. Valid part IDs: {valid}",
-                "INVALID_PARAMETER",
-            )
-    else:
-        selected = all_parts
+        chosen = resolve_part(part_id, infos)
+        selected = [(part, info) for part, info in selected if info.id == chosen]
 
     warnings: list[str] = []
     abc_tunes: list[str] = []
 
-    for tune_num, part in enumerate(selected, start=1):
-        tune, part_warnings = _part_to_abc_tune(part, tune_num, score)
+    for tune_num, (part, info) in enumerate(selected, start=1):
+        tune, part_warnings = _part_to_abc_tune(part, tune_num, score, info.name or info.id)
         abc_tunes.append(tune)
         warnings.extend(part_warnings)
 
     abc_text = "\n\n".join(abc_tunes)
     return {
         "abc": abc_text,
-        "parts_included": [p.id for p in selected],
+        "parts_included": [info.id for _, info in selected],
         "warnings": list(dict.fromkeys(warnings)),  # deduplicate, preserve order
     }
 
@@ -292,7 +289,7 @@ def _note_to_abc_token(note_or_chord) -> str:
     return f"z{dur}"  # unknown — treat as rest
 
 
-def _part_to_abc_tune(part, tune_num: int, score) -> tuple[str, list[str]]:
+def _part_to_abc_tune(part, tune_num: int, score, part_name: str) -> tuple[str, list[str]]:
     """Serialise one music21 Part to an ABC tune string.
 
     Returns:
@@ -309,7 +306,6 @@ def _part_to_abc_tune(part, tune_num: int, score) -> tuple[str, list[str]]:
 
     # --- Extract metadata from the part (or score if missing from part) ---
     title = _find_title(part, score)
-    part_name = part.partName or part.id or f"Part {tune_num}"
 
     # Time signature
     time_sig = _first_element(part, "TimeSignature") or _first_element(score, "TimeSignature")
