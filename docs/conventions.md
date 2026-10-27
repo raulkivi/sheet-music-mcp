@@ -253,6 +253,68 @@ formats. Keep `list_capabilities` as the machine-readable discovery contract.
 
 ---
 
+## Score References
+
+Scores can be passed by **file path** instead of inline text, so the model never copies a whole
+MusicXML document between tools ([wave 2 plan](research/ux-wave2-plan.md)).
+
+### Inputs
+
+- Every inline score parameter has a path sibling: `musicxml` / `musicxml_path`, and in
+  comparer-mcp `reference_xml` / `reference_path` and `target_xml` / `target_path`.
+- Exactly one of each pair is required: `{"oneOf": [{"required": ["musicxml"]}, {"required": ["musicxml_path"]}]}`.
+  A tool with two pairs combines them with `allOf`. Build both with
+  `sheet_music_mcp_core.references.score_input_properties()` and `exactly_one()`.
+- Paths may end in `.musicxml`, `.xml` or `.mxl` (compressed). Load them with
+  `references.load_score()`; never open a score path yourself.
+
+### Read policy
+
+A path is read only if, after resolving `~`, relative paths (against the output root) and symlinks,
+it lies inside one of the **read roots**:
+
+1. the output root, `SHEET_MUSIC_OUTPUT_ROOT` (default: the server's working directory);
+2. the client's MCP roots (`roots/list`, when the client declares the capability);
+3. the folders in `SHEET_MUSIC_INPUT_ROOTS` (separated by `:` on Linux and macOS, `;` on Windows).
+
+| Check, in order | Error code |
+|---|---|
+| Outside every read root | `INVALID_PARAMETER`, with a `hint` naming the roots and `SHEET_MUSIC_INPUT_ROOTS` |
+| Suffix not allowed | `INVALID_PARAMETER` |
+| Missing or not a file | `FILE_NOT_FOUND` |
+| Larger than `SHEET_MUSIC_MAX_SCORE_BYTES` (default 16 MiB), or an `.mxl` member that would decompress beyond it | `FILE_TOO_LARGE` |
+| Not well-formed XML, not MusicXML, or a bad `.mxl` | `INVALID_INPUT` |
+
+The root check comes first, so a path outside the roots never reveals whether it exists. Error
+messages give a line and column at most and **never echo file contents**, so a misdirected read
+cannot leak another file into the conversation.
+
+### Outputs
+
+Tools that produce a score take `return: "auto" | "path" | "inline"` (default `auto`):
+
+- `inline`: the score text in `content[0]`, as before.
+- `path`: the score is written to `<output root>/scores/<stem>-<timestamp>.musicxml`. In
+  `content[0]` the text field (e.g. `musicxml`) is replaced by `<field>_path` plus a
+  `score_summary`, and a `ResourceLink` to the file is appended.
+- `auto`: `inline` up to `SHEET_MUSIC_INLINE_MAX_BYTES` (default 8192 bytes of UTF-8), otherwise
+  `path`.
+
+Use `references.deliver_score()`. Because these tools may write a file, they use the
+`WRITES_FILE` or `WRITES_FILE_DOWNLOADS` annotation preset.
+
+`score_summary` is `{title, parts: [{id, name, range}], measures, key, time, tempo_bpm}`.
+
+### `describe_score`
+
+Every server that takes a score exposes the shared `describe_score` tool
+(`references.DESCRIBE_SCORE_TOOL`). It returns title, composer, key, time, tempo, parts (ID, name,
+abbreviation, clef, range), measures, lyrics presence and duration as small JSON, parsed with the
+standard library (`defusedxml`), not music21. Part IDs are the MusicXML `score-part` IDs, the same
+ones the part selector accepts.
+
+---
+
 ## Shared Core Library
 
 `sheet-music-mcp-core` (directory `sheet-music-mcp-core/`, import `sheet_music_mcp_core`) holds the
@@ -265,9 +327,12 @@ code every server needs, so it is written and tested once.
 | `params` | `aliased()` for deprecated parameter names | no |
 | `annotations` | Annotation presets | no |
 | `content` | `error_content()`, `processing_error_content()`, `file_link()`, `png_block()` | yes |
+| `paths` | Read roots, `confine_read_path()`, `confine_output_path()`, `new_output_path()`, `PathPolicyError` (see [Score References](#score-references)) | no |
+| `scores` | `read_score_file()` (`.musicxml`, `.xml`, `.mxl`), `describe_score()`, `score_summary()`, `ScoreFormatError`; parses with `defusedxml`, not music21 | no |
+| `references` | Score input schema helpers, `client_roots()`, `load_score()`, `deliver_score()`, the shared `describe_score` tool | yes |
 | `wiring` | `make_handlers()`: input-schema validation and error results for `Server(...)`; pass the server's own `logger=`. Schema failures (`INVALID_PARAMETER`) and exceptions a tool did not handle (`PROCESSING_FAILED`, or a `ProcessingError`'s own code, hint and choices) come back as `isError` results in the `{error, error_code}` envelope | yes |
 
-- Engines may import only the modules without `mcp`. This keeps `engine.py` free of MCP imports.
+- Engines may import only the modules without `mcp` (`errors`, `parts`, `params`, `annotations`, `paths`, `scores`). This keeps `engine.py` free of MCP imports.
 - Servers depend on `sheet-music-mcp-core>=X.Y,<X.(Y+1)` while the core is 0.x. For development,
   they point uv at the local copy, which `uv build` leaves out of published wheels:
 
