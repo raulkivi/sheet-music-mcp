@@ -10,12 +10,16 @@ import logging
 from typing import Awaitable, Callable
 
 import jsonschema
+from jsonschema.exceptions import best_match
+from jsonschema.validators import validator_for
 from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, Tool
 
 from .content import error_content, processing_error_content
 from .errors import ProcessingError
 
 _logger = logging.getLogger(__name__)
+
+_ALTERNATIVES = ("anyOf", "oneOf")
 
 ListTools = Callable[[], Awaitable[list[Tool]]]
 CallTool = Callable[..., Awaitable["list | CallToolResult"]]
@@ -75,9 +79,12 @@ def _describe(error: jsonschema.ValidationError) -> str:
     """The validation message, without echoing the arguments for "one of" requirements.
 
     jsonschema's anyOf/oneOf message repeats the whole instance, which for these tools is a full
-    MusicXML score; name the alternative parameters instead.
+    MusicXML score; name the alternative parameters instead. A oneOf that several alternatives
+    match ("both given") asks for only one. Nested failures are described by their innermost
+    failing anyOf/oneOf (an allOf member's failure already arrives as that member's own error).
     """
-    if error.validator in ("anyOf", "oneOf"):
+    error = _innermost_alternative(error) or error
+    if error.validator in _ALTERNATIVES:
         alternatives = [
             name
             for subschema in error.validator_value
@@ -85,9 +92,32 @@ def _describe(error: jsonschema.ValidationError) -> str:
         ]
         if alternatives:
             names = ", ".join(f"'{name}'" for name in alternatives)
+            if error.validator == "oneOf" and _matches_several(error):
+                return f"give only one of these parameters: {names}"
             return f"one of these parameters is required: {names}"
         return f"arguments do not match any allowed combination ({error.validator})"
     return error.message
+
+
+def _innermost_alternative(error: jsonschema.ValidationError) -> jsonschema.ValidationError | None:
+    """The deepest failing anyOf/oneOf in ``error`` and its context, or None if there is none."""
+    nested = list(error.context or ())
+    if isinstance(error.cause, jsonschema.ValidationError):
+        nested.append(error.cause)
+    if nested:
+        # best_match ranks anyOf/oneOf as weak matches, so try its pick first, then the rest.
+        preferred = best_match(nested)
+        for candidate in [preferred, *(e for e in nested if e is not preferred)]:
+            inner = _innermost_alternative(candidate)
+            if inner is not None:
+                return inner
+    return error if error.validator in _ALTERNATIVES else None
+
+
+def _matches_several(error: jsonschema.ValidationError) -> bool:
+    """Whether more than one oneOf alternative accepts the instance (rather than none)."""
+    validator = validator_for(error.schema)
+    return sum(validator(subschema).is_valid(error.instance) for subschema in error.validator_value) > 1
 
 
 def _error_result(content: list) -> CallToolResult:
