@@ -2,12 +2,14 @@
 low-level handlers no longer provide themselves (CLAUDE.md, MCP stdio pattern)."""
 
 import asyncio
+import json
 import logging
 
 from mcp import Client
 from mcp.server import Server
 from mcp.types import CallToolResult, TextContent, Tool
 
+from sheet_music_mcp_core.errors import ProcessingError
 from sheet_music_mcp_core.wiring import make_handlers
 
 ECHO = Tool(
@@ -44,6 +46,8 @@ async def _call_tool(name, arguments):
     if name == "echo":
         if arguments["word"] == "boom":
             raise RuntimeError("exploded")
+        if arguments["word"] == "typed":
+            raise ProcessingError("Part 'X' not found.", "INVALID_PARAMETER", hint="h", choices=["Alto (P2)"])
         return [TextContent(type="text", text=arguments["word"])]
     if name == "structured":
         return CallToolResult(
@@ -82,21 +86,38 @@ def test_rejects_arguments_that_fail_the_schema():
     result = _with_client(_server(), lambda c: c.call_tool("echo", {}))
 
     assert result.is_error
-    assert result.content[0].text.startswith("Input validation error:")
+    payload = json.loads(result.content[0].text)
+    assert payload["error_code"] == "INVALID_PARAMETER"
+    assert payload["error"].startswith("Input validation error:")
 
 
 def test_tool_exception_becomes_error_result():
     result = _with_client(_server(), lambda c: c.call_tool("echo", {"word": "boom"}))
 
+    # docs/conventions.md: every error uses the {error, error_code} envelope
     assert result.is_error
-    assert result.content[0].text == "exploded"
+    assert json.loads(result.content[0].text) == {"error": "exploded", "error_code": "PROCESSING_FAILED"}
+
+
+def test_escaped_processing_error_keeps_its_code_hint_and_choices():
+    result = _with_client(_server(), lambda c: c.call_tool("echo", {"word": "typed"}))
+
+    assert result.is_error
+    assert json.loads(result.content[0].text) == {
+        "error": "Part 'X' not found.",
+        "error_code": "INVALID_PARAMETER",
+        "hint": "h",
+        "choices": ["Alto (P2)"],
+    }
 
 
 def test_unknown_tool_becomes_error_result():
     result = _with_client(_server(), lambda c: c.call_tool("nope", {}))
 
     assert result.is_error
-    assert "nope" in result.content[0].text
+    payload = json.loads(result.content[0].text)
+    assert payload["error_code"] == "PROCESSING_FAILED"
+    assert "nope" in payload["error"]
 
 
 def test_call_tool_result_is_passed_through():
@@ -148,5 +169,8 @@ def test_missing_alternative_names_the_parameters_without_echoing_arguments():
 
     assert result.is_error
     text = result.content[0].text
-    assert text == "Input validation error: one of these parameters is required: 'part', 'part_id'"
+    assert json.loads(text) == {
+        "error": "Input validation error: one of these parameters is required: 'part', 'part_id'",
+        "error_code": "INVALID_PARAMETER",
+    }
     assert "score-partwise" not in text

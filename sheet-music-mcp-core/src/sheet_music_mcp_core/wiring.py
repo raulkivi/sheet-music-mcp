@@ -10,7 +10,10 @@ import logging
 from typing import Awaitable, Callable
 
 import jsonschema
-from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
+from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, Tool
+
+from .content import error_content, processing_error_content
+from .errors import ProcessingError
 
 _logger = logging.getLogger(__name__)
 
@@ -26,6 +29,10 @@ def make_handlers(
     logger: logging.Logger | None = None,
 ):
     """Return ``(on_list_tools, on_call_tool)`` for ``Server(...)``.
+
+    Validation failures (INVALID_PARAMETER) and exceptions a tool did not handle itself
+    (PROCESSING_FAILED, or a ProcessingError's own code, hint and choices) come back as ``isError``
+    results carrying the ``{error, error_code}`` envelope.
 
     ``call_tool(name, arguments)`` returns a list of content blocks or a full ``CallToolResult``.
     With ``pass_context=True`` it is called as ``call_tool(name, arguments, ctx)``, for tools that
@@ -44,7 +51,9 @@ def make_handlers(
             try:
                 jsonschema.validate(instance=arguments, schema=tool.input_schema)
             except jsonschema.ValidationError as e:
-                return _error_result(f"Input validation error: {_describe(e)}")
+                return _error_result(
+                    error_content(f"Input validation error: {_describe(e)}", "INVALID_PARAMETER")
+                )
         try:
             if pass_context:
                 result = await call_tool(params.name, arguments, ctx)
@@ -52,7 +61,9 @@ def make_handlers(
                 result = await call_tool(params.name, arguments)
         except Exception as e:
             log.error("Tool %s failed: %s", params.name, e)
-            return _error_result(str(e))
+            if isinstance(e, ProcessingError):
+                return _error_result(processing_error_content(e))
+            return _error_result(error_content(str(e), "PROCESSING_FAILED"))
         if isinstance(result, CallToolResult):
             return result
         return CallToolResult(content=result)
@@ -79,5 +90,6 @@ def _describe(error: jsonschema.ValidationError) -> str:
     return error.message
 
 
-def _error_result(message: str) -> CallToolResult:
-    return CallToolResult(content=[TextContent(type="text", text=message)], is_error=True)
+def _error_result(content: list) -> CallToolResult:
+    """An isError result carrying the {error, error_code} envelope (docs/conventions.md)."""
+    return CallToolResult(content=content, is_error=True)

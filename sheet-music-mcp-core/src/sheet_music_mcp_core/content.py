@@ -43,8 +43,12 @@ def file_link(path: str, mime_type: str) -> ResourceLink:
 
 
 def png_block(path: str, *, max_bytes: int = IMAGE_MAX_BYTES) -> ImageContent | None:
-    """The PNG at ``path`` as an inline image, or None if it is larger than ``max_bytes``."""
-    data = Path(path).read_bytes()
-    if len(data) > max_bytes:
+    """The PNG at ``path`` as an inline image, or None if it is larger than ``max_bytes``.
+
+    The size is checked before reading, so an oversize file is never loaded into memory.
+    """
+    file = Path(path)
+    if file.stat().st_size > max_bytes:
         return None
+    data = file.read_bytes()
     return ImageContent(type="image", data=base64.b64encode(data).decode("ascii"), mime_type="image/png")

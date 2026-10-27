@@ -92,6 +92,17 @@ class TestPngBlock:
 
         assert png_block(str(path), max_bytes=len(PNG_BYTES)) is not None
 
+    def test_oversize_file_is_not_read_into_memory(self, tmp_path, monkeypatch):
+        path = tmp_path / "big.png"
+        path.write_bytes(PNG_BYTES)
+
+        def _fail(self):
+            raise AssertionError("an oversize PNG must be rejected from its size, not read")
+
+        monkeypatch.setattr("pathlib.Path.read_bytes", _fail)
+
+        assert png_block(str(path), max_bytes=len(PNG_BYTES) - 1) is None
+
     def test_default_limit_is_one_megabyte(self, tmp_path):
         path = tmp_path / "big.png"
         path.write_bytes(b"\x00" * (1024 * 1024 + 1))

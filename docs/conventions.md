@@ -265,7 +265,7 @@ code every server needs, so it is written and tested once.
 | `params` | `aliased()` for deprecated parameter names | no |
 | `annotations` | Annotation presets | no |
 | `content` | `error_content()`, `processing_error_content()`, `file_link()`, `png_block()` | yes |
-| `wiring` | `make_handlers()`: input-schema validation and error results for `Server(...)`; pass the server's own `logger=` | yes |
+| `wiring` | `make_handlers()`: input-schema validation and error results for `Server(...)`; pass the server's own `logger=`. Schema failures (`INVALID_PARAMETER`) and exceptions a tool did not handle (`PROCESSING_FAILED`, or a `ProcessingError`'s own code, hint and choices) come back as `isError` results in the `{error, error_code}` envelope | yes |
 
 - Engines may import only the modules without `mcp`. This keeps `engine.py` free of MCP imports.
 - Servers depend on `sheet-music-mcp-core>=X.Y,<X.(Y+1)` while the core is 0.x. For development,

@@ -114,7 +114,8 @@ asyncio.run(_run())
 
 mcp 2.x has no `@app.list_tools()`/`@app.call_tool()` decorators. Wire the handlers at the end of
 `server.py` with the shared helper, which validates arguments against the tool's `input_schema` and
-returns exceptions as `isError` results (2.x no longer does either itself):
+returns validation failures and unhandled exceptions as `isError` results in the
+`{"error", "error_code"}` envelope (2.x no longer does either itself):
 
 ```python
 from sheet_music_mcp_core.wiring import make_handlers
