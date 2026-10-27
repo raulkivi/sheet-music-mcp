@@ -7,7 +7,8 @@ import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
-from sheet_music_mcp_core.content import error_content, file_link, processing_error_content
+from sheet_music_mcp_core.content import audio_block, error_content, file_link, processing_error_content
+from sheet_music_mcp_core.measures import MEASURES_PROPERTY
 from sheet_music_mcp_core.params import aliased
 from sheet_music_mcp_core.references import (
     DESCRIBE_SCORE_TOOL,
@@ -19,8 +20,10 @@ from sheet_music_mcp_core.references import (
 from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
+from .clip import clip_midi, pitches_text, render_clip, starting_pitches
 from .engine import ProcessingError, extract_midi, parse_parts, resolve_part_ids, synthesize_midi
-from .utils import generate_output_path, validate_musicxml, validate_tempo_factor
+from .practice import MAX_COUNT_IN_BARS, MAX_GAIN, MAX_REPEAT, PRESETS, TIMBRES
+from .utils import confine_output_path, generate_output_path, validate_musicxml, validate_tempo_factor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -33,8 +36,75 @@ INSTRUCTIONS = (
     "parts) and tempo_factor (0.75 = 75% speed); get_parts lists the parts. Needs an SF2 "
     "soundfont in SYNTH_SOUNDFONT_PATH; run health_check if synthesis fails. "
     "Prefer musicxml_path (a .musicxml, .xml or .mxl file, such as a path another tool returned) "
-    "over inline musicxml text, and use describe_score to learn part IDs cheaply."
+    "over inline musicxml text, and use describe_score to learn part IDs cheaply. "
+    "For practice tracks, synthesize also takes measures [start, end] (printed bar numbers), "
+    "repeat, count_in_bars, metronome, timbre and preset ('learning' / 'karaoke' with "
+    "focus_part) or part_gains; starting_pitches gives each part's first note as text and audio."
 )
+
+# synthesize's practice options, passed to extract_midi only when the caller gave them.
+PRACTICE_PARAMETERS = (
+    "measures", "repeat", "count_in_bars", "metronome", "timbre", "part_gains", "preset", "focus_part",
+)
+
+
+def _practice_properties() -> dict:
+    """Schema properties for synthesize's practice options (docs/conventions.md, Practice Audio)."""
+    return {
+        **MEASURES_PROPERTY,
+        "repeat": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": MAX_REPEAT,
+            "description": "Play the (selected) music this many times. Default: 1.",
+        },
+        "count_in_bars": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": MAX_COUNT_IN_BARS,
+            "description": (
+                "Bars of wood-block clicks before the music, in its first time signature and "
+                "tempo. Default: 0."
+            ),
+        },
+        "metronome": {
+            "type": "boolean",
+            "description": "Click on every beat of the music too. Default: false.",
+        },
+        "timbre": {
+            "type": "string",
+            "enum": list(TIMBRES),
+            "description": (
+                "Sound for every part: 'score' keeps the score's instruments (default); "
+                "'piano', 'choir' or 'organ' replace them."
+            ),
+        },
+        "part_gains": {
+            "type": "object",
+            "additionalProperties": {"type": "number", "minimum": 0.0, "maximum": MAX_GAIN},
+            "description": (
+                "Per-part volume: part ID, name or voice → gain 0.0 (silent) to 2.0, 1.0 = "
+                "normal. Parts not listed get 1.0, or the preset's gain. Example: {\"Alto\": 1.5}."
+            ),
+        },
+        "preset": {
+            "type": "string",
+            "enum": list(PRESETS),
+            "description": (
+                "Base gains: 'learning' = focus_part loud (1.5), others soft (0.5); "
+                "'karaoke' = focus_part muted, others normal; 'equal' = all 1.0. "
+                "part_gains entries override it."
+            ),
+        },
+        "focus_part": {
+            "type": "string",
+            "description": (
+                "The part (ID, name or voice) a 'learning' or 'karaoke' preset is for; "
+                "required by those presets."
+            ),
+        },
+    }
+
 
 
 def _score_input() -> dict:
@@ -94,6 +164,39 @@ async def list_tools():
                     "output_path": {
                         "type": "string",
                         "description": "Path to write WAV file (auto-generated if omitted)",
+                    },
+                    **_practice_properties(),
+                },
+                **exactly_one("musicxml", "musicxml_path"),
+            },
+        ),
+        Tool(
+            name="starting_pitches",
+            title="Play starting pitches",
+            annotations=ToolAnnotations(**WRITES_FILE),
+            description=(
+                "Give each part's first note, as text ('S: D5, A: A4, T: F#4, B: D3') and as a "
+                "short piano clip: each note for 1 s, then the chord for 2 s. The clip is inline "
+                "audio when small, else a file link; without a soundfont the text comes alone."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    **_score_input(),
+                    "parts": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Parts to include, each a part ID, name or voice "
+                            "(e.g. 'P1', 'Soprano', 'S'). Default: all parts."
+                        ),
+                    },
+                    "output_path": {
+                        "type": "string",
+                        "description": (
+                            "Path to write the WAV clip (default: audio/starting-pitches-"
+                            "<timestamp>.wav in the output folder)"
+                        ),
                     },
                 },
                 **exactly_one("musicxml", "musicxml_path"),
@@ -184,8 +287,11 @@ async def call_tool(name: str, arguments: dict, ctx=None):
         except ValueError as e:
             return error_content(str(e), "INVALID_PARAMETER")
 
+        # Only the options the caller gave: every default reproduces the plain track.
+        practice = {key: arguments[key] for key in PRACTICE_PARAMETERS if key in arguments}
+
         try:
-            midi_bytes = extract_midi(musicxml, part_ids, tempo_factor)
+            midi_bytes = extract_midi(musicxml, part_ids, tempo_factor, **practice)
         except ProcessingError as e:
             return processing_error_content(e)
         except Exception as e:
@@ -219,6 +325,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
                         "duration_seconds": round(duration, 2),
                         "parts_included": parts_included,
                         "tempo_factor": tempo_factor,
+                        **practice,
                     },
                     indent=2,
                 ),
@@ -226,6 +333,9 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             # docs/conventions.md, Result Content: link the written file after the JSON.
             *([file_link(resolved_output, "audio/wav")] if os.path.isfile(resolved_output) else []),
         ]
+
+    elif name == "starting_pitches":
+        return await _starting_pitches(arguments, ctx)
 
     elif name == "list_capabilities":
         soundfont_path = os.environ.get("SYNTH_SOUNDFONT_PATH", "")
@@ -256,9 +366,12 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             "server": "synth-mcp",
             "version": __version__,
             "input_formats": ["musicxml", "mxl"],
-            "input_parameters": ["musicxml", "musicxml_path"],
+            "input_parameters": ["musicxml", "musicxml_path", *PRACTICE_PARAMETERS],
             "output_formats": ["wav"],
-            "tools": ["get_parts", "synthesize", "describe_score", "list_capabilities", "health_check"],
+            "tools": [
+                "get_parts", "synthesize", "starting_pitches", "describe_score", "list_capabilities",
+                "health_check",
+            ],
             "backend": "fluidsynth",
             "backend_version": backend_version,
             "soundfont_loaded": soundfont_loaded,
@@ -331,6 +444,64 @@ async def call_tool(name: str, arguments: dict, ctx=None):
     raise ValueError(f"Unknown tool: {name}")
 
 
+async def _starting_pitches(arguments: dict, ctx):
+    """Each part's first note as text, plus a WAV clip when FluidSynth and a soundfont work.
+
+    No audio is not an error (decision W3-6): the result then has "audio_path": null and
+    "audio_unavailable" with the reason.
+    """
+    try:
+        musicxml = await load_score(arguments, ctx)
+    except ProcessingError as e:
+        return processing_error_content(e)
+
+    ok, err = validate_musicxml(musicxml)
+    if not ok:
+        return error_content(err, "INVALID_INPUT")
+
+    requested = arguments.get("parts")
+    if requested is not None and not isinstance(requested, list):
+        return error_content("parts must be a list of strings", "INVALID_PARAMETER")
+
+    output_path = arguments.get("output_path")
+    if output_path:
+        try:
+            output_path = confine_output_path(output_path, (".wav",))
+        except ValueError as e:
+            return error_content(str(e), "INVALID_PARAMETER")
+
+    try:
+        entries = starting_pitches(musicxml, requested)
+    except ProcessingError as e:
+        return processing_error_content(e)
+
+    payload = {
+        "text": pitches_text(entries),
+        "parts": [{key: e[key] for key in ("id", "name", "label", "pitch")} for e in entries],
+        "audio_path": None,
+        "duration_seconds": None,
+    }
+    numbers = [e["midi"] for e in entries if e["midi"] is not None]
+    if not numbers:
+        payload["audio_unavailable"] = "The selected parts have no notes."
+        return [TextContent(type="text", text=json.dumps(payload, indent=2))]
+
+    try:
+        audio_path, duration = render_clip(clip_midi(numbers), output_path or None)
+    except ProcessingError as e:
+        payload["audio_unavailable"] = str(e)
+        return [TextContent(type="text", text=json.dumps(payload, indent=2))]
+
+    payload["audio_path"] = audio_path
+    payload["duration_seconds"] = round(duration, 2)
+    audio = audio_block(audio_path)
+    return [
+        TextContent(type="text", text=json.dumps(payload, indent=2)),
+        *([audio] if audio is not None else []),
+        file_link(audio_path, "audio/wav"),
+    ]
+
+
 # pass_context: load_score asks the client for its MCP roots (the allowed read folders).
 _on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, pass_context=True, logger=logger)
 
@@ -369,8 +540,8 @@ def main():
         logger.warning("FluidSynth library not available: %s", e)
 
     logger.info(
-        "synth-mcp started — tools: get_parts, synthesize, describe_score, list_capabilities, "
-        "health_check"
+        "synth-mcp started — tools: get_parts, synthesize, starting_pitches, describe_score, "
+        "list_capabilities, health_check"
     )
 
     async def _run():

@@ -18,7 +18,7 @@ Six independent MCP servers for choir practice. Each server lives in its own dir
 | comparer-mcp | `comparer-mcp/` | Two MusicXML → structured diff | Score comparison |
 
 Shared code (errors, part selection, deprecated parameter names, tool annotations, result content,
-handler wiring, score paths and `describe_score`) lives in the library [`sheet-music-mcp-core/`](sheet-music-mcp-core/), which every
+handler wiring, score paths, `describe_score` and measure ranges) lives in the library [`sheet-music-mcp-core/`](sheet-music-mcp-core/), which every
 server depends on. It is not an MCP server; its tests run from its own directory like a server's.
 
 See [README.md](README.md) for the full vision and data flow.
@@ -48,13 +48,13 @@ before writing any code.
 | Server | Status | Tests |
 |--------|--------|-------|
 | omr-mcp | ⚠️ Phase 1-4 complete; default (oemer) engine loses SATB voice structure — fixed via opt-in `engine="audiveris"`, not yet the default (see omr-mcp/docs/HANDOVER.md) | 164 unit (+48 skipped) + 41 integration |
-| synth-mcp | ✅ Phase 1 + UX complete | 158 unit + 8 integration |
-| render-mcp | ✅ Phase 1 + UX complete | 147 unit + 9 integration |
-| musicxml-abc-mcp | ✅ Phase 1 + UX complete | 140 unit + 4 integration |
-| pitch-mcp | ✅ Phase A+B + UX complete (audio-driven position tracking, DTW via dtaidistance) | 235 unit (+2 skipped) + 4 integration |
-| comparer-mcp | ✅ Phase 4 (Advanced features) complete — all originally-scoped phases done | 239 unit + 7 integration |
+| synth-mcp | ✅ Phase 1 + UX complete | 303 unit + 10 integration |
+| render-mcp | ✅ Phase 1 + UX complete | 169 unit + 9 integration |
+| musicxml-abc-mcp | ✅ Phase 1 + UX complete | 161 unit + 4 integration |
+| pitch-mcp | ✅ Phase A+B + UX complete (audio-driven position tracking, DTW via dtaidistance) | 293 unit (+2 skipped) + 4 integration |
+| comparer-mcp | ✅ Phase 4 (Advanced features) complete — all originally-scoped phases done | 279 unit + 7 integration |
 
-| sheet-music-mcp-core | ✅ 0.2.0 shared library: Wave 1 helpers plus score references (`paths`, `scores`, `references`). Not yet on PyPI — publish before the next server release | 268 unit |
+| sheet-music-mcp-core | ✅ 0.3.0 shared library: Wave 1 helpers, score references (`paths`, `scores`, `references`) and measure ranges (`measures`). Not yet on PyPI — publish before the next server release | 407 unit |
 
 Unit counts are the default `pytest` run (`-m "not integration"`). UX Wave 1 (all servers): tool titles
 and annotations, server instructions, part selection by ID/name/voice, inline PNG and file links,
@@ -62,6 +62,10 @@ pitch idle timeout, Audiveris pre-check — see [docs/research/ux-wave1-plan.md]
 UX Wave 2 (all servers): score references — `musicxml_path` inputs (`.mxl` too) confined to the read
 roots, `return: auto|path|inline` on score producers, and the shared `describe_score` tool — see
 [docs/research/ux-wave2-plan.md](docs/research/ux-wave2-plan.md).
+UX Wave 3 (practice): `measures: [start, end]` (printed bar numbers) on render, synth, abc and pitch
+(comparer's `measure_range` renamed); synth learning tracks (`part_gains`, `preset`, `focus_part`),
+`repeat`, count-in/metronome, `timbre` and the `starting_pitches` tool; pitch `start_practice` and
+plain-language `highlights` — see [docs/research/ux-wave3-plan.md](docs/research/ux-wave3-plan.md).
 
 UX deliverables (all servers): PyPI packaging, `install.sh`, `SETUP.md`, `examples/` client configs, `health_check` tool, `TROUBLESHOOTING.md`. See [docs/SETUP_UX_PLAN.md](docs/SETUP_UX_PLAN.md).
 
@@ -75,7 +79,7 @@ UX deliverables (all servers): PyPI packaging, `install.sh`, `SETUP.md`, `exampl
 - **All tool handlers must be `async def`**
 - **All error responses** must use `{"error": "...", "error_code": "..."}` — see [docs/conventions.md](docs/conventions.md) for the full code list
 - **Integration tests** must be marked `@pytest.mark.integration` and must not run in the default `pytest` invocation
-- **Shared code lives in `sheet-music-mcp-core/`**. Use it for errors, part selection, deprecated parameter names, tool annotations, result content and handler wiring; don't copy that code into a server. Engines may import only its MCP-free modules (`errors`, `parts`, `params`, `annotations`, `paths`, `scores`). See [docs/conventions.md](docs/conventions.md#shared-core-library)
+- **Shared code lives in `sheet-music-mcp-core/`**. Use it for errors, part selection, deprecated parameter names, tool annotations, result content and handler wiring; don't copy that code into a server. Engines may import only its MCP-free modules (`errors`, `parts`, `params`, `annotations`, `paths`, `scores`, `measures`). See [docs/conventions.md](docs/conventions.md#shared-core-library)
 - **Every tool** sets a `title` and an annotation preset; **every part parameter** uses the shared resolver (see [docs/conventions.md](docs/conventions.md#part-selection))
 - **Every score input** has a path sibling (`musicxml` / `musicxml_path`, exactly one required) loaded with `references.load_score()`; never open a score path yourself. Score producers take `return: auto|path|inline` via `references.deliver_score()` (see [docs/conventions.md](docs/conventions.md#score-references))
 

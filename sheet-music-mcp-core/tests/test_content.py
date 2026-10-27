@@ -3,10 +3,20 @@
 import base64
 import json
 
-from sheet_music_mcp_core.content import error_content, file_link, png_block, processing_error_content
+from mcp.types import AudioContent
+
+from sheet_music_mcp_core.content import (
+    AUDIO_MAX_BYTES,
+    audio_block,
+    error_content,
+    file_link,
+    png_block,
+    processing_error_content,
+)
 from sheet_music_mcp_core.errors import ProcessingError
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+WAV_BYTES = b"RIFF\x24\x00\x00\x00WAVEfmt " + b"\x00" * 64
 
 
 class TestErrorContent:
@@ -108,3 +118,49 @@ class TestPngBlock:
         path.write_bytes(b"\x00" * (1024 * 1024 + 1))
 
         assert png_block(str(path)) is None
+
+
+class TestAudioBlock:
+    def test_wav_becomes_base64_audio(self, tmp_path):
+        path = tmp_path / "clip.wav"
+        path.write_bytes(WAV_BYTES)
+
+        block = audio_block(str(path))
+
+        assert isinstance(block, AudioContent)
+        assert block.type == "audio"
+        assert block.mime_type == "audio/wav"
+        assert base64.b64decode(block.data) == WAV_BYTES
+
+    def test_default_limit_is_200_kilobytes(self):
+        assert AUDIO_MAX_BYTES == 200 * 1024
+
+    def test_exactly_at_the_default_limit_is_included(self, tmp_path):
+        path = tmp_path / "clip.wav"
+        path.write_bytes(b"\x00" * AUDIO_MAX_BYTES)
+
+        assert audio_block(str(path)) is not None
+
+    def test_one_byte_above_the_default_limit_returns_none(self, tmp_path):
+        path = tmp_path / "clip.wav"
+        path.write_bytes(b"\x00" * (AUDIO_MAX_BYTES + 1))
+
+        assert audio_block(str(path)) is None
+
+    def test_custom_limit(self, tmp_path):
+        path = tmp_path / "clip.wav"
+        path.write_bytes(WAV_BYTES)
+
+        assert audio_block(path, max_bytes=len(WAV_BYTES)) is not None
+        assert audio_block(path, max_bytes=len(WAV_BYTES) - 1) is None
+
+    def test_oversize_file_is_not_read_into_memory(self, tmp_path, monkeypatch):
+        path = tmp_path / "big.wav"
+        path.write_bytes(WAV_BYTES)
+
+        def _fail(self):
+            raise AssertionError("an oversize WAV must be rejected from its size, not read")
+
+        monkeypatch.setattr("pathlib.Path.read_bytes", _fail)
+
+        assert audio_block(str(path), max_bytes=len(WAV_BYTES) - 1) is None

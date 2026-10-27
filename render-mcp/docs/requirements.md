@@ -98,6 +98,21 @@ The server MUST implement MCP using `mcp.server.stdio.stdio_server()`.
 
 ### IR-1a — Tool metadata and server instructions
 
+### FR-3b — Measure ranges
+
+`render_to_pdf` and `render_to_image` MUST accept an optional `measures: [start, end]`
+(inclusive printed measure numbers, pickup bar 0; UX Wave 3, B2,
+[conventions: Measure Ranges](../../docs/conventions.md#measure-ranges)).
+
+- The engine cuts the score once with `sheet_music_mcp_core.measures.select_measures()` before
+  backend dispatch, so MuseScore and Verovio receive the same cut score (key, time, clef,
+  divisions and tempo in force at `start` are carried into the first kept bar). The backends
+  know nothing of ranges.
+- `page` counts pages of the cut score.
+- A reversed range, a range outside the score or a range holding no bar is `INVALID_PARAMETER`
+  with `hint` naming the score's first and last bar numbers ("This score has measures 1–6.").
+- Without `measures` the call is unchanged.
+
 Every tool sets a human-readable `title` and an annotation preset from `sheet-music-mcp-core`
 (see [conventions: Tool Annotations and Titles](../../docs/conventions.md#tool-annotations-and-titles)).
 The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The server sends
@@ -109,6 +124,7 @@ The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The s
 Input (exactly one of musicxml / musicxml_path, schema `oneOf`):
   musicxml       string  MusicXML document as a string
   musicxml_path  string  path to a .musicxml, .xml or .mxl file inside the read roots (preferred)
+  measures       [int, int]  optional  inclusive printed bar range, e.g. [17, 24]; whole score if omitted
   output_path    string  optional  path to write PDF; auto-generated if omitted
 
 Output:
@@ -127,7 +143,8 @@ Errors return only the error JSON.
 Input (exactly one of musicxml / musicxml_path, schema `oneOf`):
   musicxml       string   MusicXML document as a string
   musicxml_path  string   path to a .musicxml, .xml or .mxl file inside the read roots (preferred)
-  page         integer  optional  1-indexed page number; default: 1
+  measures     [int, int]  optional  inclusive printed bar range; whole score if omitted
+  page         integer  optional  1-indexed page number (of the cut score); default: 1
   format       string   optional  "png" or "svg"; default: "png"
   dpi          integer  optional  72–600; default: 150; only applies to PNG
   output_path  string   optional  path to write image; auto-generated if omitted
@@ -175,7 +192,7 @@ Output:
   server            string
   version           string
   input_formats     list[string]   ["musicxml", "mxl"]
-  input_parameters  list[string]   ["musicxml", "musicxml_path"]
+  input_parameters  list[string]   ["musicxml", "musicxml_path", "measures"]
   output_formats    list[string]   ["pdf", "png", "svg"]
   tools             list[string]
   backend           string         active backend, e.g. "verovio"
@@ -186,13 +203,13 @@ Output:
 ### IR-5 — Error response format
 
 ```json
-{"error": "<human-readable message>", "error_code": "<CODE>"}
+{"error": "<human-readable message>", "error_code": "<CODE>", "hint": "<optional>"}
 ```
 
 | Code | Condition |
 |------|-----------|
 | `INVALID_INPUT` | MusicXML cannot be parsed (inline or read from `musicxml_path`) |
-| `INVALID_PARAMETER` | Page out of range; unsupported format; DPI out of range; both or neither of `musicxml` / `musicxml_path`; `musicxml_path` outside the read roots or with another suffix; `output_path` outside the output root |
+| `INVALID_PARAMETER` | Page out of range; unsupported format; DPI out of range; `measures` reversed, outside the score or holding no bar (with `hint`); both or neither of `musicxml` / `musicxml_path`; `musicxml_path` outside the read roots or with another suffix; `output_path` outside the output root |
 | `FILE_NOT_FOUND` | `musicxml_path` inside the roots does not exist |
 | `FILE_TOO_LARGE` | `musicxml_path` larger than `SHEET_MUSIC_MAX_SCORE_BYTES` (default 16 MiB) |
 | `PROCESSING_FAILED` | No backend available; rendering error |

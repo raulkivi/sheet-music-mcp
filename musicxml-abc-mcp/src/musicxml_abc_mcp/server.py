@@ -7,6 +7,7 @@ from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from sheet_music_mcp_core.content import error_content, processing_error_content
+from sheet_music_mcp_core.measures import MEASURES_PROPERTY
 from sheet_music_mcp_core.params import aliased
 from sheet_music_mcp_core.references import (
     DESCRIBE_SCORE_TOOL,
@@ -33,6 +34,8 @@ INSTRUCTIONS = (
     "(musicxml_to_abc, optionally one part) and converts edited ABC back to MusicXML "
     "(abc_to_musicxml). Check edits with validate_abc first. The round trip keeps the notes but "
     "drops dynamics and complex articulations. "
+    "Pass measures [start, end] (printed bar numbers, pickup 0) to musicxml_to_abc to export only "
+    "those bars. "
     "Prefer musicxml_path over inline musicxml text, pass on the musicxml_path that "
     "abc_to_musicxml returns for large scores, and use describe_score to learn part IDs cheaply."
 )
@@ -56,7 +59,7 @@ async def list_tools():
             description=(
                 "Convert a MusicXML document to ABC notation. "
                 "ABC is compact and human-readable — ideal for Claude to read and edit scores directly. "
-                "Optionally filter to a single part. "
+                "Optionally filter to a single part and to a range of printed bars (measures). "
                 "Pass the score as musicxml_path (preferred) or as musicxml text."
             ),
             input_schema={
@@ -74,6 +77,7 @@ async def list_tools():
                         "type": "string",
                         "description": "(Deprecated: use `part`) Export only this part.",
                     },
+                    **MEASURES_PROPERTY,
                 },
                 **exactly_one("musicxml", "musicxml_path"),
             },
@@ -165,7 +169,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
 
         try:
             part = aliased(arguments, "part", "part_id")  # optional
-            result = musicxml_to_abc(musicxml, part)
+            result = musicxml_to_abc(musicxml, part, arguments.get("measures"))
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
             return processing_error_content(e)
@@ -214,8 +218,9 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             "version": __version__,
             "input_formats": ["musicxml", "mxl", "abc"],
             "output_formats": ["abc", "musicxml"],
-            # Scores are taken as inline text or as a .musicxml/.xml/.mxl file path.
-            "input_parameters": ["musicxml", "musicxml_path"],
+            # Scores are taken as inline text or as a .musicxml/.xml/.mxl file path;
+            # musicxml_to_abc can export a range of printed bars (measures).
+            "input_parameters": ["musicxml", "musicxml_path", "measures"],
             "tools": [
                 "musicxml_to_abc",
                 "abc_to_musicxml",

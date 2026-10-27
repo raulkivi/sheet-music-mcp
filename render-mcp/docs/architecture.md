@@ -64,7 +64,9 @@ MCP protocol layer. Contains no rendering logic.
   `musicxml_path` confined to the read roots and read (`.mxl` too). The handlers are wired with
   `make_handlers(..., pass_context=True)` so `load_score` can ask the client for its roots.
   Everything after that is unchanged, so a path call and an inline call give the same result
-- Validates all parameters (via `utils.py`) before calling the engine
+- Validates all parameters (via `utils.py`) before calling the engine; passes `measures` on
+  only when the caller gave it (`_measures_argument`), so default calls are unchanged
+- Returns a raised `ProcessingError` with `processing_error_content`, keeping its `hint`
 - Converts engine results and exceptions to `TextContent` JSON (always `content[0]`)
 - On success appends result blocks for the written file via `sheet_music_mcp_core.content`
   (`_file_blocks`): a PNG of at most 1 MB as an inline `image` block (`png_block`), then a
@@ -80,8 +82,8 @@ All rendering logic. No MCP imports.
 | `detect_backend()` | Return `"musescore"` if MuseScore CLI is in PATH, else `"verovio"` |
 | `musescore_available()` | True if MuseScore CLI found |
 | `verovio_available()` | True if verovio importable |
-| `render_to_pdf(musicxml, output_path)` | Dispatch to MuseScore or Verovio PDF pipeline |
-| `render_to_image(musicxml, page, fmt, dpi, output_path)` | Dispatch to MuseScore or Verovio image pipeline |
+| `render_to_pdf(musicxml, output_path, measures=None)` | Cut to `measures` (`select_measures`), then dispatch to MuseScore or Verovio PDF pipeline |
+| `render_to_image(musicxml, page, fmt, dpi, output_path, measures=None)` | Cut to `measures`, then dispatch to MuseScore or Verovio image pipeline |
 | `_render_pdf_verovio(musicxml, output_path)` | Verovio → SVG per page → cairosvg PDF → pypdf merge |
 | `_render_image_verovio(musicxml, page, fmt, dpi, output_path)` | Verovio → SVG → PNG or SVG file |
 | `_render_pdf_musescore(musicxml, output_path)` | MuseScore CLI subprocess → PDF |
@@ -90,6 +92,13 @@ All rendering logic. No MCP imports.
 | `_get_image_dimensions(image_path)` | Get width/height via PIL Image.size |
 
 Backend is detected once at module import time; it cannot change while the server is running.
+
+**Measure ranges (UX Wave 3, B2).** The two public functions apply
+`sheet_music_mcp_core.measures.select_measures(musicxml, measures)` once, before backend
+dispatch. The `_render_*` backend functions never see a range: MuseScore and Verovio get the
+same cut score, which keeps the key, time, clef, divisions and tempo in force at `start`.
+`measures=None` returns the text unchanged. A bad range raises `MeasureRangeError`
+(`INVALID_PARAMETER`, hint "This score has measures A–B.") before any backend runs.
 
 ### `utils.py`
 
@@ -112,10 +121,11 @@ Input validation and path helpers.
 ### PDF rendering (Verovio path)
 
 ```
-call_tool("render_to_pdf", {musicxml | musicxml_path, output_path})
+call_tool("render_to_pdf", {musicxml | musicxml_path, output_path, measures?})
   │
   ├─ references: load_score (inline text, or the confined file)
   ├─ utils: validate_musicxml, generate_pdf_path
+  ├─ engine: render_to_pdf → select_measures(musicxml, measures)   ← no-op without measures
   │
   └─ engine: _render_pdf_verovio(musicxml, output_path)
         │
@@ -263,6 +273,7 @@ MuseScore names output files as `render.png` (single page) or `render-N.png` for
 | Page number out of range | `INVALID_PARAMETER` |
 | Unsupported image format | `INVALID_PARAMETER` |
 | DPI out of range | `INVALID_PARAMETER` |
+| `measures` reversed / outside the score / holding no bar | `INVALID_PARAMETER` with `hint` |
 | Both or neither of `musicxml` / `musicxml_path` | `INVALID_PARAMETER` |
 | `musicxml_path` outside the read roots, or wrong suffix | `INVALID_PARAMETER` (never echoes file content) |
 | `musicxml_path` missing / too large / not MusicXML | `FILE_NOT_FOUND` / `FILE_TOO_LARGE` / `INVALID_INPUT` |
@@ -314,5 +325,6 @@ render-mcp/
     ├── test_engine.py
     ├── test_utils.py
     ├── test_score_references.py   ← musicxml_path, describe_score
+    ├── test_measures.py           ← measures: backend spies, errors, a real Verovio cut
     └── fixtures/
 ```

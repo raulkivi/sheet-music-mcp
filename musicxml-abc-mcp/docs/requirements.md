@@ -50,6 +50,20 @@ Scores MAY be passed and returned as file paths instead of inline text
 - The server MUST expose the shared `describe_score` tool (title, key, time, tempo, parts with
   `P1`… IDs, ranges, measures, duration) taking `musicxml` or `musicxml_path`.
 
+### FR-3b — Measure ranges (UX Wave 3)
+
+`musicxml_to_abc` MAY export only part of a score
+([conventions: Measure Ranges](../../docs/conventions.md#measure-ranges)).
+
+- `measures: [start, end]` MUST select the bars whose **printed** numbers are in the inclusive
+  range (a pickup is 0, `"12a"` belongs to 12), in written order, in every part.
+- The score MUST be cut with `sheet_music_mcp_core.measures.select_measures` before music21 parses
+  it, so each tune's `K:`, `M:` and `Q:` are the key, time and tempo in force at `start`.
+- A reversed range, a range outside the score or one holding no bar MUST return
+  `INVALID_PARAMETER` with a `hint` naming the score's first and last bar numbers
+  (`"This score has measures 1–32."`).
+- Without `measures` the output MUST be unchanged.
+
 ### FR-4 — Capability reporting
 
 The server MUST expose a tool that returns:
@@ -119,6 +133,7 @@ Input:
   musicxml_path  string  one of   path to a .musicxml, .xml or .mxl file (preferred)
   part       string  optional  filter output to this part: ID, name or voice (e.g. "P1", "Soprano", "S")
   part_id    string  optional  deprecated alias of `part` (removed next minor)
+  measures   [int, int]  optional  inclusive [start, end] printed bar numbers (pickup 0); omit for all
 
 Output:
   abc              string        ABC notation string
@@ -166,7 +181,7 @@ Output:
   version          string
   input_formats    list[string]   ["musicxml", "mxl", "abc"]
   output_formats   list[string]   ["abc", "musicxml"]
-  input_parameters list[string]   ["musicxml", "musicxml_path"]
+  input_parameters list[string]   ["musicxml", "musicxml_path", "measures"]
   tools            list[string]   includes "describe_score"
   backend          string         "music21"
   backend_version  string
@@ -197,7 +212,7 @@ Output:
 | Code | Condition |
 |------|-----------|
 | `INVALID_INPUT` | MusicXML parse error; ABC parse error; a score file that is not well-formed MusicXML or a bad `.mxl` |
-| `INVALID_PARAMETER` | Requested part not found, or ambiguous (`choices` lists the parts); both or neither of `musicxml` / `musicxml_path`; a score path outside the read roots or with the wrong suffix; unknown `return` mode |
+| `INVALID_PARAMETER` | Requested part not found, or ambiguous (`choices` lists the parts); both or neither of `musicxml` / `musicxml_path`; a score path outside the read roots or with the wrong suffix; unknown `return` mode; `measures` reversed, malformed or outside the score (`hint` names the score's bars) |
 | `FILE_NOT_FOUND` | `musicxml_path` inside the roots does not exist |
 | `FILE_TOO_LARGE` | `musicxml_path` larger than `SHEET_MUSIC_MAX_SCORE_BYTES` (default 16 MiB) |
 | `PROCESSING_FAILED` | music21 conversion failure |

@@ -41,13 +41,19 @@ Support filtering comparison by, via `options` on `compare()`/`compare_files()`:
 - `list_changes.part`: one part ID, name or voice, resolved against the compared parts
 - Part IDs in results are MusicXML score-part ids (`"P1"`), never music21's `part.id`; unnamed
   parts are reported by ID in `part_name`, `parts_missing` and `parts_extra`
-- `measure_range`: `[start, end]` inclusive, applied to measures and key/time signature diffs
+- `measures` (deprecated alias `measure_range`, one minor release): `[start, end]` inclusive measure
+  numbers, applied to measures and key/time signature diffs. A filter: the scores are not cut
+  (unlike the other servers' `measures`). Validated by the core's
+  `measures.parse_range(..., param="options.measures")`: a reversed or malformed range is
+  `INVALID_PARAMETER` with a hint; both names with different values is `INVALID_PARAMETER`
+  (`params.aliased`), and the old name alone logs one deprecation warning per process
 - `ignore_articulations`: blanks `NoteInfo.articulations`
 - `normalize_pitch`: transposes transposing instruments to concert/sounding pitch (`Score.toSoundingPitch()`) before comparing
 - `expand_repeats`: unfolds repeat structure (`Score.expandRepeats()`) before comparing; **default `false`** (opt-in — see `docs/PLAN.md` "Changed decisions"); a malformed repeat structure raises `ProcessingError("PROCESSING_FAILED")` rather than crashing
 
-`list_changes`'s `part`/`measure_range` arguments remain a separate, server.py-side post-filter of
-an already-computed result (unrelated to `options`, unchanged since Phase 3).
+`list_changes`'s `part`/`measures` arguments remain a separate, server.py-side post-filter of
+an already-computed result (unrelated to `options`, unchanged since Phase 3). Its `measures` has the
+same deprecated alias `measure_range` and the same validation (`parse_range`, `param="measures"`).
 
 ### FR-6: Quick similarity
 

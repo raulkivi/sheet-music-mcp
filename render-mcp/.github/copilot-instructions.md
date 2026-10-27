@@ -5,7 +5,7 @@
 Renders MusicXML scores to PDF (for printing) or PNG (for display in web/mobile apps).
 Backend: Verovio (in-process Python) + cairosvg + pypdf. No MuseScore CLI required.
 
-**Status:** Phase 1 + UX Waves 1–2 complete. 147 unit tests (default run) + 9 integration tests.
+**Status:** Phase 1 + UX Waves 1–3 complete. 169 unit tests (default run) + 9 integration tests.
 
 ---
 
@@ -34,6 +34,7 @@ render-mcp/
 │   ├── test_engine.py       # unit + integration tests
 │   ├── test_utils.py        # unit tests
 │   ├── test_score_references.py  # musicxml_path, describe_score
+│   ├── test_measures.py     # measures range (backend spies, errors, real Verovio cut)
 │   └── fixtures/
 └── docs/
     ├── requirements.md
@@ -57,6 +58,9 @@ MXL test fixtures are in `../omr-mcp/test_samples/pdmx_satb_samples/mxl/` — 10
 Both render tools take the score as `musicxml` (inline) or `musicxml_path` (`.musicxml`, `.xml`,
 `.mxl`; exactly one). Paths are read via `sheet_music_mcp_core.references.load_score()`, confined
 to the output root, the client's roots and `SHEET_MUSIC_INPUT_ROOTS` (UX Wave 2, score references).
+Both also take an optional `measures: [start, end]` (printed bar numbers, inclusive; UX Wave 3):
+the engine cuts the score with `sheet_music_mcp_core.measures.select_measures()` before backend
+dispatch, so MuseScore and Verovio render the same bars.
 
 ---
 
@@ -120,6 +124,9 @@ asyncio.run(_run())
 - **MuseScore is not installed.** Don't attempt to call any MuseScore CLI command.
 - **Schema `oneOf`, not `required`.** The render tools take exactly one of `musicxml` /
   `musicxml_path`; there is no `required` list.
+- **Measure ranges are cut in the engine, not the backends.** `render_to_pdf` / `render_to_image`
+  apply `select_measures` before dispatch; keep the `_render_*` functions unaware of ranges.
+  `page` counts pages of the cut score. Bad ranges are `INVALID_PARAMETER` with a `hint`.
 
 ---
 

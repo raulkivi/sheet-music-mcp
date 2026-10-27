@@ -6,8 +6,9 @@ Synthesizes audio from a MusicXML score. Callers select voice parts (Soprano, Al
 or any combination) and an optional tempo factor. Returns a WAV file path.
 
 **Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references: `musicxml_path`, `describe_score`)
-complete. 158 unit + 8 integration tests (integration needs a soundfont, libfluidsynth and the omr-mcp
-MXL fixtures).
++ UX Wave 3 (practice tracks: `measures`, `repeat`, count-in/metronome, `timbre`, part gains and
+presets; new `starting_pitches` tool) complete. 302 unit + 10 integration tests (integration needs
+a soundfont, libfluidsynth and, for most, the omr-mcp MXL fixtures).
 
 ---
 
@@ -15,7 +16,7 @@ MXL fixtures).
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v                          # 158 unit tests (fast)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v                          # 302 unit tests (fast)
 
 # Integration tests require a soundfont
 VIRTUAL_ENV= SYNTH_SOUNDFONT_PATH=/usr/share/sounds/sf2/TimGM6mb.sf2 \
@@ -34,6 +35,8 @@ Install dependencies: `uv sync --extra dev`
 |------|---------|
 | `src/synth_mcp/server.py` | MCP tool definitions and handlers |
 | `src/synth_mcp/engine.py` | music21 + pyfluidsynth pipeline (no MCP imports) |
+| `src/synth_mcp/practice.py` | Practice-track steps: gains, repeat, clicks, timbre, MIDI post-processing (no MCP imports) |
+| `src/synth_mcp/clip.py` | `starting_pitches`: text, clip MIDI, render + downmix to mono 16 kHz (no MCP imports) |
 | `src/synth_mcp/utils.py` | MusicXML validation, tempo validation, path helpers |
 | `docs/HANDOVER.md` | Status, remaining work, definition of done |
 | `docs/PLAN.md` | Architecture decisions and rationale |
@@ -47,12 +50,13 @@ Install dependencies: `uv sync --extra dev`
 | Tool | Description |
 |------|-------------|
 | `get_parts` | Parse MusicXML and return list of parts with IDs and measure counts |
-| `synthesize` | Render selected parts to WAV with optional tempo scaling |
+| `synthesize` | Render selected parts to WAV with optional tempo scaling and practice options: `measures`, `repeat`, `count_in_bars`, `metronome`, `timbre`, `part_gains` / `preset` / `focus_part` |
+| `starting_pitches` | Each part's first note as text (`"S: D5, A: A4, …"`) plus a short piano WAV (inline when ≤ 200 KB); text only, not an error, without a soundfont |
 | `describe_score` | Shared core tool: title, key, time, tempo, parts (ID, clef, range), measures, duration — no music21 |
 | `list_capabilities` | Server metadata, backend, soundfont status |
 | `health_check` | Soundfont, FluidSynth and music21 readiness |
 
-`get_parts`, `synthesize` and `describe_score` take the score as `musicxml` (inline text) **or**
+`get_parts`, `synthesize`, `starting_pitches` and `describe_score` take the score as `musicxml` (inline text) **or**
 `musicxml_path` (`.musicxml`, `.xml`, `.mxl`), exactly one (`oneOf`). Paths are read with
 `sheet_music_mcp_core.references.load_score` (read roots: `SHEET_MUSIC_OUTPUT_ROOT`, client MCP
 roots, `SHEET_MUSIC_INPUT_ROOTS`); never open a score path yourself.
@@ -114,6 +118,21 @@ asyncio.run(_run())
   `sheet_music_mcp_core.paths.confine_output_path` (raises `PathPolicyError`, also a `ValueError`).
 - **`output_path` accepts `.mid` / `.midi` but always writes WAV** (known gap, not yet fixed).
 - **Install the dev extra:** plain `uv sync` removes pytest; use `uv sync --extra dev`.
+- **Practice options are no-ops at their defaults** (DoD-1). `call_tool` passes only the practice
+  options the caller gave to `extract_midi`; with none, the MIDI is byte-identical to before.
+  Test practice features at MIDI level (`tests/midi_helpers.py` reads bytes back with
+  `music21.midi.MidiFile`), never with FluidSynth.
+- **music21 shares a MIDI channel between parts with the same instrument** (channels are keyed by
+  program), so CC7 gains need `tune_midi` to give each melodic part its own channel (max 15).
+- **music21's conductor track keeps tempo/time marks only in ascending offset order, first part
+  first.** The count-in's meter and tempo therefore go at offset 0 of the first part, not in the
+  click part; the click part is appended last so it is the last MIDI track.
+- **A bare `<sound tempo>` is `numberSounding`, not `number`.** `select_measures` carries the tempo
+  that way; music21's MIDI export prefers `numberSounding`, so `scale_tempo` scales both.
+- **`starting_pitches` without audio is not an error.** Any `ProcessingError` from `render_clip`
+  (no soundfont, no FluidSynth, render failure) becomes `"audio_unavailable"`; the
+  `audio/starting-pitches-*.wav` path is only created after rendering worked. Tests patch
+  `synth_mcp.clip.synthesize_midi`.
 - **Running tests:** `VIRTUAL_ENV=` prefix prevents uv from picking up the wrong venv.
 
 ---

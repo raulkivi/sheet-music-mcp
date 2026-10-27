@@ -121,6 +121,7 @@ Once the server is connected, try prompts like these:
 - *"Convert this MusicXML file to ABC notation so you can read it."*
 - *"Here is a score in ABC notation — convert it back to MusicXML so I can open it in MuseScore."*
 - *"Extract just the soprano part from this MusicXML file and give it to me as ABC notation."*
+- *"Show me bars 17 to 24 of the alto part as ABC."*
 - *"Check whether this ABC notation is valid and tell me about any errors."*
 - *"Transpose the melody in this ABC score up by a whole step, then convert it back to MusicXML."*
 

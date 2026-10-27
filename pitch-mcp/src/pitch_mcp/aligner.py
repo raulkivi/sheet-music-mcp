@@ -14,6 +14,7 @@ Algorithm:
 
 import logging
 import math
+import statistics
 from typing import Optional
 
 import numpy as np
@@ -157,6 +158,7 @@ def summarize(note_results: list[dict]) -> dict:
             "measures_covered": int,
             "avg_accuracy_cents": float | None,
             "accuracy_histogram": {"on_pitch": N, "sharp": N, "flat": N, "no_signal": N},
+            "highlights": [...],  # see highlights()
         }
     """
     histogram = {"on_pitch": 0, "sharp": 0, "flat": 0, "no_signal": 0}
@@ -178,4 +180,95 @@ def summarize(note_results: list[dict]) -> dict:
         "measures_covered": len(measures_seen),
         "avg_accuracy_cents": avg_cents,
         "accuracy_histogram": histogram,
+        "highlights": highlights(note_results),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Highlights: runs of flat or sharp notes in plain words (UX Wave 3, W3-7)
+# ---------------------------------------------------------------------------
+
+def highlights(
+    note_results: list[dict], *, threshold: int = 25, min_run: int = 2, limit: int = 3
+) -> list[dict]:
+    """Name the worst runs of consecutive flat or sharp notes.
+
+    ``note_results`` are analyze_recording's per-note results (``expected``) or a live
+    session's per-frame history (``expected_note``); consecutive entries for the same note are
+    merged first. A run is at least ``min_run`` consecutive notes all below ``-threshold`` cents
+    (flat) or all above ``threshold`` (sharp); a no-signal or on-pitch note ends it. Runs are
+    ranked by notes x |average cents| and the top ``limit`` are returned in that order:
+
+        {"direction": "flat", "measures": [12, 14], "notes": 4, "avg_cents": -35,
+         "text": "flat on E5 in m.12–14 (-35 cents avg)"}
+    """
+    runs = [run for run in _runs(_notes(note_results), threshold) if len(run) >= min_run]
+    runs.sort(key=lambda run: len(run) * abs(_mean_cents(run)), reverse=True)  # stable on ties
+    return [_highlight(run) for run in runs[:limit]]
+
+
+def _notes(note_results: list[dict]) -> list[tuple[int, str, Optional[float]]]:
+    """(measure, pitch, median cents or None) per note, merging consecutive entries of one note."""
+    notes: list[tuple[int, str, Optional[float]]] = []
+    key = None
+    cents: list[int] = []
+    for entry in note_results:
+        pitch = entry.get("expected", entry.get("expected_note"))
+        entry_key = (entry.get("measure"), entry.get("beat"), pitch)
+        if entry_key != key:
+            if key is not None:
+                notes.append(_note(key, cents))
+            key, cents = entry_key, []
+        if entry.get("accuracy_cents") is not None:
+            cents.append(entry["accuracy_cents"])
+    if key is not None:
+        notes.append(_note(key, cents))
+    return notes
+
+
+def _note(key: tuple, cents: list[int]) -> tuple[int, str, Optional[float]]:
+    measure, _beat, pitch = key
+    return measure, pitch, statistics.median(cents) if cents else None
+
+
+def _runs(notes: list[tuple[int, str, Optional[float]]], threshold: int) -> list[list[tuple]]:
+    """Maximal runs of consecutive notes off pitch in the same direction."""
+    runs: list[list[tuple]] = []
+    run: list[tuple] = []
+    direction = None
+    for note in notes:
+        cents = note[2]
+        note_direction = None if cents is None else _classify(cents, threshold)
+        if note_direction not in ("flat", "sharp") or note_direction != direction:
+            if run:
+                runs.append(run)
+            run = []
+        direction = note_direction
+        if note_direction in ("flat", "sharp"):
+            run.append(note)
+    if run:
+        runs.append(run)
+    return runs
+
+
+def _mean_cents(run: list[tuple]) -> float:
+    return sum(note[2] for note in run) / len(run)
+
+
+def _highlight(run: list[tuple]) -> dict:
+    avg_cents = round(_mean_cents(run))
+    direction = "flat" if avg_cents < 0 else "sharp"
+    first, last = run[0][0], run[-1][0]
+    span = f"m.{first}" if first == last else f"m.{first}–{last}"
+    pitches = {note[1] for note in run}
+    if len(pitches) == 1:
+        text = f"{direction} on {run[0][1]} in {span} ({avg_cents:+d} cents avg)"
+    else:
+        text = f"{direction} in {span} ({avg_cents:+d} cents avg over {len(run)} notes)"
+    return {
+        "direction": direction,
+        "measures": [first, last],
+        "notes": len(run),
+        "avg_cents": avg_cents,
+        "text": text,
     }

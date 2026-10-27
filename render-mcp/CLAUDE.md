@@ -5,7 +5,7 @@
 Renders MusicXML scores to PDF (for printing) or PNG (for display in web/mobile apps).
 Uses Verovio (in-process) + cairosvg + pypdf. No MuseScore CLI required.
 
-**Status:** Phase 1 + UX Waves 1–2 complete. 147 unit tests (default run) + 9 integration.
+**Status:** Phase 1 + UX Waves 1–3 complete. 169 unit tests (default run) + 9 integration.
 
 ---
 
@@ -13,7 +13,7 @@ Uses Verovio (in-process) + cairosvg + pypdf. No MuseScore CLI required.
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v             # 147 unit tests (integration deselected)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v             # 169 unit tests (integration deselected)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration  # Verovio runs in-process, always fast
 ```
 
@@ -48,6 +48,9 @@ Install dependencies: `uv sync`
 Both render tools take the score as `musicxml` (inline) or `musicxml_path` (`.musicxml`, `.xml`,
 `.mxl`; exactly one). Paths are read via `sheet_music_mcp_core.references.load_score()`, confined
 to the output root, the client's roots and `SHEET_MUSIC_INPUT_ROOTS` (UX Wave 2, score references).
+Both also take an optional `measures: [start, end]` (printed bar numbers, inclusive; UX Wave 3):
+the engine cuts the score with `sheet_music_mcp_core.measures.select_measures()` before backend
+dispatch, so MuseScore and Verovio render the same bars.
 
 ---
 
@@ -100,6 +103,12 @@ asyncio.run(_run())
 - **Schema `oneOf`, not `required`.** The render tools have no `required` list; `musicxml` /
   `musicxml_path` are an `exactly_one` pair. A direct `call_tool` with neither now returns
   `INVALID_PARAMETER` (from `load_score`) rather than `INVALID_INPUT`.
+- **Measure ranges are cut in the engine, not the backends.** `render_to_pdf` / `render_to_image`
+  apply `select_measures` before dispatch; keep the `_render_*` functions unaware of ranges.
+  The server passes `measures` only when given, so default engine calls keep their old
+  signature. `page` counts pages of the cut score. Bad ranges are `INVALID_PARAMETER` with a
+  `hint` ("This score has measures A–B."); the render handlers use `processing_error_content`
+  so the hint survives.
 - **Integration tests need the omr-mcp samples.** They read
   `../omr-mcp/test_samples/pdmx_satb_samples/mxl/`; without that folder they fail with
   "Fixture dir not found".

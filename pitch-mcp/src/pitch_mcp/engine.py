@@ -16,9 +16,10 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Mapping, Optional
+from typing import Callable, Mapping, Optional, Sequence
 
 from sheet_music_mcp_core.errors import ProcessingError  # re-exported for server.py
+from sheet_music_mcp_core.measures import select_measures
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +28,17 @@ logger = logging.getLogger(__name__)
 # Phase A: Offline analysis
 # ---------------------------------------------------------------------------
 
-def analyze_recording(audio_path: str, musicxml_str: str, part_id: str) -> dict:
+def analyze_recording(
+    audio_path: str, musicxml_str: str, part_id: str, measures: Optional[Sequence[int]] = None
+) -> dict:
     """Analyse a pre-recorded WAV file against a reference score.
 
     Args:
         audio_path: Path to a 16-bit PCM WAV file.
         musicxml_str: MusicXML document as a string.
         part_id: Part to compare against: ID, name or voice (e.g. 'P1', 'Soprano', 'S').
+        measures: Optional inclusive [start, end] printed measure numbers; the recording is
+            compared against those bars only (it starts at ``start``).
 
     Returns:
         {
@@ -41,6 +46,7 @@ def analyze_recording(audio_path: str, musicxml_str: str, part_id: str) -> dict:
             "avg_accuracy_cents": int | None,
             "note_accuracy": [...],
             "accuracy_histogram": {...},
+            "highlights": [...],
         }
 
     Raises:
@@ -54,6 +60,8 @@ def analyze_recording(audio_path: str, musicxml_str: str, part_id: str) -> dict:
         raise ProcessingError(
             f"Audio file not found: {audio_path!r}", "FILE_NOT_FOUND"
         )
+
+    musicxml_str = _select(musicxml_str, measures)
 
     # Extract reference note sequence
     try:
@@ -103,7 +111,16 @@ def analyze_recording(audio_path: str, musicxml_str: str, part_id: str) -> dict:
         "avg_accuracy_cents": summary["avg_accuracy_cents"],
         "note_accuracy": note_results,
         "accuracy_histogram": summary["accuracy_histogram"],
+        "highlights": summary["highlights"],
     }
+
+
+def _select(musicxml_str: str, measures: Optional[Sequence[int]]) -> str:
+    """The score cut to ``measures`` (printed numbers), or unchanged when it is None.
+
+    Raises ProcessingError (INVALID_PARAMETER with the score's range as hint) for a bad range.
+    """
+    return select_measures(musicxml_str, measures)
 
 
 # ---------------------------------------------------------------------------
@@ -113,10 +130,14 @@ def analyze_recording(audio_path: str, musicxml_str: str, part_id: str) -> dict:
 class ScoreSession:
     """Holds state for one active monitoring session."""
 
-    def __init__(self, musicxml_str: str, part_id: str):
+    def __init__(self, musicxml_str: str, part_id: str, measures: Optional[Sequence[int]] = None):
         from .utils import extract_nominal_tempo_bpm, extract_part_notes
 
         self.session_id = str(uuid.uuid4())
+        # A cut score's timeline starts at its first selected bar; measures keep printed numbers.
+        # select_measures validates the range itself, so a reversed one gets the score's bars as hint
+        musicxml_str = select_measures(musicxml_str, measures)
+        self._first_measure = measures[0] if measures is not None else 1
 
         try:
             info, self.note_sequence = extract_part_notes(musicxml_str, part_id)
@@ -166,9 +187,10 @@ class ScoreSession:
 
     @property
     def measure_count(self) -> int:
+        """Bars from the first one practised (bar 1, or the start of ``measures``) to the last note."""
         if not self.note_sequence:
             return 0
-        return self.note_sequence[-1]["measure"]
+        return self.note_sequence[-1]["measure"] - self._first_measure + 1
 
     @property
     def duration_seconds(self) -> float:
@@ -385,13 +407,13 @@ class ScoreSession:
         """Return the most recent position/accuracy snapshot."""
         with self._lock:
             if self._current_position is None:
+                # Before any singing: the first note (a session always has one).
+                first = self.note_sequence[0]
                 return {
                     "session_id": self.session_id,
-                    "measure": 1,
-                    "beat": 1.0,
-                    "expected_note": (
-                        self.note_sequence[0]["note_name"] if self.note_sequence else "?"
-                    ),
+                    "measure": first["measure"],
+                    "beat": first["beat"],
+                    "expected_note": first["note_name"],
                     "sung_pitch_hz": None,
                     "accuracy_cents": None,
                     "status": "no_signal",
@@ -423,19 +445,8 @@ class ScoreSession:
         with self._lock:
             history = list(self._history)
 
-        # Build summary from history (or zero if no data)
-        if history:
-            summary = summarize(history)
-        else:
-            summary = {
-                "measures_covered": 0,
-                "avg_accuracy_cents": None,
-                "accuracy_histogram": {
-                    "on_pitch": 0, "sharp": 0, "flat": 0, "no_signal": 0
-                },
-            }
-
-        return {"session_id": self.session_id, "summary": summary}
+        # An empty history gives zero counts and no highlights.
+        return {"session_id": self.session_id, "summary": summarize(history)}
 
 
 # ---------------------------------------------------------------------------
@@ -674,8 +685,11 @@ def _stop_reaper() -> None:
             _reaper = None
 
 
-def load_score(musicxml_str: str, part_id: str) -> dict:
+def load_score(musicxml_str: str, part_id: str, measures: Optional[Sequence[int]] = None) -> dict:
     """Load a reference score and create a new session.
+
+    ``measures`` ([start, end], printed numbers) practises only those bars: the session's
+    timeline starts at ``start`` and positions keep the printed measure numbers.
 
     Returns:
         {
@@ -686,7 +700,7 @@ def load_score(musicxml_str: str, part_id: str) -> dict:
             "duration_seconds": 142.0,
         }
     """
-    session = ScoreSession(musicxml_str, part_id)
+    session = ScoreSession(musicxml_str, part_id, measures)
     _registry.add(session)
     _ensure_reaper()
 
@@ -705,6 +719,36 @@ def start_monitoring(session_id: str, tempo_bpm: Optional[int] = None) -> dict:
     session.start(tempo_bpm=tempo_bpm)
     _registry.touch(session_id)
     return {"status": "started", "session_id": session_id}
+
+
+def start_practice(
+    musicxml_str: str,
+    part_id: str,
+    tempo_bpm: Optional[int] = None,
+    measures: Optional[Sequence[int]] = None,
+) -> dict:
+    """load_score + start_monitoring in one call; their fields together (session_id once).
+
+    If the microphone fails to open, the session just loaded is discarded before the error is
+    raised, so no orphan session is left behind.
+    """
+    loaded = load_score(musicxml_str, part_id, measures)
+    try:
+        started = start_monitoring(loaded["session_id"], tempo_bpm)
+    except Exception:
+        _discard(loaded["session_id"])
+        raise
+    return {**loaded, **started}
+
+
+def _discard(session_id: str) -> None:
+    """Remove a session and release whatever its failed start left open."""
+    session = _registry.remove(session_id)
+    if session is not None:
+        try:
+            session.stop()
+        except Exception as e:
+            logger.warning("Error discarding session %s: %s", session_id, e)
 
 
 def get_position(session_id: str) -> dict:

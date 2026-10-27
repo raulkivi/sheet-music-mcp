@@ -37,6 +37,7 @@ The server is stateful in Phase B: sessions live in a module-level `SessionRegis
      │  ScoreSession                                  │
      │    start() / get_position() / stop()           │
      │  load_score() / start_monitoring()             │
+     │  start_practice() (= both, no orphan on error) │
      │  get_position() / stop_monitoring()            │
      │  list_sessions()                               │
      │  _registry: SessionRegistry (+ Reaper thread)  │
@@ -55,6 +56,7 @@ The server is stateful in Phase B: sessions live in a module-level `SessionRegis
   │               │  │  validate_musicxml()             │
   │  align()      │  └──────────────────────────────────┘
   │  summarize()  │
+  │  highlights() │
   │  _hz_to_      │
   │   cents_dev() │
   │  _classify()  │
@@ -72,8 +74,9 @@ The server is stateful in Phase B: sessions live in a module-level `SessionRegis
 
 MCP protocol layer. Contains no analysis logic.
 
-- Registers nine tools: `analyze_recording`, `load_score`, `describe_score` (shared, from `sheet_music_mcp_core.references`), `start_monitoring`, `get_current_position`, `stop_monitoring`, `list_sessions`, `list_capabilities`, `health_check`
-- Resolves the score of `analyze_recording` and `load_score` with `_reference_score()`: the core's `references.load_score()` (inline `musicxml`, or `musicxml_path` confined to the read roots, `.mxl` unpacked) followed by the same `validate_musicxml()` check inline text always had. The engine still receives MusicXML text, so it is unchanged
+- Registers ten tools: `analyze_recording`, `load_score`, `start_practice`, `describe_score` (shared, from `sheet_music_mcp_core.references`), `start_monitoring`, `get_current_position`, `stop_monitoring`, `list_sessions`, `list_capabilities`, `health_check`
+- `analyze_recording`, `load_score` and `start_practice` take `measures` (`MEASURES_PROPERTY` from `sheet_music_mcp_core.measures`); `_measures(arguments)` passes it to the engine only when given, so calls without it are unchanged
+- Resolves the score of `analyze_recording`, `load_score` and `start_practice` with `_reference_score()`: the core's `references.load_score()` (inline `musicxml`, or `musicxml_path` confined to the read roots, `.mxl` unpacked) followed by the same `validate_musicxml()` check inline text always had. The engine still receives MusicXML text, so it is unchanged
 - `call_tool(name, arguments, ctx=None)` is wired with `make_handlers(..., pass_context=True)` so `load_score` can ask the client for its MCP roots
 - Reads `PITCH_BACKEND` environment variable; defaults to `"librosa"`
 - Checks microphone availability via `sounddevice.query_devices()`
@@ -88,15 +91,16 @@ Session management and offline analysis orchestration.
 
 | Function | Description |
 |----------|-------------|
-| `analyze_recording(audio_path, musicxml_str, part_id)` | Full offline pipeline: validate → extract notes → detect pitches → align → summarize |
+| `analyze_recording(audio_path, musicxml_str, part_id, measures=None)` | Full offline pipeline: validate → cut to `measures` → extract notes → detect pitches → align → summarize (with highlights) |
+| `_select(musicxml_str, measures)` | `select_measures(text, measures)`; unchanged text for `None`, `INVALID_PARAMETER` + hint for a bad range |
 
 **Phase B:**
 
 | Class / Function | Description |
 |-----------------|-------------|
-| `ScoreSession` | One active monitoring session (UUID, note sequence, audio stream, worker thread) |
+| `ScoreSession(musicxml, part_id, measures=None)` | One active monitoring session (UUID, note sequence, audio stream, worker thread). Cuts the score to `measures` first; `measure_count` = last note's measure − first practised bar (`measures[0]`, else 1) + 1 |
 | `ScoreSession.start(tempo_bpm)` | Open sounddevice stream; spawn worker thread |
-| `ScoreSession.get_position()` | Thread-safe read of current position dict |
+| `ScoreSession.get_position()` | Thread-safe read of current position dict; before any pitch, the first note's measure, beat and name |
 | `ScoreSession.stop()` | Close stream; join worker thread; return summary |
 | `ScoreSession._worker_loop(sr, hop)` | Background thread: buffer audio → YIN pitch → `_process_pitch_frame` |
 | `ScoreSession._process_pitch_frame(freq, confidence, elapsed_sec)` | Per-frame update: tempo-scale elapsed time, pick the current note via `_find_best_note_index`, update `_current_position` and append to `_history` |
@@ -104,8 +108,9 @@ Session management and offline analysis orchestration.
 | `SessionRegistry` | Open sessions, their last-activity times and the timed-out summaries; `add`, `get`, `touch`, `remove`, `list`, `reap(now)`, `expired_minutes`, `pop_expired`. Injected `clock` (default `time.monotonic`) |
 | `Reaper` | Daemon thread: `registry.reap(clock())` every 30 s; injected `sleep` and `stop_event` |
 | `idle_minutes_from_env()` | Parse `PITCH_SESSION_IDLE_MINUTES` (default 10, `0` = off, invalid → warning + 10) |
-| `load_score(musicxml, part_id)` | Create ScoreSession; `_registry.add`; start the reaper on first use; return session_id |
+| `load_score(musicxml, part_id, measures=None)` | Create ScoreSession; `_registry.add`; start the reaper on first use; return session_id |
 | `start_monitoring(session_id, tempo_bpm)` | `_registry.touch`; session.start(); touch again |
+| `start_practice(musicxml, part_id, tempo_bpm=None, measures=None)` | `load_score` then `start_monitoring`; their fields merged. If starting fails, `_discard` removes and stops the session, then the error is re-raised |
 | `get_position(session_id)` | `_registry.touch`; session.get_position() |
 | `stop_monitoring(session_id)` | `_registry.remove` + session.stop() (`timed_out: false`), else the timed-out summary (`timed_out: true`), else `SESSION_NOT_FOUND` |
 | `list_sessions()` | `{idle_timeout_minutes, sessions: _registry.list()}` |
@@ -128,7 +133,8 @@ Maps detected pitch sequence against the reference note sequence.
 | Function | Description |
 |----------|-------------|
 | `align(detected, note_sequence)` | DTW (dtaidistance) pitch-space alignment, gated by per-note temporal plausibility; per-note accuracy |
-| `summarize(results)` | Aggregate: measures covered, average cents, histogram |
+| `summarize(results)` | Aggregate: measures covered, average cents, histogram, `highlights(results)` |
+| `highlights(results, *, threshold=25, min_run=2, limit=3)` | Merge consecutive entries of one note (same measure, beat and `expected` / `expected_note`) into its median cents; runs of ≥ `min_run` notes all flat or all sharp (no_signal or on-pitch ends a run); top `limit` by notes × \|avg cents\| as `{direction, measures, notes, avg_cents, text}` |
 | `_hz_to_cents_deviation(sung, expected)` | `1200 * log2(sung / expected)` |
 | `_classify(cents, threshold=25)` | `"on_pitch"` / `"sharp"` / `"flat"` |
 
@@ -140,7 +146,7 @@ Score parsing, time conversion, and validation.
 |----------|-------------|
 | `extract_part_notes(musicxml, part)` | Parse score; resolve the part (ID, name or voice) by position against stable MusicXML IDs; return `(PartInfo, notes)` |
 | `extract_note_sequence(musicxml, part)` | Notes only (`extract_part_notes(...)[1]`) |
-| `_build_metronome_map(score)` | List of `(offset_ql, sec_per_ql)` from MetronomeMarks |
+| `_build_metronome_map(score)` | List of `(offset_ql, sec_per_ql)` from MetronomeMarks: `number`, else `numberSounding` (a bare `<sound tempo>`, which is how `select_measures` carries the tempo into a cut score), else 120 |
 | `_offset_to_seconds(offset_ql, map)` | Convert score offset (quarter notes) to wall-clock seconds |
 | `_offset_to_measure_beat(element, part)` | Extract `(measure_number, beat)` from element context |
 | `hz_to_note(hz)` | Convert Hz to `(note_name, cents_deviation)` |
@@ -155,9 +161,12 @@ Score parsing, time conversion, and validation.
 ## Phase A: Offline Analysis Data Flow
 
 ```
-analyze_recording(audio_path, musicxml_str, part_id)
+analyze_recording(audio_path, musicxml_str, part_id, measures=None)
   │
   ├─ validate audio file exists + is .wav
+  │
+  ├─ _select(musicxml_str, measures)       ← core select_measures: only bars start..end,
+  │                                           with the key/time/clef/tempo in force at start
   │
   ├─ utils.extract_part_notes(musicxml_str, part_id)
   │     ├─ music21.converter.parseData(musicxml)
@@ -210,9 +219,10 @@ analyze_recording(audio_path, musicxml_str, part_id)
   ├─ aligner.summarize(results)
   │     ├─ measures_covered = len({r.measure for r in results})
   │     ├─ avg_accuracy_cents = mean(abs(r.accuracy_cents) for r if status != "no_signal")
-  │     └─ histogram: count on_pitch, sharp, flat, no_signal
+  │     ├─ histogram: count on_pitch, sharp, flat, no_signal
+  │     └─ highlights(results): worst ≤ 3 runs of ≥ 2 flat or sharp notes, in plain words
   │
-  └─ return {measures_covered, avg_accuracy_cents, note_accuracy: [...], accuracy_histogram}
+  └─ return {measures_covered, avg_accuracy_cents, note_accuracy: [...], accuracy_histogram, highlights}
 ```
 
 ---
@@ -222,9 +232,10 @@ analyze_recording(audio_path, musicxml_str, part_id)
 ### Session Lifecycle
 
 ```
-load_score(musicxml, part_id)
-  → create ScoreSession(musicxml, part_id)
+load_score(musicxml, part_id, measures=None)
+  → create ScoreSession(musicxml, part_id, measures)
        ├─ session_id = str(uuid4())
+       ├─ musicxml = select_measures(musicxml, measures)   ← timeline starts at start
        └─ info, note_sequence = extract_part_notes(musicxml, part_id)
   → _registry.add(session)            ← creation counts as activity
   → _ensure_reaper()                  ← first call starts the Reaper thread (not if timeout = 0)
@@ -243,6 +254,12 @@ start_monitoring(session_id, tempo_bpm)
        └─ stream.start()
   → return {status: "started"}
 
+start_practice(musicxml, part_id, tempo_bpm, measures)
+  → loaded = load_score(musicxml, part_id, measures)
+  → started = start_monitoring(loaded.session_id, tempo_bpm)
+       on any error: _discard(session_id)  ← _registry.remove + session.stop(); no orphan
+  → return {**loaded, **started}
+
 get_current_position(session_id)
   → session = _registry.touch(session_id)   ← activity
   → session._lock.acquire()
@@ -256,7 +273,7 @@ stop_monitoring(session_id)
        ├─ take _stream and _worker_thread under session._lock (safe if the reaper races us)
        ├─ stream.stop(); stream.close()
        ├─ worker_thread.join()
-       └─ build summary from accumulated results
+       └─ summarize(history): counts plus highlights (history has one entry per frame)
   → return {session_id, summary, timed_out: false}
   (not open but timed out < 1 h ago → return the stored summary with timed_out: true, once)
 ```

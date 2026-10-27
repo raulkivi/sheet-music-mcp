@@ -1,8 +1,8 @@
 """Shared helpers for the sheet-music MCP servers.
 
-Import submodules directly. ``errors``, ``parts``, ``params``, ``annotations``, ``paths`` and
-``scores`` do not import ``mcp`` (nor music21), so engines may use them; ``content``,
-``references`` and ``wiring`` do.
+Import submodules directly. ``errors``, ``parts``, ``params``, ``annotations``, ``paths``,
+``scores`` and ``measures`` do not import ``mcp`` (nor music21), so engines may use them;
+``content``, ``references`` and ``wiring`` do.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

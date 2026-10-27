@@ -8,6 +8,7 @@ from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, SESSION_STATE
 from sheet_music_mcp_core.content import error_content, processing_error_content
+from sheet_music_mcp_core.measures import MEASURES_PROPERTY
 from sheet_music_mcp_core.params import aliased
 from sheet_music_mcp_core.references import (
     DESCRIBE_SCORE_TOOL,
@@ -27,6 +28,7 @@ from .engine import (
     list_sessions,
     load_score,
     start_monitoring,
+    start_practice,
     stop_monitoring,
 )
 from .utils import validate_audio_path, validate_musicxml, validate_session_id
@@ -37,9 +39,11 @@ logger = logging.getLogger(__name__)
 
 # Sent to the client at initialize (docs/conventions.md, Server Instructions).
 INSTRUCTIONS = (
-    "Follows a singer through a score from the microphone. Flow: load_score (score and part as "
-    "an ID, name or voice such as 'Alto'), "
-    "start_monitoring, get_current_position repeatedly, then stop_monitoring for the summary. "
+    "Follows a singer through a score from the microphone. Flow: start_practice (score and part "
+    "as an ID, name or voice such as 'Alto'; it loads the score and opens the microphone, like "
+    "load_score then start_monitoring), get_current_position repeatedly, then stop_monitoring "
+    "for the summary and its highlights (where the singer went flat or sharp). "
+    "measures: [start, end] (printed bar numbers) practises or analyses only those bars. "
     "Always call stop_monitoring when done: it closes the microphone. Idle sessions close after "
     "PITCH_SESSION_IDLE_MINUTES (default 10); stop_monitoring still returns their summary, and "
     "list_sessions shows the open ones. analyze_recording scores a recorded 16-bit WAV instead. "
@@ -57,7 +61,9 @@ async def list_tools():
             annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Analyse a pre-recorded WAV file against a reference score. "
-                "Returns per-note pitch accuracy and a summary histogram."
+                "Returns per-note pitch accuracy, a summary histogram and highlights: the worst "
+                "runs of flat or sharp notes in plain words. With measures, the recording is "
+                "compared against those bars only."
             ),
             input_schema={
                 "type": "object",
@@ -75,6 +81,7 @@ async def list_tools():
                         "type": "string",
                         "description": "(Deprecated: use `part`) Part to compare against.",
                     },
+                    **MEASURES_PROPERTY,
                 },
                 "required": ["audio_path"],
                 "anyOf": [{"required": ["part"]}, {"required": ["part_id"]}],
@@ -87,7 +94,8 @@ async def list_tools():
             annotations=ToolAnnotations(**SESSION_STATE),
             description=(
                 "Load a reference MusicXML score into a named session. "
-                "Returns a session_id to use with start_monitoring."
+                "Returns a session_id to use with start_monitoring. "
+                "start_practice does this and start_monitoring in one call."
             ),
             input_schema={
                 "type": "object",
@@ -101,9 +109,37 @@ async def list_tools():
                         "type": "string",
                         "description": "(Deprecated: use `part`) Part to monitor.",
                     },
+                    **MEASURES_PROPERTY,
                 },
                 "required": [],
                 "anyOf": [{"required": ["part"]}, {"required": ["part_id"]}],
+                **exactly_one(),
+            },
+        ),
+        Tool(
+            name="start_practice",
+            title="Start practice",
+            annotations=ToolAnnotations(**SESSION_STATE),
+            description=(
+                "Load a score and open the microphone in one call (load_score + "
+                "start_monitoring). Returns the session_id with the part, measure count and "
+                "duration. Poll get_current_position, then call stop_monitoring for the summary."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    **score_input_properties(what="the score to practise"),
+                    "part": {
+                        "type": "string",
+                        "description": "Part to sing: a part ID, name or voice (e.g. 'P1', 'Soprano', 'S')",
+                    },
+                    "tempo_bpm": {
+                        "type": "integer",
+                        "description": "Override tempo in BPM (default: score tempo)",
+                    },
+                    **MEASURES_PROPERTY,
+                },
+                "required": ["part"],
                 **exactly_one(),
             },
         ),
@@ -247,7 +283,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             return error_content("part is required.", "INVALID_INPUT")
 
         try:
-            result = analyze_recording(audio_path, musicxml, part_id)
+            result = analyze_recording(audio_path, musicxml, part_id, **_measures(arguments))
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
             return processing_error_content(e)
@@ -265,12 +301,32 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             return error_content("part is required.", "INVALID_INPUT")
 
         try:
-            result = load_score(musicxml, part_id)
+            result = load_score(musicxml, part_id, **_measures(arguments))
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
             return processing_error_content(e)
         except Exception as e:
             logger.error("load_score unexpected error: %s", e)
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
+
+    elif name == "start_practice":
+        try:
+            musicxml = await _reference_score(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
+        part_id = arguments.get("part")
+        if not part_id:
+            return error_content("part is required.", "INVALID_INPUT")
+
+        try:
+            result = start_practice(
+                musicxml, part_id, tempo_bpm=arguments.get("tempo_bpm"), **_measures(arguments)
+            )
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+        except ProcessingError as e:
+            return processing_error_content(e)
+        except Exception as e:
+            logger.error("start_practice unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "describe_score":
@@ -344,11 +400,12 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             "server": "pitch-mcp",
             "version": __version__,
             "input_formats": ["musicxml", "mxl", "wav"],
-            "input_parameters": ["musicxml", "musicxml_path"],
+            "input_parameters": ["musicxml", "musicxml_path", "measures"],
             "output_formats": ["json"],
             "tools": [
                 "analyze_recording",
                 "load_score",
+                "start_practice",
                 "describe_score",
                 "start_monitoring",
                 "get_current_position",
@@ -368,6 +425,12 @@ async def call_tool(name: str, arguments: dict, ctx=None):
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
     raise ValueError(f"Unknown tool: {name}")
+
+
+def _measures(arguments: dict) -> dict:
+    """``{"measures": ...}`` when the call names a range, else nothing: the engine call without
+    one is exactly the one earlier releases made."""
+    return {"measures": arguments["measures"]} if arguments.get("measures") is not None else {}
 
 
 def _active_backend() -> str:

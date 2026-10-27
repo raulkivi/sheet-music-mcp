@@ -7,7 +7,7 @@ Pipeline:
     MusicXML string
         → parse_parts()       → list of part metadata dicts
         → resolve_part_ids()  → stable part IDs for the requested parts (ID, name or voice)
-        → extract_midi()      → MIDI bytes
+        → extract_midi()      → MIDI bytes (practice options: practice.py)
         → synthesize_midi()   → WAV file at output_path, returns duration (seconds)
 """
 
@@ -20,7 +20,19 @@ from pathlib import Path
 from typing import Optional
 
 from sheet_music_mcp_core.errors import ProcessingError  # re-exported for server.py
+from sheet_music_mcp_core.measures import select_measures
 from sheet_music_mcp_core.parts import music21_part_infos, resolve_parts
+
+from .practice import (
+    add_clicks,
+    expand_repeats,
+    is_percussion,
+    repeat_music,
+    resolve_gains,
+    scale_tempo,
+    tune_midi,
+    validate_options,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +111,15 @@ def extract_midi(
     musicxml_str: str,
     part_ids: Optional[list[str]],
     tempo_factor: float,
+    *,
+    measures=None,
+    repeat: int = 1,
+    count_in_bars: int = 0,
+    metronome: bool = False,
+    timbre: str = "score",
+    part_gains: Optional[dict] = None,
+    preset: Optional[str] = None,
+    focus_part: Optional[str] = None,
 ) -> bytes:
     """Export selected parts of a MusicXML score to MIDI bytes.
 
@@ -106,21 +127,35 @@ def extract_midi(
         musicxml_str: MusicXML document as a string.
         part_ids: Parts to include (IDs, names or voices, see resolve_part_ids); None means all.
         tempo_factor: Tempo multiplier applied to all MetronomeMarks (0.25–4.0).
+        measures: Inclusive [start, end] printed measure numbers; None means the whole score.
+        repeat: Play the selected music this many times (1–20).
+        count_in_bars: Bars of clicks before the music (0–4).
+        metronome: Clicks on every beat of the music too.
+        timbre: "score" (the score's instruments), "piano", "choir" or "organ".
+        part_gains: Part (ID, name or voice) → gain 0.0–2.0, sent as CC7.
+        preset: "learning", "karaoke" or "equal": base gains around ``focus_part``.
+        focus_part: The part a learning or karaoke preset is for.
+
+    Every practice option at its default gives the same MIDI as before (docs/conventions.md,
+    Practice Audio).
 
     Returns:
         Raw MIDI file bytes.
 
     Raises:
-        ProcessingError: on parse error, unknown part, or MIDI export failure.
+        ProcessingError: on parse error, unknown part, invalid option, or MIDI export failure.
     """
     try:
         import music21
         import music21.converter
         import music21.midi.translate
         import music21.stream
-        import music21.tempo
     except ImportError as e:
         raise ProcessingError(f"music21 is not available: {e}", "PROCESSING_FAILED")
+
+    program = validate_options(repeat, count_in_bars, metronome, timbre)
+    # Cut the bars before music21 sees the score (docs/conventions.md, Measure Ranges).
+    musicxml_str = select_measures(musicxml_str, measures)
 
     try:
         score = music21.converter.parseData(musicxml_str, format="musicxml")
@@ -132,12 +167,15 @@ def extract_midi(
         raise ProcessingError("No parts found in score", "INVALID_INPUT")
 
     # Select by position against the stable part IDs, never by music21's part.id
+    infos = music21_part_infos(all_parts)
     if part_ids is not None:
-        infos = music21_part_infos(all_parts)
         wanted = set(resolve_parts(part_ids, infos))
-        selected = [p for p, info in zip(all_parts, infos) if info.id in wanted]
+        chosen = [(p, info) for p, info in zip(all_parts, infos) if info.id in wanted]
     else:
-        selected = all_parts
+        chosen = list(zip(all_parts, infos))
+    selected = [p for p, _ in chosen]
+
+    gains = resolve_gains([info for _, info in chosen], part_gains, preset, focus_part)
 
     # Build a new score from deep-copied parts so we don't mutate the original
     new_score = music21.stream.Score()
@@ -148,24 +186,29 @@ def extract_midi(
     # lower part exported alone doesn't fall back to MIDI's 120 BPM default.
     _carry_over_tempo_marks(score, new_score)
 
-    # Apply tempo factor to all MetronomeMarks
-    if tempo_factor != 1.0:
-        marks = list(new_score.recurse().getElementsByClass(music21.tempo.MetronomeMark))
-        if marks:
-            for mm in marks:
-                if mm.number is not None:
-                    mm.number = mm.number * tempo_factor
-        else:
-            # No explicit tempo — insert a scaled default (120 BPM) at measure 1
-            first_part = new_score.parts[0]
-            measures = list(first_part.getElementsByClass("Measure"))
-            if measures:
-                mm = music21.tempo.MetronomeMark(number=120.0 * tempo_factor)
-                measures[0].insert(0, mm)
+    # Practice steps (practice.py); each is a no-op at its default.
+    if count_in_bars or metronome:
+        new_score = expand_repeats(new_score)  # clicks follow the bars as played
+    repeat_music(new_score, repeat)
+    scale_tempo(new_score, tempo_factor)
+    clicks = add_clicks(new_score, count_in_bars, metronome)
 
-    # Export to MIDI bytes via a temp file
     try:
         midi_file = music21.midi.translate.streamToMidiFile(new_score)
+    except Exception as e:
+        raise ProcessingError(f"Failed to export MIDI: {e}", "PROCESSING_FAILED")
+
+    if gains is not None or program is not None or clicks:
+        tune_midi(
+            midi_file,
+            percussion=[is_percussion(p) for p in selected],
+            gains=gains,
+            program=program,
+            clicks=clicks,
+        )
+
+    # Write the MIDI bytes via a temp file
+    try:
         with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as f:
             tmp_path = f.name
         try:

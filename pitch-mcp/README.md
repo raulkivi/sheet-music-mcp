@@ -17,12 +17,13 @@ Supports both offline analysis of pre-recorded audio and real-time microphone in
 
 | Tool | Description |
 |------|-------------|
-| `analyze_recording` | Offline: analyse a WAV file against a reference MusicXML score |
+| `analyze_recording` | Offline: analyse a WAV file against a reference MusicXML score; returns per-note accuracy and `highlights` ("flat on E5 in m.12–14 (-35 cents avg)") |
+| `start_practice` | Load a score and open the microphone in one call; returns a `session_id` |
 | `load_score` | Load a MusicXML score into a named session; returns a `session_id` |
 | `describe_score` | Summarize a score cheaply: title, key, tempo, parts with IDs and ranges |
 | `start_monitoring` | Open the microphone and begin real-time pitch detection |
 | `get_current_position` | Poll the current score position and pitch accuracy |
-| `stop_monitoring` | Stop the microphone and return a session summary |
+| `stop_monitoring` | Stop the microphone and return a session summary with `highlights` |
 | `list_sessions` | List open practice sessions with their part, state (`loaded` / `monitoring`) and idle time |
 | `list_capabilities` | Return server metadata: pitch backend, microphone availability |
 | `health_check` | Check that runtime dependencies (librosa, sounddevice/portaudio) are available |
@@ -31,6 +32,10 @@ Scores are given as `musicxml_path` (a `.musicxml`, `.xml` or `.mxl` file, prefe
 inline `musicxml` text, never both. Paths must lie inside the output root
 (`SHEET_MUSIC_OUTPUT_ROOT`, default the working directory), the client's MCP roots or a folder in
 `SHEET_MUSIC_INPUT_ROOTS`.
+
+`analyze_recording`, `load_score` and `start_practice` take an optional `measures: [start, end]`
+(printed bar numbers, inclusive; a pickup is 0) to practise or analyse only those bars. Reported
+measures keep their printed numbers.
 
 ## Installation
 
@@ -83,14 +88,15 @@ uv run pitch-mcp
 {"tool": "describe_score", "arguments": {"musicxml_path": "/path/to/score.mxl"}}
 // → returns parts with IDs ("P1" …), names and ranges
 
-{"tool": "load_score", "arguments": {"musicxml_path": "/path/to/score.mxl", "part": "Alto"}}
-// → returns {"session_id": "abc123"}
+{"tool": "start_practice", "arguments": {"musicxml_path": "/path/to/score.mxl", "part": "Alto", "measures": [17, 24]}}
+// → returns {"session_id": "abc123", "measure_count": 8, ..., "status": "started"}
+// (the same as load_score followed by start_monitoring)
 
-{"tool": "start_monitoring", "arguments": {"session_id": "abc123"}}
 {"tool": "get_current_position", "arguments": {"session_id": "abc123"}}
 // → returns measure, beat, expected pitch, detected pitch, accuracy
 
 {"tool": "stop_monitoring", "arguments": {"session_id": "abc123"}}
+// → summary with accuracy_histogram and highlights, e.g. "flat in m.19–21 (-32 cents avg over 5 notes)"
 ```
 
 Audio must be 16-bit PCM WAV. MP3 and FLAC are not supported.
@@ -108,7 +114,7 @@ VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m manual
 ```
 
-237 of the 243 total tests are unit tests (235 run, 2 skipped), run against mocks and synthetic (in-memory) WAV data —
+294 of the 300 total tests are unit tests (292 run, 2 skipped), run against mocks and synthetic (in-memory) WAV data —
 none require real audio hardware or pre-recorded fixtures. The other 6 are marked `integration`
 (4 — offline analysis against the committed `tests/fixtures/` pair) or `manual` (2 — full
 real-microphone session lifecycle) and are excluded from a plain `pytest tests/` run by
@@ -132,5 +138,5 @@ real-microphone session lifecycle) and are excluded from a plain `pytest tests/`
 
 | Phase | Status |
 |-------|--------|
-| Phase A — offline analysis | Complete. DTW-based alignment (`dtaidistance`); 235 unit tests plus 4 `-m integration` tests against a committed fixture pair (`tests/fixtures/`) |
+| Phase A — offline analysis | Complete. DTW-based alignment (`dtaidistance`); 292 unit tests plus 4 `-m integration` tests against a committed fixture pair (`tests/fixtures/`) |
 | Phase B — real-time monitoring | Complete. Position tracking is audio-driven (matches detected pitch, not just elapsed time); `tempo_bpm` override supported. Covered by unit tests with mocked `sounddevice`; full-lifecycle `-m manual` tests exist for real-microphone verification but require real hardware to run |

@@ -18,9 +18,9 @@ Each server is a separate PyPI package, listed in the [MCP Registry](https://reg
 |---|---|---|---|
 | [omr-mcp](omr-mcp/) | Photo or scan of printed sheet music → MusicXML (oemer, or Audiveris for SATB scores) | `uvx omr-mcp` | ~100 MB model download on first use |
 | [render-mcp](render-mcp/) | MusicXML → PDF, PNG or SVG | `uvx render-mcp` | Cairo (`libcairo2`) |
-| [synth-mcp](synth-mcp/) | MusicXML → WAV, selected voice parts, adjustable tempo | `uvx synth-mcp` | FluidSynth, an SF2 soundfont |
+| [synth-mcp](synth-mcp/) | MusicXML → WAV practice tracks: selected voice parts, bars, tempo, learning-track mix, count-in, loops; starting pitches | `uvx synth-mcp` | FluidSynth, an SF2 soundfont |
 | [musicxml-abc-mcp](musicxml-abc-mcp/) | MusicXML ↔ ABC notation, so the model can read and edit the score as text | `uvx musicxml-abc-mcp` | |
-| [pitch-mcp](pitch-mcp/) | Follows a singer through a score from the microphone; reports position and pitch accuracy | `uvx pitch-mcp` | Python 3.12+, PortAudio, a microphone |
+| [pitch-mcp](pitch-mcp/) | Follows a singer through a score from the microphone; reports position, pitch accuracy and plain-language highlights | `uvx pitch-mcp` | Python 3.12+, PortAudio, a microphone |
 | [comparer-mcp](comparer-mcp/) | Music-aware diff of two MusicXML files: editions, arrangements, OMR output against a reference | `uvx comparer-mcp` | |
 
 All servers use stdio and need Python 3.11+ (3.12+ for `pitch-mcp`) and [uv](https://docs.astral.sh/uv/).

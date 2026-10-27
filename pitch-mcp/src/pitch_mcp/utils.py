@@ -265,7 +265,9 @@ def _build_metronome_map(score) -> list[tuple[float, float]]:
 
     result: list[tuple[float, float]] = []
     for mark in marks:
-        bpm = mark.number or 120.0
+        # A bare <sound tempo> (also what select_measures carries into a cut score) parses as
+        # a mark with number None and numberSounding set, in quarter notes per minute.
+        bpm = mark.number or mark.numberSounding or 120.0
         sec_per_ql = 60.0 / bpm  # seconds per quarter note
         result.append((float(mark.offset), sec_per_ql))
 

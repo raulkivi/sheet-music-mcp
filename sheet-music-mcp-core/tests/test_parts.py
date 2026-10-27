@@ -9,6 +9,7 @@ from sheet_music_mcp_core.parts import (
     music21_part_infos,
     resolve_part,
     resolve_parts,
+    voice_label,
 )
 
 SATB = [
@@ -274,3 +275,28 @@ class TestMusic21PartInfos:
         ids = [i.id for i in music21_part_infos(parts)]
 
         assert len(set(ids)) == 2
+
+
+class TestVoiceLabel:
+    @pytest.mark.parametrize(
+        ("name", "label"),
+        [
+            ("Soprano", "S"),
+            ("Soprano 1", "S1"),
+            ("Alto II", "A2"),
+            ("Mezzo-soprano", "Ms"),
+            ("Contralto", "A"),
+            ("Countertenor", "Ct"),
+            ("Tenor", "T"),
+            ("Baritone", "Bar"),
+            ("Bass", "B"),
+            ("B.", "B"),
+            ("Treble", "S"),
+        ],
+    )
+    def test_voice_roles(self, name, label):
+        assert voice_label(name) == label
+
+    @pytest.mark.parametrize("name", ["Piano", "Organ 2", "", None])
+    def test_other_names_have_no_label(self, name):
+        assert voice_label(name) is None

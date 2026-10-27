@@ -430,7 +430,7 @@ All error responses use `{"error": "...", "error_code": "..."}` per conventions.
 | `compare_musicxml` | reference, target, optional `options` | Full `ComparisonResult` JSON |
 | `compare_musicxml_files` | `reference_path` (string), `target_path` (string), optional `options` | Full `ComparisonResult` JSON |
 | `quick_similarity` | reference, target | `{ "similarity_score": 0.87, "summary": {...} }` |
-| `list_changes` | reference, target, optional `part` filter, optional `measure_range` | Filtered list of `NoteDiff` entries (for targeted queries) |
+| `list_changes` | reference, target, optional `part` filter, optional `measures` (deprecated alias `measure_range`) | Filtered list of `NoteDiff` entries (for targeted queries) |
 | `generate_comparison_report` | reference, target, optional `options` | `{ "report": "...", "similarity_score": 0.87 }` — human-readable summary |
 | `export_annotated_musicxml` | reference, target, optional `options`, `return` (`auto`/`path`/`inline`) | `{ "reference_annotated_musicxml": "...", "target_annotated_musicxml": "...", "similarity_score": ..., "legend": {...} }`; for large scores (or `return: "path"`) the two texts become `*_path` fields plus `score_summary`, with two `ResourceLink`s |
 | `describe_score` | `musicxml` or `musicxml_path` | Shared core tool: title, key, time, tempo, parts (ID, name, clef, range), measures, duration |
@@ -455,7 +455,8 @@ direct Python use.
   "ignore_articulations": false,  // skip articulation comparison (default: false)
   "parts": ["Soprano"],           // compare only these parts: IDs, names or voices (default: all);
                                   //   resolved against the reference; part_filter = deprecated alias
-  "measure_range": [1, 32]        // compare only measures 1–32 (default: all)
+  "measures": [1, 32]             // only differences in measures 1–32 (default: all); a filter,
+                                  //   the scores are not cut; measure_range = deprecated alias
 }
 ```
 
@@ -534,8 +535,8 @@ Dev dependencies: `pytest`, `pytest-asyncio` (per conventions).
 
 ### Phase 4 — Advanced features — COMPLETE
 
-- [x] `options` dict wired up (`parts`, formerly `part_filter`, `measure_range`, `ignore_articulations`,
-      `normalize_pitch`, `expand_repeats`)
+- [x] `options` dict wired up (`parts`, formerly `part_filter`, `measures`, formerly `measure_range`,
+      `ignore_articulations`, `normalize_pitch`, `expand_repeats`)
 - [x] Version comparison report: human-readable summary (`report.py`, `generate_comparison_report`
       tool) — grounded in computed diff data (measure-range grouping, constant-`interval_error`
       transposition detection), not full semantic/arrangement-intent inference

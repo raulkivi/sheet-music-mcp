@@ -19,6 +19,7 @@ from typing import Optional
 
 from music21 import converter
 from sheet_music_mcp_core.errors import ProcessingError  # re-exported for server.py
+from sheet_music_mcp_core.measures import parse_range
 from sheet_music_mcp_core.params import aliased
 from sheet_music_mcp_core.parts import music21_part_infos, resolve_parts
 
@@ -88,21 +89,6 @@ def _interval_error(ref_info, tgt_info) -> Optional[int]:
     return abs(tgt_info.midi - ref_info.midi)
 
 
-def _validate_measure_range(measure_range) -> None:
-    if measure_range is None:
-        return
-    if (
-        not isinstance(measure_range, list)
-        or len(measure_range) != 2
-        or not all(isinstance(n, int) and not isinstance(n, bool) for n in measure_range)
-        or measure_range[0] > measure_range[1]
-    ):
-        raise ProcessingError(
-            "options.measure_range must be a [start, end] pair of integers with start <= end.",
-            "INVALID_PARAMETER",
-        )
-
-
 def _validate_part_filter(part_filter) -> None:
     if part_filter is None:
         return
@@ -151,7 +137,11 @@ def _expand_repeats(score, label: str):
 
 def _apply_score_options(reference, target, options: Optional[dict]):
     """Apply options.expand_repeats / options.normalize_pitch (score-level
-    transforms) and validate options.part_filter / options.measure_range.
+    transforms) and validate options.parts / options.measures (or their deprecated aliases
+    options.part_filter / options.measure_range).
+
+    options.measures filters the differences by measure number; unlike the other servers'
+    ``measures``, it does not cut the scores (docs/research/ux-wave3-plan.md §3.4).
 
     expand_repeats and normalize_pitch return new music21 Score objects
     (music21 does not mutate in place), so the transformed reference/target
@@ -160,7 +150,7 @@ def _apply_score_options(reference, target, options: Optional[dict]):
     were actually compared.
     """
     options = options or {}
-    _validate_measure_range(options.get("measure_range"))
+    measures = parse_range(aliased(options, "measures", "measure_range"), param="options.measures")
     requested_parts = aliased(options, "parts", "part_filter")
     _validate_part_filter(requested_parts)
 
@@ -176,7 +166,7 @@ def _apply_score_options(reference, target, options: Optional[dict]):
         reference,
         target,
         requested_parts,
-        options.get("measure_range"),
+        measures,
         bool(options.get("ignore_articulations")),
     )
 
@@ -243,7 +233,7 @@ def _compare_part(
     tgt_part,
     ref_info,
     tgt_info,
-    measure_range: Optional[list] = None,
+    measures: Optional[tuple[int, int]] = None,
     ignore_articulations: bool = False,
     aligned_collector: Optional[list] = None,
 ) -> PartDiff:
@@ -251,8 +241,8 @@ def _compare_part(
     tgt_measures = _measure_map(tgt_part)
 
     all_numbers = sorted(set(ref_measures) | set(tgt_measures))
-    if measure_range:
-        start, end = measure_range
+    if measures:
+        start, end = measures
         all_numbers = [n for n in all_numbers if start <= n <= end]
 
     measure_diffs = []
@@ -276,8 +266,8 @@ def _compare_part(
     all_note_diffs = [nd for md in measure_diffs for nd in md.note_diffs]
     note_score = _note_score(all_note_diffs)
     matched_measures = len(measure_diffs)
-    if measure_range:
-        start, end = measure_range
+    if measures:
+        start, end = measures
         ref_count = sum(1 for n in ref_measures if start <= n <= end)
         tgt_count = sum(1 for n in tgt_measures if start <= n <= end)
     else:
@@ -288,8 +278,8 @@ def _compare_part(
 
     key_sig_diffs = compare_key_signatures(ref_part, tgt_part)
     time_sig_diffs = compare_time_signatures(ref_part, tgt_part)
-    if measure_range:
-        start, end = measure_range
+    if measures:
+        start, end = measures
         key_sig_diffs = [d for d in key_sig_diffs if start <= d.measure_number <= end]
         time_sig_diffs = [d for d in time_sig_diffs if start <= d.measure_number <= end]
 
@@ -365,7 +355,7 @@ def _compare_scores(reference, target, options: Optional[dict] = None, aligned_c
     Score objects (music21 does not transform in place); callers that need
     to act on the same notes that were actually compared (e.g. annotation)
     must use these, not the objects originally passed in."""
-    reference, target, part_filter, measure_range, ignore_articulations = _apply_score_options(
+    reference, target, part_filter, measures, ignore_articulations = _apply_score_options(
         reference, target, options
     )
 
@@ -386,7 +376,7 @@ def _compare_scores(reference, target, options: Optional[dict] = None, aligned_c
     match_result = match_parts(reference_parts, target_parts)
     part_diffs = [
         _compare_part(
-            ref, tgt, info_of[id(ref)], info_of[id(tgt)], measure_range, ignore_articulations,
+            ref, tgt, info_of[id(ref)], info_of[id(tgt)], measures, ignore_articulations,
             aligned_collector,
         )
         for ref, tgt in match_result.matched
