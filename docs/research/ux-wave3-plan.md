@@ -1,6 +1,6 @@
 # UX Wave 3 plan: practice features
 
-**Status:** In progress (see Progress).
+**Status:** Implemented 2026-10-27 (all four steps, see Progress). Release follows §6: publish core 0.3.0 first.
 **Date:** 2026-10-27
 **Parent:** [ux-architecture-and-tool-improvements.md](ux-architecture-and-tool-improvements.md),
 roadmap wave 3 (C8–C11, C13, B2, C19, C22).
@@ -10,10 +10,10 @@ roadmap wave 3 (C8–C11, C13, B2, C19, C22).
 
 | Step | Content | Status |
 |---|---|---|
-| 1 | Plan, owner interview (§8), conventions contract (Measure Ranges, Practice Audio) | ✅ |
-| 2 | Core 0.3.0: `measures`, `scores.first_pitches`, `content.audio_block` | ⬜ |
-| 3 | Servers: synth (C8–C11, C13, B2), pitch (C19, C22, B2), render and abc (B2), comparer (rename) | ⬜ |
-| 4 | Review, relock, docs and status tables, PR | ⬜ |
+| 1 | Plan, owner interview (§8), conventions contract (Measure Ranges, Practice Audio) | ✅ `fd0caa3` |
+| 2 | Core 0.3.0: `measures`, `scores.first_pitches`, `content.audio_block` | ✅ `8c7749d` (289 → 407 tests) |
+| 3 | Servers: synth (C8–C11, C13, B2), pitch (C19, C22, B2), render and abc (B2), comparer (rename) | ✅ omr `2b9158b`, comparer `edc17fe`, render `72f422e`, abc `e3c8aba`, pitch `052fa12`, synth `39642bc` |
+| 4 | Review, relock, docs and status tables | ✅ |
 
 ---
 
@@ -258,7 +258,54 @@ Waves 1–3 ship together (W3-8):
 
 ## 7. Outcome and follow-ups
 
-*(Filled in at step 4.)*
+| Server | Unit tests before → after |
+|---|---|
+| core | 289 → 407 |
+| omr | 164 (+48 skipped), core constraint only |
+| render | 147 → 169 |
+| synth | 158 → 303 |
+| abc | 140 → 161 |
+| pitch | 235 → 293 (+2 skipped) |
+| comparer | 239 → 279 |
+
+**Behaviour changes for the changelogs** (every new parameter is optional; defaults are unchanged
+unless listed):
+
+- **Tempo from a bare `<sound tempo>`.** music21 reads it as a MetronomeMark with `number=None` and
+  only `numberSounding`. Such scores (and every cut score, since `select_measures` carries the tempo
+  that way) used to fall back to 120 BPM or ignore `tempo_factor`: abc `Q:` now shows the real
+  tempo, synth's `tempo_factor` scales it, pitch's timeline uses it.
+- comparer: `options.measure_range` and `list_changes`' `measure_range` become `measures`
+  (deprecated aliases); ranges are now bounded 0–99999 and errors name `options.measures` with a hint.
+- render: errors keep their `hint` / `choices`; with `measures`, `page` counts pages of the cut score.
+- pitch: `get_current_position` before any detected pitch reports the first note's measure and beat
+  (was fixed at 1 / 1.0); analyses and summaries gain `highlights` (sharp runs read `+35 cents`).
+- synth: `focus_part` without a `preset` is `INVALID_PARAMETER`; gains give each pitched part its
+  own MIDI channel (music21 shares one per instrument), so more than 15 pitched parts with gains is
+  `INVALID_PARAMETER`; `numpy` is now a declared dependency (it already came with music21).
+- `list_capabilities` lists the new tools and `measures` (and synth's practice options) in
+  `input_parameters`.
+
+**Learned while implementing:**
+
+- Call `select_measures(text, measures)` directly, not after `parse_range`: only `select_measures`
+  knows the score, so only it can give a reversed range the score's bars as hint (W3-3).
+  `parse_range` is for values that are filtered rather than cut (comparer's options).
+- music21's conductor track keeps tempo and meter marks only in ascending offset order, first part
+  first, so synth's count-in marks go at offset 0 of the first part.
+- A starting-pitch clip at FluidSynth's 44.1 kHz stereo is about 1 MB; mono 16 kHz brings a 4-part
+  clip under the 200 KB inline limit.
+
+**Follow-ups:**
+
+- Not run here (no soundfont, libfluidsynth, MuseScore, PortAudio or `omr-mcp/test_samples/`): the
+  two new synth audio integration tests (real clip size, clicks and CC7 audible), render/synth/
+  comparer/abc integration suites, MuseScore rendering of cut scores, real-microphone practice.
+- A pickup numbered `"1"` with `implicit="yes"` is bar 0 to the core but 1 to music21, so pitch's
+  reported measures can be off by one on such files.
+- pitch's metronome map reads tempo marks as quarter-note BPM, so "half = 60" is timed wrong
+  (pre-existing).
+
 
 ---
 
