@@ -7,7 +7,7 @@ import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
-from sheet_music_mcp_core.content import error_content, processing_error_content
+from sheet_music_mcp_core.content import error_content, file_link, processing_error_content
 from sheet_music_mcp_core.params import aliased
 from sheet_music_mcp_core.wiring import make_handlers
 
@@ -205,7 +205,9 @@ async def call_tool(name: str, arguments: dict):
                     },
                     indent=2,
                 ),
-            )
+            ),
+            # docs/conventions.md, Result Content: link the written file after the JSON.
+            *([file_link(resolved_output, "audio/wav")] if os.path.isfile(resolved_output) else []),
         ]
 
     elif name == "list_capabilities":

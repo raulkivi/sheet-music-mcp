@@ -60,7 +60,10 @@ MCP protocol layer. Contains no rendering logic.
 
 - Registers three tools: `render_to_pdf`, `render_to_image`, `list_capabilities`
 - Validates all parameters (via `utils.py`) before calling the engine
-- Converts engine results and exceptions to `TextContent` JSON
+- Converts engine results and exceptions to `TextContent` JSON (always `content[0]`)
+- On success appends result blocks for the written file via `sheet_music_mcp_core.content`
+  (`_file_blocks`): a PNG of at most 1 MB as an inline `image` block (`png_block`), then a
+  `resource_link` with a `file://` URI and MIME type (`file_link`). SVG and PDF get only the link.
 - Entry point via `mcp.server.stdio.stdio_server()`
 
 ### `engine.py`

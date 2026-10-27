@@ -176,6 +176,11 @@ Output:
   warnings     list[string]  optional; as recognize_sheet
 ```
 
+On success the JSON text block is followed by a `ResourceLink` to the written file (`file://` URI,
+MIME type `application/vnd.recordare.musicxml+xml`), so clients can offer to open it
+([conventions: Result Content](../../docs/conventions.md#result-content)). Error results carry no
+extra blocks.
+
 ### IR-4 — Tool: `recognize_sheets`
 
 ```

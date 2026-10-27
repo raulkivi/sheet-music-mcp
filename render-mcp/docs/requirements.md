@@ -98,6 +98,10 @@ Output:
   backend     string   e.g. "verovio"
 ```
 
+Content blocks: `content[0]` is the JSON text above. On success it is followed by a
+`resource_link` to the PDF (`file://` URI of the resolved path, MIME type `application/pdf`).
+Errors return only the error JSON.
+
 ### IR-3 — Tool: `render_to_image`
 
 ```
@@ -117,6 +121,17 @@ Output:
   total_pages  integer
   backend      string
 ```
+
+Content blocks: `content[0]` is the JSON text above. On success, extra blocks follow
+([conventions](../../docs/conventions.md#result-content)):
+
+| `format` | `content[1]` | `content[2]` |
+|----------|--------------|--------------|
+| `png`, file ≤ 1 MB | `image` (base64 PNG, `image/png`) | `resource_link` (`file://`, `image/png`) |
+| `png`, file > 1 MB | `resource_link` (`file://`, `image/png`) | — |
+| `svg` | `resource_link` (`file://`, `image/svg+xml`) | — |
+
+SVG gets no image block because many hosts cannot display SVG. Errors return only the error JSON.
 
 ### IR-4 — Tool: `list_capabilities`
 

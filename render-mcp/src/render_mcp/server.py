@@ -1,12 +1,13 @@
 import asyncio
 import json
 import logging
+from pathlib import Path
 
 import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
-from sheet_music_mcp_core.content import error_content
+from sheet_music_mcp_core.content import error_content, file_link, png_block
 from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
@@ -38,8 +39,27 @@ logger = logging.getLogger(__name__)
 # Sent to the client at initialize (docs/conventions.md, Server Instructions).
 INSTRUCTIONS = (
     "Renders a MusicXML score to PDF (render_to_pdf) or one page to PNG or SVG (render_to_image). "
-    "Output files are written under SHEET_MUSIC_OUTPUT_ROOT and never overwrite an existing file."
+    "Output files are written under SHEET_MUSIC_OUTPUT_ROOT and never overwrite an existing file. "
+    "PNG pages are also returned inline when the client shows images."
 )
+
+_IMAGE_MIME_TYPES = {"png": "image/png", "svg": "image/svg+xml"}
+
+
+def _file_blocks(path: str, mime_type: str) -> list:
+    """Blocks appended after the JSON text for a written file (conventions, Result Content).
+
+    A PNG of at most 1 MB is also sent inline; SVG gets only the link.
+    """
+    if not Path(path).is_file():
+        return []
+    blocks = []
+    if mime_type == "image/png":
+        image = png_block(path)
+        if image is not None:
+            blocks.append(image)
+    blocks.append(file_link(path, mime_type))
+    return blocks
 
 
 async def list_tools():
@@ -163,7 +183,8 @@ async def call_tool(name: str, arguments: dict):
                     },
                     indent=2,
                 ),
-            )
+            ),
+            *_file_blocks(pdf_path, "application/pdf"),
         ]
 
     elif name == "render_to_image":
@@ -202,7 +223,10 @@ async def call_tool(name: str, arguments: dict):
             logger.error("render_to_image unexpected error: %s", e)
             return error_content(f"Rendering failed: {e}", "PROCESSING_FAILED")
 
-        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+        return [
+            TextContent(type="text", text=json.dumps(result, indent=2)),
+            *_file_blocks(result["image_path"], _IMAGE_MIME_TYPES[fmt]),
+        ]
 
     elif name == "list_capabilities":
         backend = detect_backend()

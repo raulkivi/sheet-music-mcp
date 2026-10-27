@@ -129,6 +129,10 @@ Output:
   tempo_factor      float
 ```
 
+Content blocks: `content[0]` is the JSON text above. On success it is followed by a
+`resource_link` to the WAV file (`file://` URI of the resolved path, MIME type `audio/wav`;
+[conventions](../../docs/conventions.md#result-content)). Errors return only the error JSON.
+
 ### IR-4 — Tool: `list_capabilities`
 
 ```

@@ -58,7 +58,9 @@ MCP protocol layer. Contains no business logic.
 
 - Registers three tools: `get_parts`, `synthesize`, `list_capabilities`
 - Validates parameters (delegates to `utils.py`) before calling engine
-- Converts engine results and `ProcessingError` exceptions to `TextContent` JSON
+- Converts engine results and `ProcessingError` exceptions to `TextContent` JSON (always `content[0]`)
+- After a successful `synthesize`, appends a `resource_link` to the written WAV (`file://` URI,
+  `audio/wav`) via `sheet_music_mcp_core.content.file_link`
 - Checks `SYNTH_SOUNDFONT_PATH` at `list_capabilities` time to report soundfont status
 - Entry point via `mcp.server.stdio.stdio_server()`
 

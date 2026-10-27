@@ -2,11 +2,12 @@ import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, READ_ONLY_DOWNLOADS, WRITES_FILE_DOWNLOADS
-from sheet_music_mcp_core.content import error_content
+from sheet_music_mcp_core.content import error_content, file_link
 from sheet_music_mcp_core.wiring import make_handlers
 import asyncio
 import json
 import logging
+import os
 import time
 
 from . import __version__
@@ -24,6 +25,8 @@ INSTRUCTIONS = (
     "oemer engine merges the staves into one part. recognize_sheets merges several pages into one score. "
     "First use downloads models (oemer ~100 MB, Audiveris ~80 MB) and a page can take minutes."
 )
+
+MUSICXML_MIME_TYPE = "application/vnd.recordare.musicxml+xml"
 
 
 async def list_tools():
@@ -226,7 +229,12 @@ async def call_tool(name: str, arguments: dict, ctx=None):
                 ctx=ctx,
                 message_prefix="Running OMR recognition",
             )
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+            content = [TextContent(type="text", text=json.dumps(result, indent=2))]
+            # docs/conventions.md, Result Content. The engine returns (not raises) error dicts.
+            written = result.get("output_path") if "error" not in result else None
+            if written and os.path.isfile(written):
+                content.append(file_link(written, MUSICXML_MIME_TYPE))
+            return content
         except Exception as e:
             logger.error(f"Error processing image: {str(e)}")
             return error_content(f"Failed to process image: {str(e)}", "PROCESSING_FAILED")
