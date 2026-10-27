@@ -20,8 +20,12 @@ import defusedxml.ElementTree as SafeET
 from defusedxml import DefusedXmlException
 
 from .errors import ProcessingError
+from .parts import voice_label
 
-__all__ = ["SCORE_ROOTS", "ScoreFormatError", "read_score_file", "parse_score", "describe_score", "score_summary"]
+__all__ = [
+    "SCORE_ROOTS", "ScoreFormatError", "read_score_file", "parse_score", "describe_score", "score_summary",
+    "first_pitches",
+]
 
 SCORE_ROOTS = ("score-partwise", "score-timewise")
 
@@ -250,6 +254,36 @@ def score_summary(text: str | bytes) -> dict:
     }
 
 
+def first_pitches(text: str | bytes) -> list[dict]:
+    """The first note of each part: ``[{id, name, abbreviation, label, pitch, midi}]``.
+
+    One entry per part, in the order of ``describe_score``'s parts. ``pitch`` is the sounding pitch
+    of the first pitched note in written order (rests, unpitched and cue notes skipped; in a
+    chord, the first written note), so it is always inside the part's ``range``; ``midi`` is its
+    MIDI number (C4 = 60). Both are None for a part without pitches. ``label`` is the voice
+    abbreviation ("S", "A1", "Bar") when the name is a voice role, else the abbreviation, the
+    name or the ID. Raises ScoreFormatError.
+    """
+    root = parse_score(text)
+    music = _music_by_part(root)
+    pitches = []
+    for part_id, score_part in _score_parts(root, music):
+        name = _text(score_part.find("part-name")) if score_part is not None else None
+        abbreviation = _text(score_part.find("part-abbreviation")) if score_part is not None else None
+        first = _first_pitch(music.get(part_id, []))
+        pitches.append(
+            {
+                "id": part_id,
+                "name": name,
+                "abbreviation": abbreviation,
+                "label": voice_label(name) or abbreviation or name or part_id,
+                "pitch": first[1] if first else None,
+                "midi": round(first[0]) if first else None,
+            }
+        )
+    return pitches
+
+
 def _music_by_part(root: Element) -> dict[str, list[Element]]:
     """Part ID -> the part's measure contents in order; timewise scores are regrouped by part."""
     music: dict[str, list[Element]] = {}
@@ -277,11 +311,16 @@ def _title(root: Element) -> str | None:
     return None
 
 
-def _parts(root: Element, music: dict[str, list[Element]]) -> list[dict]:
+def _score_parts(root: Element, music: dict[str, list[Element]]) -> list[tuple[str, Element | None]]:
+    """(part ID, score-part or None) in part-list order, then parts missing from the part list."""
     listed = {score_part.get("id", ""): score_part for score_part in root.findall("part-list/score-part")}
+    unlisted = [part_id for part_id in music if part_id not in listed]
+    return [*listed.items(), *((part_id, None) for part_id in unlisted)]
+
+
+def _parts(root: Element, music: dict[str, list[Element]]) -> list[dict]:
     parts = []
-    for part_id in [*listed, *(part_id for part_id in music if part_id not in listed)]:
-        score_part = listed.get(part_id)
+    for part_id, score_part in _score_parts(root, music):
         measures = music.get(part_id, [])
         parts.append(
             {
@@ -328,13 +367,19 @@ def _tempo(music: dict[str, list[Element]]) -> int | float | None:
         if (bpm := _number(sound.get("tempo"))) is not None and bpm > 0:
             return _tidy(bpm)
     for metronome in _elements(music, "metronome"):
-        per_minute = _number(_text(metronome.find("per-minute")))
-        if not per_minute:
-            continue
-        unit = _BEAT_UNITS.get(_text(metronome.find("beat-unit")) or "quarter", 1)
-        dots = len(metronome.findall("beat-unit-dot"))
-        return _tidy(per_minute * unit * (2 - 0.5**dots))
+        if (bpm := _metronome_bpm(metronome)) is not None:
+            return bpm
     return None
+
+
+def _metronome_bpm(metronome: Element) -> int | float | None:
+    """A ``<metronome>`` mark in quarter notes per minute, or None without a usable per-minute."""
+    per_minute = _number(_text(metronome.find("per-minute")))
+    if not per_minute:
+        return None
+    unit = _BEAT_UNITS.get(_text(metronome.find("beat-unit")) or "quarter", 1)
+    dots = len(metronome.findall("beat-unit-dot"))
+    return _tidy(per_minute * unit * (2 - 0.5**dots))
 
 
 def _clef(measures: Iterable[Element]) -> str | None:
@@ -352,20 +397,29 @@ def _clef(measures: Iterable[Element]) -> str | None:
 def _range(measures: Iterable[Element]) -> dict | None:
     """Lowest and highest sounding pitch, compared by MIDI number; None without pitches."""
     low = high = None
+    for sounding, _ in _sounding_notes(measures):
+        if low is None or sounding[0] < low[0]:
+            low = sounding
+        if high is None or sounding[0] > high[0]:
+            high = sounding
+    return {"low": low[1], "high": high[1]} if low else None
+
+
+def _first_pitch(measures: Iterable[Element]) -> tuple[float, str] | None:
+    """(MIDI number, name) of the first sounding pitch that is not a cue note."""
+    return next((sounding for sounding, note in _sounding_notes(measures) if note.find("cue") is None), None)
+
+
+def _sounding_notes(measures: Iterable[Element]) -> Iterator[tuple[tuple[float, str], Element]]:
+    """((MIDI number, name), note) of each pitched note in written order, after transposition."""
     shift = (0, 0.0)
     for measure in measures:
         for element in measure.iter():
             if element.tag == "transpose":
                 shift = _transposition(element)
             elif element.tag == "note" and (pitch := element.find("pitch")) is not None:
-                sounding = _sounding(pitch, shift)
-                if sounding is None:
-                    continue
-                if low is None or sounding[0] < low[0]:
-                    low = sounding
-                if high is None or sounding[0] > high[0]:
-                    high = sounding
-    return {"low": low[1], "high": high[1]} if low else None
+                if (sounding := _sounding(pitch, shift)) is not None:
+                    yield sounding, element
 
 
 def _transposition(transpose: Element) -> tuple[int, float]:

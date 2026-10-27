@@ -23,6 +23,10 @@ _ROLE_ALIASES = {
     "bass": ("b", "bas", "bass", "bassi", "basso", "bassus"),
 }
 _ROLE_BY_ALIAS = {alias: role for role, aliases in _ROLE_ALIASES.items() for alias in aliases}
+_ROLE_LABELS = {
+    "soprano": "S", "mezzo-soprano": "Ms", "alto": "A", "countertenor": "Ct",
+    "tenor": "T", "baritone": "Bar", "bass": "B",
+}
 _ROMAN = {"i": "1", "ii": "2", "iii": "3", "iv": "4"}
 _HINT = "Pass one of the listed part names or IDs."
 
@@ -94,6 +98,16 @@ def _match(request: str, available: Sequence[PartInfo]) -> list[PartInfo]:
                 return by_role
 
     raise PartSelectionError(f"Part '{request}' not found.", [_label(p) for p in available])
+
+
+def voice_label(name: str | None) -> str | None:
+    """Short voice label for a part name ("Soprano 1" -> "S1", "Alto II" -> "A2"), or None
+    when the name is not a voice role."""
+    found = _role(_normalise(name)) if name else None
+    if found is None:
+        return None
+    role, number = found
+    return _ROLE_LABELS[role] + (number or "")
 
 
 def music21_part_infos(parts: Iterable) -> list[PartInfo]:

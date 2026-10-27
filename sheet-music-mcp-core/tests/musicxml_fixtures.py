@@ -31,7 +31,10 @@ def rest(duration=2) -> str:
 
 
 def attributes(*, divisions=2, fifths=None, mode=None, time=None, clef=None, transpose=None) -> str:
-    parts = ["<attributes>", f"<divisions>{divisions}</divisions>"]
+    """``divisions=None`` leaves divisions out, as in a measure that only changes key or clef."""
+    parts = ["<attributes>"]
+    if divisions is not None:
+        parts.append(f"<divisions>{divisions}</divisions>")
     if fifths is not None:
         parts.append(f"<key><fifths>{fifths}</fifths>")
         if mode is not None:
@@ -91,11 +94,27 @@ def _header(title, composer, movement_title, credit) -> str:
     return head
 
 
-def partwise(parts, *, title=None, composer=None, movement_title=None, credit=None) -> str:
-    """``parts`` is a list of ``(id, name, abbreviation, [measure contents])``."""
+def _measure_attributes(numbers, implicit_first, position) -> str:
+    """The ``number`` (and ``implicit``) attributes of the measure at ``position`` (1-based)."""
+    number = numbers[position - 1] if numbers is not None else str(position)
+    implicit = ' implicit="yes"' if implicit_first and position == 1 else ""
+    return f'number="{number}"{implicit}'
+
+
+def partwise(
+    parts, *, title=None, composer=None, movement_title=None, credit=None, numbers=None, implicit_first=False
+) -> str:
+    """``parts`` is a list of ``(id, name, abbreviation, [measure contents])``.
+
+    Measures are numbered 1, 2, ... unless ``numbers`` gives each measure's ``number`` text;
+    ``implicit_first`` marks the first measure ``implicit="yes"`` (a pickup).
+    """
     body = "".join(
         f'<part id="{part_id}">'
-        + "".join(f'<measure number="{n}">{content}</measure>' for n, content in enumerate(measures, 1))
+        + "".join(
+            f"<measure {_measure_attributes(numbers, implicit_first, n)}>{content}</measure>"
+            for n, content in enumerate(measures, 1)
+        )
         + "</part>"
         for part_id, _, _, measures in parts
     )
@@ -110,11 +129,11 @@ def partwise(parts, *, title=None, composer=None, movement_title=None, credit=No
     )
 
 
-def timewise(parts, *, title=None, composer=None) -> str:
+def timewise(parts, *, title=None, composer=None, numbers=None) -> str:
     """The same music as ``partwise(parts)``, grouped by measure."""
     count = len(parts[0][3])
     body = "".join(
-        f'<measure number="{n}">'
+        f"<measure {_measure_attributes(numbers, False, n)}>"
         + "".join(f'<part id="{part_id}">{measures[n - 1]}</part>' for part_id, _, _, measures in parts)
         + "</measure>"
         for n in range(1, count + 1)
@@ -204,3 +223,62 @@ VOICES = partwise(
 def single_part(content: str, **kwargs) -> str:
     """A one-part, one-measure score around ``content``."""
     return partwise([("P1", "Voice", None, [content])], **kwargs)
+
+
+def _six_bars(first, change, step, octave, *, bar3_prefix=""):
+    """Bar 1 ``first`` + four quarters, bar 2 ``change`` + three quarters, bars 3-6 three quarters."""
+    return [
+        first + note(step, octave) * 4,
+        change + note(step, octave) * 3,
+        bar3_prefix + note(step, octave) * 3,
+        *(note(step, octave) * 3 for _ in range(3)),
+    ]
+
+
+# Six bars of SATB: C major 4/4 at quarter = 80 (soprano only) in bar 1; bar 2 changes to F major
+# 3/4 without restating divisions, and the tenor to bass clef; bar 3 of the soprano starts with a
+# system break. Divisions 2 throughout, so bars 3-6 last three quarters each.
+SIX_BAR_PARTS = [
+    (
+        "P1",
+        "Soprano",
+        "S.",
+        _six_bars(
+            attributes(fifths=0, mode="major", time="4/4", clef=("G", 2)) + tempo(80),
+            attributes(divisions=None, fifths=-1, mode="major", time="3/4"),
+            "C", 5,
+            bar3_prefix='<print new-system="yes"/>',
+        ),
+    ),
+    (
+        "P2",
+        "Alto",
+        "A.",
+        _six_bars(
+            attributes(fifths=0, mode="major", time="4/4", clef=("G", 2)),
+            attributes(divisions=None, fifths=-1, mode="major", time="3/4"),
+            "F", 4,
+        ),
+    ),
+    (
+        "P3",
+        "Tenor",
+        "T.",
+        _six_bars(
+            attributes(fifths=0, mode="major", time="4/4", clef=("G", 2, -1)),
+            attributes(divisions=None, fifths=-1, mode="major", time="3/4", clef=("F", 4)),
+            "A", 3,
+        ),
+    ),
+    (
+        "P4",
+        "Bass",
+        "B.",
+        _six_bars(
+            attributes(fifths=0, mode="major", time="4/4", clef=("F", 4)),
+            attributes(divisions=None, fifths=-1, mode="major", time="3/4"),
+            "F", 3,
+        ),
+    ),
+]
+SIX_BARS = partwise(SIX_BAR_PARTS, title="Six Bars")

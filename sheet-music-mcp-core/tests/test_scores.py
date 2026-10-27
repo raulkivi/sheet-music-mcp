@@ -9,6 +9,7 @@ from sheet_music_mcp_core.errors import ProcessingError
 from sheet_music_mcp_core.scores import (
     ScoreFormatError,
     describe_score,
+    first_pitches,
     parse_score,
     read_score_file,
     score_summary,
@@ -17,6 +18,7 @@ from sheet_music_mcp_core.scores import (
 from .musicxml_fixtures import (
     SATB,
     SATB_PARTS,
+    SIX_BARS,
     UNNAMED,
     UNNAMED_PARTS,
     VOICES,
@@ -451,6 +453,90 @@ class TestScoreSummary:
             "time": "3/4",
             "tempo_bpm": 96,
         }
+
+
+def _midi(name):
+    """MIDI number of a pitch name such as "F#4" or "Bb2" (C4 = 60)."""
+    step, accidentals, octave = name[0], name[1:-1], int(name[-1])
+    alter = accidentals.count("#") - accidentals.count("b")
+    return (octave + 1) * 12 + {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}[step] + alter
+
+
+class TestFirstPitches:
+    def test_satb(self):
+        assert first_pitches(SATB) == [
+            {"id": "P1", "name": "Soprano", "abbreviation": "S.", "label": "S", "pitch": "D4", "midi": 62},
+            {"id": "P2", "name": "Alto", "abbreviation": "A.", "label": "A", "pitch": "A3", "midi": 57},
+            {"id": "P3", "name": "Tenor", "abbreviation": "T.", "label": "T", "pitch": "F#3", "midi": 54},
+            {"id": "P4", "name": "Bass", "abbreviation": "B.", "label": "B", "pitch": "D3", "midi": 50},
+        ]
+
+    @pytest.mark.parametrize("score", [SATB, SIX_BARS, VOICES, UNNAMED])
+    def test_pitch_is_inside_the_parts_range(self, score):
+        ranges = [part["range"] for part in describe_score(score)["parts"]]
+
+        for first, part_range in zip(first_pitches(score), ranges, strict=True):
+            if part_range is None:
+                assert first["pitch"] is None
+            else:
+                assert _midi(part_range["low"]) <= first["midi"] <= _midi(part_range["high"])
+                assert _midi(first["pitch"]) == first["midi"]
+
+    def test_part_of_rests_only(self):
+        assert first_pitches(UNNAMED)[1]["pitch"] is None
+        assert first_pitches(UNNAMED)[1]["midi"] is None
+
+    def test_skips_rests_and_unpitched_notes(self):
+        unpitched = "<note><unpitched><display-step>E</display-step><display-octave>6</display-octave></unpitched><duration>2</duration></note>"
+        score = single_part(attributes() + rest() + unpitched + note("G", 4) + note("C", 4))
+
+        assert first_pitches(score)[0]["pitch"] == "G4"
+
+    def test_first_written_note_of_a_chord(self):
+        score = single_part(attributes() + note("E", 4) + note("C", 4, chord=True))
+
+        assert first_pitches(score)[0]["pitch"] == "E4"
+
+    def test_skips_cue_notes(self):
+        cue = "<note><cue/><pitch><step>A</step><octave>5</octave></pitch><duration>2</duration></note>"
+        score = single_part(attributes() + cue + note("G", 4))
+
+        assert first_pitches(score)[0]["pitch"] == "G4"
+
+    def test_transposing_part_gives_the_sounding_pitch(self):
+        # A B-flat clarinet: written D5 sounds C5.
+        score = single_part(attributes(transpose=(-1, -2)) + note("D", 5))
+
+        assert first_pitches(score)[0]["pitch"] == "C5"
+        assert first_pitches(score)[0]["midi"] == 72
+
+    def test_unnamed_part_label_falls_back_to_its_id(self):
+        assert [part["label"] for part in first_pitches(UNNAMED)] == ["P1", "P2"]
+
+    @pytest.mark.parametrize(
+        ("name", "abbreviation", "label"),
+        [
+            ("Soprano 1", "S. 1", "S1"),
+            ("Alto II", None, "A2"),
+            ("Mezzo-soprano", None, "Ms"),
+            ("Countertenor", None, "Ct"),
+            ("Baritone", "Bar.", "Bar"),
+            ("Bassi", None, "B"),
+            ("Piano", "Pno.", "Pno."),
+            ("Piano", None, "Piano"),
+        ],
+    )
+    def test_label(self, name, abbreviation, label):
+        score = partwise([("P1", name, abbreviation, [attributes() + note("C", 4)])])
+
+        assert first_pitches(score)[0]["label"] == label
+
+    def test_timewise_equals_partwise(self):
+        assert first_pitches(timewise(SATB_PARTS)) == first_pitches(SATB)
+
+    def test_invalid_text_raises_score_format_error(self):
+        with pytest.raises(ScoreFormatError):
+            first_pitches("<html/>")
 
 
 class TestHostileNumbers:

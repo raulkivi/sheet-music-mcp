@@ -6,11 +6,12 @@ import base64
 import json
 from pathlib import Path
 
-from mcp.types import ImageContent, ResourceLink, TextContent
+from mcp.types import AudioContent, ImageContent, ResourceLink, TextContent
 
 from .errors import ProcessingError, error_payload
 
 IMAGE_MAX_BYTES = 1024 * 1024
+AUDIO_MAX_BYTES = 200 * 1024
 
 
 def error_content(
@@ -52,3 +53,15 @@ def png_block(path: str, *, max_bytes: int = IMAGE_MAX_BYTES) -> ImageContent | 
         return None
     data = file.read_bytes()
     return ImageContent(type="image", data=base64.b64encode(data).decode("ascii"), mime_type="image/png")
+
+
+def audio_block(path: str, *, max_bytes: int = AUDIO_MAX_BYTES) -> AudioContent | None:
+    """The WAV at ``path`` as inline audio, or None if it is larger than ``max_bytes``.
+
+    The size is checked before reading, so an oversize file is never loaded into memory.
+    """
+    file = Path(path)
+    if file.stat().st_size > max_bytes:
+        return None
+    data = file.read_bytes()
+    return AudioContent(type="audio", data=base64.b64encode(data).decode("ascii"), mime_type="audio/wav")
