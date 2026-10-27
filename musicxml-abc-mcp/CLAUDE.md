@@ -5,8 +5,8 @@
 Converts between MusicXML and ABC notation. ABC is compact and text-based — Claude can read and
 edit it directly in its context window, which is impractical with verbose MusicXML.
 
-**Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references) complete. 140 unit tests pass
-(`-m "not integration"`) + 4 integration.
+**Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references) + UX Wave 3 (`measures`) complete.
+161 unit tests pass (`-m "not integration"`) + 4 integration.
 
 ---
 
@@ -14,7 +14,7 @@ edit it directly in its context window, which is impractical with verbose MusicX
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v               # 140 unit tests (integration deselected)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v               # 161 unit tests (integration deselected)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration # round-trip conversion tests
 ```
 
@@ -40,7 +40,7 @@ Install dependencies: `uv sync --extra dev` (note: `--extra dev`, not `--group d
 
 | Tool | Description |
 |------|-------------|
-| `musicxml_to_abc` | MusicXML (`musicxml` text or `musicxml_path`, `.mxl` too) → ABC notation (all parts or one specific part) |
+| `musicxml_to_abc` | MusicXML (`musicxml` text or `musicxml_path`, `.mxl` too) → ABC notation (all parts or one specific part; `measures` [start, end] for a range of printed bars) |
 | `abc_to_musicxml` | ABC notation → MusicXML; `return` `auto` (default) / `path` / `inline` — large scores come back as `musicxml_path` + `score_summary` (`WRITES_FILE`) |
 | `validate_abc` | Check ABC syntax, return errors/warnings |
 | `list_capabilities` | Server metadata and format support |
@@ -101,6 +101,12 @@ asyncio.run(_run())
   directory), the client's roots and `SHEET_MUSIC_INPUT_ROOTS`; files are written under
   `<output root>/scores/`. Tests must set `SHEET_MUSIC_OUTPUT_ROOT` to `tmp_path` before a call
   that may write (any ABC giving over 8 KB of MusicXML in `auto` mode).
+- **Measure ranges (Wave 3).** `musicxml_to_abc(measures=[start, end])` cuts the MusicXML text
+  with core `select_measures` *before* music21 parses it (printed numbers, pickup 0); never filter
+  music21 measures by `.number`. The cut score carries its tempo as a bare `<sound tempo>`, which
+  music21 reads as a MetronomeMark with only `numberSounding`, so `Q:` falls back to it
+  (`_tempo_number`). The serializer has no pickup or bar-number logic, so a cut starting at bar 3
+  needs no special case.
 - **`X:` header required.** music21's ABC parser requires the tune-number header. It adds it
   automatically on output but may fail to parse input that lacks it.
 

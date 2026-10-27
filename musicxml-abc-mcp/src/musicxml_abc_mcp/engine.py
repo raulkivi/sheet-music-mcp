@@ -23,9 +23,10 @@ Known limitations (documented here rather than hidden):
 
 import logging
 from fractions import Fraction
-from typing import Optional
+from typing import Optional, Sequence
 
 from sheet_music_mcp_core.errors import ProcessingError  # re-exported for server.py
+from sheet_music_mcp_core.measures import select_measures
 from sheet_music_mcp_core.parts import music21_part_infos, resolve_part
 
 logger = logging.getLogger(__name__)
@@ -35,12 +36,19 @@ logger = logging.getLogger(__name__)
 # Public API
 # ---------------------------------------------------------------------------
 
-def musicxml_to_abc(musicxml_str: str, part_id: Optional[str] = None) -> dict:
+def musicxml_to_abc(
+    musicxml_str: str,
+    part_id: Optional[str] = None,
+    measures: Optional[Sequence[int]] = None,
+) -> dict:
     """Convert a MusicXML string to ABC notation.
 
     Args:
         musicxml_str: MusicXML document as a string.
         part_id: If given, export only this part (ID, name or voice); otherwise all parts.
+        measures: If given, an inclusive [start, end] range of printed measure numbers: the
+            score is cut to those bars before music21 parses it, so the K:, M: and Q: headers
+            are the ones in force at ``start``. Omit for the whole score.
 
     Returns:
         {
@@ -50,12 +58,16 @@ def musicxml_to_abc(musicxml_str: str, part_id: Optional[str] = None) -> dict:
         }
 
     Raises:
-        ProcessingError: on parse failure; PartSelectionError for an unknown or ambiguous part.
+        ProcessingError: on parse failure; PartSelectionError for an unknown or ambiguous part;
+        MeasureRangeError (INVALID_PARAMETER, hint names the score's bars) for a bad range.
     """
     _require_music21()
 
     import music21
     import music21.converter
+
+    # select_measures checks the range itself, so a reversed range gets the score's bars as hint
+    musicxml_str = select_measures(musicxml_str, measures)
 
     try:
         score = music21.converter.parseData(musicxml_str, format="musicxml")
@@ -320,10 +332,8 @@ def _part_to_abc_tune(part, tune_num: int, score, part_name: str) -> tuple[str, 
 
     # Tempo
     tempo_mark = _first_element(part, "MetronomeMark") or _first_element(score, "MetronomeMark")
-    if tempo_mark and hasattr(tempo_mark, "number") and tempo_mark.number:
-        q_field = f"1/4={int(tempo_mark.number)}"
-    else:
-        q_field = "1/4=120"
+    bpm = _tempo_number(tempo_mark)
+    q_field = f"1/4={int(bpm)}" if bpm else "1/4=120"
 
     # --- Build header ---
     lines = [
@@ -404,6 +414,14 @@ def _wrap_bars(bars: list[str], line_width: int = 78) -> str:
         result_lines.append(current.rstrip())
 
     return "\n".join(result_lines)
+
+
+def _tempo_number(tempo_mark) -> Optional[float]:
+    """The shown tempo of a MetronomeMark, else its sounding tempo (a bare ``<sound tempo>``,
+    which is how a measure range carries the tempo into its first bar)."""
+    if tempo_mark is None:
+        return None
+    return getattr(tempo_mark, "number", None) or getattr(tempo_mark, "numberSounding", None)
 
 
 def _find_title(part, score) -> str:

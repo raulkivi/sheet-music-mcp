@@ -73,7 +73,7 @@ All conversion and serialization logic. No MCP imports.
 
 | Function | Description |
 |----------|-------------|
-| `musicxml_to_abc(musicxml_str, part_id)` | Parse MusicXML; resolve the part (ID, name or voice); serialize each part to ABC tune |
+| `musicxml_to_abc(musicxml_str, part_id, measures)` | Cut to `measures` (core `select_measures`); parse MusicXML; resolve the part (ID, name or voice); serialize each part to ABC tune |
 | `abc_to_musicxml(abc_str)` | Parse ABC with music21; export to MusicXML |
 | `validate_abc(abc_str)` | Check ABC syntax; return errors and warnings |
 
@@ -87,6 +87,7 @@ All conversion and serialization logic. No MCP imports.
 | `_duration_to_abc(quarter_length)` | Convert quarter-note duration to ABC duration suffix |
 | `_key_to_abc(key_sig)` | Convert music21.Key or KeySignature to ABC K: value |
 | `_wrap_bars(bars, line_width=78)` | Join bar tokens with `\|`, wrap at 78 chars |
+| `_tempo_number(tempo_mark)` | A MetronomeMark's shown tempo, else its sounding tempo (a bare `<sound tempo>`) |
 | `_find_title(part, score)` | Extract title from score metadata |
 | `_is_dynamic(elem)` | True if element is a music21 Dynamic |
 
@@ -106,13 +107,21 @@ Minimal input validation.
 ### MusicXML → ABC
 
 ```
-call_tool("musicxml_to_abc", {musicxml | musicxml_path, part: "Soprano"})   (part_id: deprecated alias)
+call_tool("musicxml_to_abc", {musicxml | musicxml_path, part: "Soprano", measures: [3, 4]})
+                                                            (part_id: deprecated alias)
   │
   ├─ core: load_score   inline text as is, or the path confined to the read roots and read
   │                     (.mxl unzipped); INVALID_PARAMETER / FILE_NOT_FOUND / FILE_TOO_LARGE / INVALID_INPUT
   ├─ utils: validate_musicxml
   │
-  └─ engine: musicxml_to_abc(musicxml, part_id="Soprano")
+  └─ engine: musicxml_to_abc(musicxml, part_id="Soprano", measures=[3, 4])
+        │
+        ├─ if measures given:
+        │     musicxml = select_measures(musicxml, [3, 4])   core, before music21 sees the score
+        │     keeps printed bars 3–4 (pickup = 0) in every part; the first kept bar gets the
+        │     divisions, key, time, clefs and tempo (<sound tempo>) in force before it
+        │     MeasureRangeError (INVALID_PARAMETER, hint "This score has measures 1–6.") if
+        │     reversed, malformed or outside the score
         │
         ├─ score = music21.converter.parseData(musicxml, format="musicxml")
         │
@@ -169,7 +178,8 @@ X:1                 ← tune reference number (sequential)
 T:Soprano           ← title / part name
 M:4/4               ← time signature (from first TimeSignature in part)
 L:1/8               ← default note length = eighth note
-Q:120               ← tempo in BPM (from first MetronomeMark, or 120)
+Q:1/4=120           ← quarter-note tempo (first MetronomeMark's number, else its sounding
+                      tempo from a bare <sound tempo>, else 120)
 K:C                 ← key (from first Key/KeySignature in part)
 ```
 
@@ -273,6 +283,7 @@ C2 D2 E2 F2 | G2 A2 B2 c2 | ...
 | MusicXML parse failure | `INVALID_INPUT` |
 | ABC parse failure | `INVALID_INPUT` |
 | Requested part name not found | `INVALID_PARAMETER` |
+| `measures` reversed, malformed or outside the score (`hint` names the score's bars) | `INVALID_PARAMETER` |
 | Both or neither of `musicxml` / `musicxml_path`; path outside the read roots | `INVALID_PARAMETER` |
 | Score file missing / too large | `FILE_NOT_FOUND` / `FILE_TOO_LARGE` |
 | music21 conversion failure | `PROCESSING_FAILED` |
@@ -319,6 +330,7 @@ musicxml-abc-mcp/
 └── tests/
     ├── test_server.py
     ├── test_score_references.py  ← musicxml_path, return modes, describe_score
+    ├── test_measures.py  ← measures ranges (Wave 3): cut bars, carried K:/M:/Q:, errors
     ├── test_engine.py
     ├── test_utils.py
     └── fixtures/

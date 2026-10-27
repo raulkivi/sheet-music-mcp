@@ -14,7 +14,7 @@ ABC is ideal for LLM editing because it is concise enough to fit in a context wi
 
 | Tool | Description |
 |------|-------------|
-| `musicxml_to_abc` | Convert MusicXML (`musicxml` text or `musicxml_path`) to ABC notation; optionally filter to a single part |
+| `musicxml_to_abc` | Convert MusicXML (`musicxml` text or `musicxml_path`) to ABC notation; optionally filter to a single part and a range of printed bars (`measures`) |
 | `abc_to_musicxml` | Convert ABC notation back to MusicXML; large scores are written to a file (`return`: `auto` / `path` / `inline`) |
 | `validate_abc` | Parse an ABC string and return errors or warnings |
 | `list_capabilities` | Return server metadata: backend version, ABC standard |
@@ -68,6 +68,15 @@ pass `"return": "inline"` to always get the text.
 }
 // `part` takes a part ID ("P1"), name ("soprano", any case) or voice ("S"); an unknown part
 // returns the valid choices. `part_id` is a deprecated alias for one minor release.
+
+// Just bars 17–24 of the Alto part
+{
+  "tool": "musicxml_to_abc",
+  "arguments": {"musicxml_path": "scores/anthem.musicxml", "part": "Alto", "measures": [17, 24]}
+}
+// `measures` are the printed bar numbers, inclusive (a pickup bar is 0). The ABC headers (K:, M:,
+// Q:) are the key, time and tempo in force at bar 17. A range outside the score returns
+// INVALID_PARAMETER with a hint such as "This score has measures 1–32."
 
 // Convert edited ABC back to MusicXML
 {
