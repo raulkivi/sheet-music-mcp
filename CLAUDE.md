@@ -62,6 +62,8 @@ UX deliverables (all servers): PyPI packaging, `install.sh`, `SETUP.md`, `exampl
 - **All tool handlers must be `async def`**
 - **All error responses** must use `{"error": "...", "error_code": "..."}` — see [docs/conventions.md](docs/conventions.md) for the full code list
 - **Integration tests** must be marked `@pytest.mark.integration` and must not run in the default `pytest` invocation
+- **Shared code lives in `sheet-music-mcp-core/`**. Use it for errors, part selection, deprecated parameter names, tool annotations, result content and handler wiring; don't copy that code into a server. Engines may import only its MCP-free modules (`errors`, `parts`, `params`, `annotations`). See [docs/conventions.md](docs/conventions.md#shared-core-library)
+- **Every tool** sets a `title` and an annotation preset; **every part parameter** uses the shared resolver (see [docs/conventions.md](docs/conventions.md#part-selection))
 
 ---
 

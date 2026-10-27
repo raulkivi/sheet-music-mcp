@@ -67,6 +67,8 @@ Each `*-mcp/` directory is a self-contained Python package deployable independen
 - **All tool handlers must be `async def`**
 - **All error responses:** `{"error": "...", "error_code": "..."}` — see [docs/conventions.md](../docs/conventions.md) for all codes
 - **Integration tests** must be `@pytest.mark.integration` and must not run in the default `pytest` invocation
+- **Shared code** (errors, part selection, deprecated parameter names, tool annotations, result content, handler wiring) comes from `sheet-music-mcp-core/`, not from per-server copies. Engines may import only its MCP-free modules
+- **Every tool** sets a `title` and an annotation preset; **every part parameter** (`part` / `parts`) uses the shared resolver. See [docs/conventions.md](../docs/conventions.md)
 
 ### MCP stdio startup pattern
 
