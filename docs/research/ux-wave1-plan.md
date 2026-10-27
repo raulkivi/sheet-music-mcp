@@ -1,6 +1,6 @@
 # UX Wave 1 plan: contract foundation and core library
 
-**Status:** Plan, awaiting approval. No code has been written.
+**Status:** Approved 2026-10-27 with the decisions in [§7](#7-decisions). Implementation in progress.
 **Date:** 2026-10-27
 **Parent:** [ux-architecture-and-tool-improvements.md](ux-architecture-and-tool-improvements.md),
 roadmap wave 1, decisions E1–E8.
@@ -17,7 +17,7 @@ risk. It also bootstraps the shared core library (decision E1) that later waves 
 |---|---|---|
 | **Contract** | `docs/conventions.md` gains part selection, error fields, annotations, result content, server instructions and core library usage. | docs |
 | **A2 (bootstrap)** | `sheet-music-mcp-core` 0.1.0 with `errors`, `parts`, `wiring`, `annotations` and `content` modules. | new package |
-| **B1** | Part selector that accepts an ID, a name or a voice role. Fixes "Part 'Soprano' not found". | synth, abc, pitch, comparer |
+| **B1** | Part selector that accepts an ID, a name or a voice role. Fixes "Part 'Soprano' not found". Parameters renamed to `part` / `parts`, with the old names kept as deprecated aliases for one minor release (W1). | synth, abc, pitch, comparer |
 | **B3** | `annotations` and `title` on all 34 tools. | all |
 | **B4** | `ImageContent` for PNG renders and `ResourceLink` for written files. | render, synth, omr |
 | **B5** | Optional `hint` and `choices` in error responses. | all |
@@ -27,9 +27,6 @@ risk. It also bootstraps the shared core library (decision E1) that later waves 
 
 ### Out of scope for Wave 1
 
-- Renaming parameters (`part_id` to `part`, `part_ids` to `parts`). Wave 1 changes only matching
-  semantics. Renames and aliases ship with the Wave 5 consolidation, so users see one
-  deprecation cycle instead of two.
 - Score references (A1), `describe_score` (C18) and `core.paths` and `core.scores` (Wave 2).
 - MCP Apps. The render-mcp Score Viewer spike runs independently. It will consume
   `core.wiring` and `core.content` once they exist, and its `ui` module can move into the core in
@@ -61,6 +58,7 @@ sheet-music-mcp-core/                       # new top-level directory; not an MC
     errors.py        # ProcessingError(message, error_code, hint=None, choices=None)
                      # error_content(...) -> list[TextContent] -- the {error, error_code, hint?, choices?} envelope
     parts.py         # PartInfo, resolve_parts(), resolve_part(), PartSelectionError
+    params.py        # aliased(arguments, name, deprecated) -- deprecated parameter names (W1)
     annotations.py   # READ_ONLY, WRITES_FILE, SESSION_STATE, DOWNLOADS presets -> ToolAnnotations kwargs
     content.py       # image_block(path), file_link(path, mime) -> ImageContent / ResourceLink
     wiring.py        # make_handlers(list_tools, call_tool) -> (on_list_tools, on_call_tool)
@@ -72,7 +70,7 @@ sheet-music-mcp-core/                       # new top-level directory; not an MC
 | **S** | One concern per module. `parts` knows nothing about music21. Each server converts its parsed parts into `PartInfo(id, name)`. |
 | **O** | Servers add behaviour by passing data (annotation presets, part lists), not by editing the core. |
 | **L** | `PartSelectionError` is a `ProcessingError`, so every existing `except ProcessingError` path keeps working unchanged. |
-| **I** | `errors`, `parts` and `annotations` have no `mcp` import, so engines can use them without breaking the rule "`engine.py` must not import from `mcp`". Only `wiring` and `content` import `mcp`. |
+| **I** | `errors`, `parts`, `params` and `annotations` have no `mcp` import, so engines can use them without breaking the rule "`engine.py` must not import from `mcp`". Only `wiring` and `content` import `mcp`. |
 | **D** | `wiring.make_handlers` receives the server's `list_tools` and `call_tool` callables. The core never imports a server. |
 
 **Per-server `ProcessingError`.** Each engine keeps its name with
@@ -109,10 +107,16 @@ Each requested string is matched in tiers, and the first tier that matches wins:
 
 | Role | Aliases (normalised) |
 |---|---|
-| soprano | `s`, `sop`, `soprano`, `soprani`, `sopran` |
-| alto | `a`, `alt`, `alto`, `alti`, `contralto` |
+| soprano | `s`, `sop`, `soprano`, `soprani`, `sopran`, `cantus`, `canto` |
+| alto | `a`, `alt`, `alto`, `alti`, `contralto`, `altus` |
 | tenor | `t`, `ten`, `tenor`, `tenori` |
-| bass | `b`, `bas`, `bass`, `bassi`, `basso` |
+| bass | `b`, `bas`, `bass`, `bassi`, `basso`, `bassus` |
+| mezzo-soprano | `ms`, `mez`, `mezzo`, `mezzo soprano`, `mezzosoprano` |
+| baritone | `bar`, `bari`, `bariton`, `baritone`, `baritono` |
+
+Latin and Italian forms (W2): `cantus` and `canto` map to soprano, `altus` to alto, `bassus` and
+`basso` to bass. Mezzo-soprano and baritone are roles of their own (W2): `"Alto"` never selects a
+mezzo part and `"Bass"` never selects a baritone part.
 
 Divisi: `A1`, `Alto 1` and `Alt I` match only `Alto 1`. `Sopran` and `Alt` cover the German and
 Estonian part names common in choir editions.
@@ -129,14 +133,24 @@ Results and errors:
 
 **Adoption per server**
 
-| Server | Parameter (name unchanged in Wave 1) | Call |
-|---|---|---|
-| synth | `synthesize.part_ids` | `resolve_parts` |
-| musicxml-abc | `musicxml_to_abc.part_id` | `resolve_part` |
-| pitch | `analyze_recording.part_id`, `load_score.part_id` | `resolve_part` |
-| comparer | `list_changes.part`, `options.part_filter` | `resolve_parts` against the **reference** score's parts. The resolved IDs map to names for the existing name-based target matching. |
+| Server | New parameter | Deprecated alias (W1) | Call |
+|---|---|---|---|
+| synth | `synthesize.parts` | `part_ids` | `resolve_parts` |
+| musicxml-abc | `musicxml_to_abc.part` | `part_id` | `resolve_part` |
+| pitch | `analyze_recording.part`, `load_score.part` | `part_id` | `resolve_part` |
+| comparer | `list_changes.part` (name unchanged), `options.parts` | `options.part_filter` | `resolve_parts` against the **reference** score's parts. The resolved IDs map to names for the existing name-based target matching. |
 
 Tool descriptions are updated to say "part ID, name or voice (e.g. 'P1', 'Soprano', 'S')".
+
+**Alias rules** (`core.params.aliased`):
+
+- The schema lists both names. The old one's description starts with "(Deprecated: use `part`)".
+  Where a part is required, the schema uses
+  `anyOf: [{"required": ["part"]}, {"required": ["part_id"]}]`.
+- Passing only the old name works and logs one deprecation warning per process.
+- Passing both with equal values is accepted. Passing both with different values returns
+  `INVALID_PARAMETER`.
+- The aliases are removed in each server's next minor release after Wave 1, consistent with E3.
 
 ### 3.2 Annotations and titles (B3)
 
@@ -249,10 +263,10 @@ Each step starts with the listed tests failing, then the minimum code to pass, t
 | PR | Content | Tests first (red) | Depends on | Est. |
 |---|---|---|---|---|
 | **1. Contract** | `docs/conventions.md`: error fields `hint` and `choices`, part selector semantics and alias table, annotation presets and the per-tool table, result content rules, server instructions, core library usage and the dev path source. The root `CLAUDE.md` hard rules gain "use `sheet-music-mcp-core` for errors, parts and wiring". | Documentation only, reviewed against §3. | none | 0.5 d |
-| **2. Core package** | `sheet-music-mcp-core/` with the modules in §3. Add it to the `tests.yml` matrix. `publish.yml` accepts the `sheet-music-mcp-core/v*` tag and skips the `server.json` check and the MCP Registry steps for it. | `test_errors.py`: envelope with and without `hint`/`choices`; JSON shape matches the conventions. `test_parts.py`: every tier, the alias table, divisi, Roman numerals, ambiguous single match, multi match, no match listing choices, order and de-duplication. `test_annotations.py`: preset values. `test_content.py`: PNG to `ImageContent`, size cap, `ResourceLink` URI and MIME type. `test_wiring.py`: schema validation error, exception becomes `isError`, unknown tool. `test_import_isolation.py`: importing `errors`, `parts` and `annotations` leaves `mcp` absent from `sys.modules`. | 1 | 1.5 d |
+| **2. Core package** | `sheet-music-mcp-core/` with the modules in §3. Add it to the `tests.yml` matrix. `publish.yml` accepts the `sheet-music-mcp-core/v*` tag and skips the `server.json` check and the MCP Registry steps for it. | `test_errors.py`: envelope with and without `hint`/`choices`; JSON shape matches the conventions. `test_parts.py`: every tier, the alias table, divisi, Roman numerals, ambiguous single match, multi match, no match listing choices, order and de-duplication. `test_params.py`: new name only, old name only (one warning), both equal, both different gives `INVALID_PARAMETER`, neither. `test_annotations.py`: preset values. `test_content.py`: PNG to `ImageContent`, size cap, `ResourceLink` URI and MIME type. `test_wiring.py`: schema validation error, exception becomes `isError`, unknown tool. `test_import_isolation.py`: importing `errors`, `parts`, `params` and `annotations` leaves `mcp` absent from `sys.modules`. | 1 | 1.5 d |
 | **3. Adopt wiring** | Each server replaces its copy of `_on_list_tools` and `_on_call_tool` with `core.wiring.make_handlers` and imports `ProcessingError` from the core. This is a pure refactor. | No new tests. The existing `test_mcp_protocol.py` in all six servers must stay green. That is the safety net. | 2 | 0.5 d |
 | **4. Annotations, titles, instructions** | B3 tables and A5 text in all six `list_tools` and `Server(...)` calls. | Per server, `test_server.py`: every tool has a `title`. Read-only tools match the table exactly, and no file-writing or session tool is read-only. `start_monitoring` is not read-only. `test_mcp_protocol.py`: `client.instructions` contains the key phrase (for example "audiveris" for omr, "stop_monitoring" for pitch). | 3 | 1 d |
-| **5. Part selector and errors** | B1 adoption (§3.1) in synth, abc, pitch and comparer. B5 `hint` and `choices` on part errors, plus the C3/C23 hints when those land. Tool descriptions updated. | **Regression first:** `load_score(part_id="Soprano")` and `musicxml_to_abc(part_id="soprano")` succeed on a P1–P4 fixture. `synthesize(part_ids=["S","A"])` includes P1 and P2. `list_changes(part="alto")` matches `Alto`. An unknown part returns `choices`. An ambiguous single part returns the matching `choices`. | 3 | 1.5 d |
+| **5. Part selector and errors** | B1 adoption (§3.1) in synth, abc, pitch and comparer, including the `part` / `parts` renames with deprecated aliases (W1). B5 `hint` and `choices` on part errors, plus the C3/C23 hints when those land. Tool descriptions updated. | **Regression first:** `load_score(part_id="Soprano")` and `musicxml_to_abc(part_id="soprano")` succeed on a P1–P4 fixture. `synthesize(part_ids=["S","A"])` includes P1 and P2. `list_changes(part="alto")` matches `Alto`. An unknown part returns `choices`. An ambiguous single part returns the matching `choices`. Old parameter names still work, and conflicting old and new values are rejected. | 3 | 1.5 d |
 | **6. Result content** | B4 in render, synth and omr (§3.3). | `render_to_image` PNG: `content[0]` unchanged, `content[1]` is `ImageContent` with `image/png`, `content[2]` is a `ResourceLink` with a `file://` URI. Over 1 MB gives no image block. SVG gives no image block. `render_to_pdf`, `synthesize` and `recognize_sheet_to_file` each have a `ResourceLink` with the right MIME type. | 3 | 0.5 d |
 | **7. Pitch idle timeout** | C23 (§3.5), including `list_sessions`. | `SessionRegistry` with a fake clock: no reap before the timeout; reap after it closes the stream (fake stream) and stores the summary; `stop_monitoring` after a reap returns the summary with `timed_out`; `get_current_position` after a reap gives `SESSION_NOT_FOUND` and the hint; activity resets the idle time; `0` disables. Env parsing: valid, invalid falls back. `Reaper` with an injected sleep calls `reap` once per tick and stops on its stop event. `list_sessions` shape and states. | 3 | 1 d |
 | **8. OMR pre-check** | C3 (§3.6). | `check_resolution` at 1499, 1500, 2499 and 2500 px (generated images). `recognize_sheet(engine="audiveris")` on a 1000 px image returns `INVALID_INPUT` with a `hint` **without calling** `_run_audiveris` (mocked and asserted not called). oemer is unaffected by the check. | 3 | 0.5 d |
@@ -288,12 +302,17 @@ days.**
 
 ---
 
-## 7. Approval checklist
+## 7. Decisions
 
-- [ ] Scope (§1), including keeping parameter renames out of Wave 1
-- [ ] Core package name `sheet-music-mcp-core` and directory at the repo root
-- [ ] Part alias table (§3.1). Add other languages or voice names?
-- [ ] Annotation table (§3.2)
-- [ ] Idle timeout default of 10 minutes (§3.5)
-- [ ] OMR thresholds of 1500 and 2500 px (§3.6)
-- [ ] Release versions (§6)
+Agreed with the project owner on 2026-10-27. The sections above already reflect them.
+
+| # | Item | Decision |
+|---|---|---|
+| W1 | Parameter names | Rename **in Wave 1**: `part` for one part and `parts` for several. The old names (`part_id`, `part_ids`, `options.part_filter`) are deprecated aliases for **one minor release**. |
+| W2 | Voice names | Add **Latin and Italian forms** (cantus, canto, altus, bassus, basso) and **baritone and mezzo-soprano as their own roles**, on top of the English, German and Estonian forms. |
+| W3 | Core package | `sheet-music-mcp-core/` at the repo root. PyPI name `sheet-music-mcp-core`, import `sheet_music_mcp_core`. |
+| W4 | Annotation table | Approved as written (§3.2). |
+| W5 | Pitch idle timeout | 10 minutes by default, configurable. |
+| W6 | OMR thresholds | Reject below 1,500 px and warn below 2,500 px on the long side. |
+| W7 | Order | **Wave 1 first.** The MCP Apps spike follows and reuses `core.wiring`. |
+| W8 | Release versions | As in §6. No objection was raised, so the default stands. |
