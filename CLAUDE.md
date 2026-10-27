@@ -47,12 +47,18 @@ before writing any code.
 
 | Server | Status | Tests |
 |--------|--------|-------|
-| omr-mcp | ⚠️ Phase 1-4 complete; default (oemer) engine loses SATB voice structure — fixed via opt-in `engine="audiveris"`, not yet the default (see omr-mcp/docs/HANDOVER.md) | 111 unit |
-| synth-mcp | ✅ Phase 1 + UX complete | 64 unit + 7 integration |
-| render-mcp | ✅ Phase 1 + UX complete | 73/73 incl. integration |
-| musicxml-abc-mcp | ✅ Phase 1 + UX complete | 74/74 incl. integration |
-| pitch-mcp | ✅ Phase A+B + UX complete (audio-driven position tracking, DTW via dtaidistance) | 112 unit + 4 integration |
-| comparer-mcp | ✅ Phase 4 (Advanced features) complete — all originally-scoped phases done | 134/134 (127 unit + 7 integration) |
+| omr-mcp | ⚠️ Phase 1-4 complete; default (oemer) engine loses SATB voice structure — fixed via opt-in `engine="audiveris"`, not yet the default (see omr-mcp/docs/HANDOVER.md) | 134 unit (+48 skipped) + 41 integration |
+| synth-mcp | ✅ Phase 1 + UX complete | 121 unit + 7 integration |
+| render-mcp | ✅ Phase 1 + UX complete | 104 unit + 9 integration |
+| musicxml-abc-mcp | ✅ Phase 1 + UX complete | 105 unit + 4 integration |
+| pitch-mcp | ✅ Phase A+B + UX complete (audio-driven position tracking, DTW via dtaidistance) | 192 unit (+2 skipped) + 4 integration |
+| comparer-mcp | ✅ Phase 4 (Advanced features) complete — all originally-scoped phases done | 167 unit + 7 integration |
+
+| sheet-music-mcp-core | ✅ 0.1.0 shared library (not yet on PyPI — publish before the next server release) | 94 unit |
+
+Unit counts are the default `pytest` run (`-m "not integration"`). UX Wave 1 (all servers): tool titles
+and annotations, server instructions, part selection by ID/name/voice, inline PNG and file links,
+pitch idle timeout, Audiveris pre-check — see [docs/research/ux-wave1-plan.md](docs/research/ux-wave1-plan.md).
 
 UX deliverables (all servers): PyPI packaging, `install.sh`, `SETUP.md`, `examples/` client configs, `health_check` tool, `TROUBLESHOOTING.md`. See [docs/SETUP_UX_PLAN.md](docs/SETUP_UX_PLAN.md).
 

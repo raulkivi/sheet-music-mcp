@@ -1,6 +1,6 @@
 # UX Wave 1 plan: contract foundation and core library
 
-**Status:** Approved 2026-10-27 with the decisions in [§7](#7-decisions). Implementation in progress.
+**Status:** Implemented 2026-10-27 (all eight steps, see Progress). Release follows §6: publish the core first.
 **Date:** 2026-10-27
 **Parent:** [ux-architecture-and-tool-improvements.md](ux-architecture-and-tool-improvements.md),
 roadmap wave 1, decisions E1–E8.
@@ -14,10 +14,10 @@ roadmap wave 1, decisions E1–E8.
 | 2 | `sheet-music-mcp-core` library, plus review fixes ([core-library-review.md](core-library-review.md)) | ✅ `46921a0`, `c8e730d` |
 | 3 | Servers adopt core wiring and errors | ✅ `ce38fb3` |
 | 4 | Titles, annotation presets, server instructions | ✅ `8c4afec` |
-| 5 | Part selector, `part`/`parts` renames, `hint`/`choices` in errors | ✅ this step |
-| 6 | Result content (inline PNG, file links) | ⏳ |
-| 7 | Pitch idle timeout and `list_sessions` | ⏳ |
-| 8 | OMR resolution pre-check | ⏳ |
+| 5 | Part selector, `part`/`parts` renames, `hint`/`choices` in errors | ✅ `6b2f5be` |
+| 6 | Result content (inline PNG, file links) | ✅ `d34004c` |
+| 7 | Pitch idle timeout and `list_sessions` | ✅ `c4a92e8` |
+| 8 | OMR resolution pre-check | ✅ `558d2d4` |
 
 ---
 

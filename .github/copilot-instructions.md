@@ -22,7 +22,7 @@ Each server has its own local instruction file — **read it before writing any 
 | render-mcp | [render-mcp/.github/copilot-instructions.md](../render-mcp/.github/copilot-instructions.md) | ✅ Phase 1 COMPLETE |
 | musicxml-abc-mcp | [musicxml-abc-mcp/.github/copilot-instructions.md](../musicxml-abc-mcp/.github/copilot-instructions.md) | ✅ Phase 1 COMPLETE |
 | pitch-mcp | [pitch-mcp/.github/copilot-instructions.md](../pitch-mcp/.github/copilot-instructions.md) | ✅ Phase A+B COMPLETE |
-| comparer-mcp | [comparer-mcp/.github/copilot-instructions.md](../comparer-mcp/.github/copilot-instructions.md) | 🔲 Design complete |
+| comparer-mcp | [comparer-mcp/.github/copilot-instructions.md](../comparer-mcp/.github/copilot-instructions.md) | ✅ Phase 4 COMPLETE |
 
 The per-server files contain: status, key files, implemented tools, environment setup, test
 commands, known gotchas, and the definition of done.
@@ -46,7 +46,7 @@ sheet-music-mcp/
 ├── render-mcp/                 # MusicXML → PDF/PNG        ✅ Phase 1 COMPLETE
 ├── musicxml-abc-mcp/           # MusicXML ↔ ABC            ✅ Phase 1 COMPLETE
 ├── pitch-mcp/                  # Mic audio → score pos/accuracy  ✅ Phase A+B COMPLETE
-├── comparer-mcp/               # Two MusicXML → structured diff  🔲 Design complete
+├── comparer-mcp/               # Two MusicXML → structured diff  ✅ Phase 4 COMPLETE
 └── sheet-music-mcp-core/       # Shared library (errors, parts, annotations, wiring) — not a server
 ```
 
