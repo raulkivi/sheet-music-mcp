@@ -35,7 +35,7 @@ The ten changes worth doing first, ordered by UX gain per unit of effort:
 | # | Change | Gain | Effort | Breaking? |
 |---|---|---|---|---|
 | **A1** | **Score references:** pass a file path instead of inline MusicXML, in and out of every server. | Removes the ~29k-token copy per tool call for a 24-bar chorale. Chains become fast and reliable. | M | No (additive) |
-| **B1** | **Unified part selector:** accept an ID, a name or a voice role (`"P2"`, `"Alto"`, `"A"`). Fixes a real bug. | Ends "Part 'Soprano' not found" retry loops. | S | No |
+| **B1** | **Unified part selector:** accept an ID, a name or a voice role (`"P2"`, `"Alto"`, `"A"`). Fixes real bugs: unnamed parts can't be selected at all, and parts sharing a name can't be told apart. | Ends "Part … not found" retry loops. | S | No |
 | **B3** | **Tool annotations and titles** (`readOnlyHint` and others). | Hosts can skip permission prompts for read-only tools and show friendly names. | S | No |
 | **B4** | **Inline images and file links** in results (`ImageContent`, `ResourceLink`). | The score preview appears in chat even without MCP Apps. | S | No |
 | **C8** | **Learning-track mix** (`part_gains` plus presets, D3) on `synth-mcp`. | The most-requested choir practice format. | S | No |
@@ -242,14 +242,26 @@ only. Choir members mostly use macOS and Windows. Proposal for the next setup ph
 | Server / tool | Parameter | Matches on |
 |---|---|---|
 | synth `synthesize` | `part_ids` (array) | ID |
-| musicxml-abc `musicxml_to_abc` | `part_id` | **ID only**, though the description says "e.g. 'Soprano'" |
-| pitch `analyze_recording`, `load_score` | `part_id` | **ID only**, though the description says "e.g. 'Soprano'" |
+| musicxml-abc `musicxml_to_abc` | `part_id` | music21 `part.id`, exact |
+| pitch `analyze_recording`, `load_score` | `part_id` | music21 `part.id`, exact |
 | comparer `list_changes` | `part` | name, case-insensitive |
 | comparer options | `part_filter` | name |
 
-For OMR output the IDs are `P1`…`P4`, so a model that follows the description and passes
-`"Soprano"` gets `Part 'Soprano' not found`. It then has to call `get_parts` (which only exists on
-synth-mcp) and retry. That costs an extra turn every time.
+> **Corrected 2026-10-27** after testing with real scores ([core library review](core-library-review.md#f1)).
+> An earlier version of this section said that `"Soprano"` fails because the IDs are `P1`…`P4`.
+> That is wrong.
+
+The servers match on music21's `part.id`, and music21 (10.x) does not keep the MusicXML part ID
+there:
+
+| Score | MusicXML `<score-part id>` | music21 `part.id` | Effect today |
+|---|---|---|---|
+| Named parts (`Soprano`, `Alto`, …) | `P1`, `P2`, … | the part name (`"Soprano"`) | `"Soprano"` works by accident. The real ID `"P1"` and `"soprano"` (lower case) fail. |
+| Two parts with the same name (`Tenor`, `Tenor`; `Voice`, `Voice`) | `P3`, `P4` | `"Tenor"`, `"Tenor"` | One part cannot be selected on its own. |
+| Unnamed parts (common in OMR output) | `P1`, `P2` | a Python object number such as `140320038121744`, **different on every parse** | `get_parts` returns an ID that the next call can never match, so the part cannot be selected at all. |
+
+The model then has to call `get_parts` (which only exists on synth-mcp) and retry, or cannot
+succeed at all.
 
 **Change.** One resolver, shared or copied (A2), used by every part parameter. It matches in this
 order:
@@ -417,8 +429,9 @@ Written as failing tests to start from.
   return `["P1"]` for the OMR fixture.
 - `resolve(["Alto"])` on a score with `Alto 1` and `Alto 2` raises an ambiguity error whose
   `choices` lists both.
-- Regression: `load_score(part_id="Soprano")` succeeds for a score whose part IDs are `P1`–`P4`.
-  This fails today.
+- Regressions that fail today: `load_score(part="P1")` succeeds on a named SATB fixture. An
+  unnamed two-part fixture can be selected with `"P2"`, and gives the same ID on every call. In a
+  score with two `Tenor` parts, `"P4"` selects only the second.
 
 **C8. Learning track**
 
