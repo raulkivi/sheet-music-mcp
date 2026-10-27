@@ -17,6 +17,10 @@ Six independent MCP servers for choir practice. Each server lives in its own dir
 | pitch-mcp | `pitch-mcp/` | Mic audio + score → position + accuracy | Sing-along feedback |
 | comparer-mcp | `comparer-mcp/` | Two MusicXML → structured diff | Score comparison |
 
+Shared code (errors, part selection, deprecated parameter names, tool annotations, result content,
+handler wiring) lives in the library [`sheet-music-mcp-core/`](sheet-music-mcp-core/), which every
+server depends on. It is not an MCP server; its tests run from its own directory like a server's.
+
 See [README.md](README.md) for the full vision and data flow.
 
 ---

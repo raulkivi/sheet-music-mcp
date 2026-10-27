@@ -140,7 +140,8 @@ An error may add two optional fields, so the model can recover in one step witho
 }
 ```
 
-Build errors with `sheet_music_mcp_core.errors` (see [Shared core library](#shared-core-library)),
+Build errors with `sheet_music_mcp_core.errors.error_payload()` or
+`sheet_music_mcp_core.content.error_content()` (see [Shared core library](#shared-core-library)),
 never by hand.
 
 ---
@@ -151,8 +152,9 @@ Every parameter that names a voice part uses the shared resolver in `sheet_music
 A requested string is matched in tiers, and the first tier that matches wins:
 
 1. **Exact part ID**, case-sensitive (`P2`).
-2. **Part name** after normalising: casefold, strip punctuation, collapse spaces, and turn Roman
-   numerals `I`/`II`/`III` into `1`/`2`/`3`. So `"alto ii"` matches `Alto 2`.
+2. **Part name or ID** after normalising: casefold, strip punctuation, collapse spaces, and turn
+   Roman numerals `I`/`II`/`III`/`IV` into `1`/`2`/`3`/`4`. So `"alto ii"` matches `Alto 2`
+   and `"p2"` matches `P2`.
 3. **Voice role**, from the alias table below. A role matches every part whose normalised name is
    one of the role's aliases, optionally followed by a divisi number.
 
@@ -247,11 +249,11 @@ code every server needs, so it is written and tested once.
 
 | Module | Purpose | Imports `mcp`? |
 |--------|---------|----------------|
-| `errors` | `ProcessingError` (with optional `hint` and `choices`), `error_content()` envelope | no |
+| `errors` | `ProcessingError` (with optional `hint` and `choices`), `error_payload()` dict | no |
 | `parts` | `PartInfo`, `resolve_parts()`, `resolve_part()`, `PartSelectionError` | no |
 | `params` | `aliased()` for deprecated parameter names | no |
 | `annotations` | Annotation presets | no |
-| `content` | `file_link()`, `image_block()` | yes |
+| `content` | `error_content()`, `file_link()`, `image_block()` | yes |
 | `wiring` | `make_handlers()`: input-schema validation and error results for `Server(...)` | yes |
 
 - Engines may import only the modules without `mcp`. This keeps `engine.py` free of MCP imports.

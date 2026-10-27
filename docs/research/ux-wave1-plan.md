@@ -56,11 +56,11 @@ sheet-music-mcp-core/                       # new top-level directory; not an MC
   pyproject.toml                            # deps: none at runtime except `mcp` (wiring/content only)
   src/sheet_music_mcp_core/
     errors.py        # ProcessingError(message, error_code, hint=None, choices=None)
-                     # error_content(...) -> list[TextContent] -- the {error, error_code, hint?, choices?} envelope
+                     # error_payload(...) -> dict -- the {error, error_code, hint?, choices?} envelope (no mcp import)
     parts.py         # PartInfo, resolve_parts(), resolve_part(), PartSelectionError
     params.py        # aliased(arguments, name, deprecated) -- deprecated parameter names (W1)
     annotations.py   # READ_ONLY, WRITES_FILE, SESSION_STATE, DOWNLOADS presets -> ToolAnnotations kwargs
-    content.py       # image_block(path), file_link(path, mime) -> ImageContent / ResourceLink
+    content.py       # error_content(...) -> [TextContent]; image_block(path), file_link(path, mime)
     wiring.py        # make_handlers(list_tools, call_tool) -> (on_list_tools, on_call_tool)
   tests/
 ```
@@ -100,8 +100,8 @@ def resolve_part(requested: str, available: Sequence[PartInfo]) -> str: ...  # e
 Each requested string is matched in tiers, and the first tier that matches wins:
 
 1. **Exact ID**, case-sensitive (`P2`).
-2. **Name**, after normalising (casefold, strip punctuation, collapse spaces, Roman `I/II/III`
-   to `1/2/3`). `"alto ii"` matches `Alto 2`.
+2. **Name or ID**, after normalising (casefold, strip punctuation, collapse spaces, Roman
+   `I/II/III/IV` to `1/2/3/4`). `"alto ii"` matches `Alto 2`.
 3. **Voice role** using an alias table. The role matches every part whose normalised name is the
    role, optionally followed by a divisi number.
 

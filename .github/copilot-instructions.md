@@ -46,7 +46,8 @@ sheet-music-mcp/
 ├── render-mcp/                 # MusicXML → PDF/PNG        ✅ Phase 1 COMPLETE
 ├── musicxml-abc-mcp/           # MusicXML ↔ ABC            ✅ Phase 1 COMPLETE
 ├── pitch-mcp/                  # Mic audio → score pos/accuracy  ✅ Phase A+B COMPLETE
-└── comparer-mcp/               # Two MusicXML → structured diff  🔲 Design complete
+├── comparer-mcp/               # Two MusicXML → structured diff  🔲 Design complete
+└── sheet-music-mcp-core/       # Shared library (errors, parts, annotations, wiring) — not a server
 ```
 
 Each `*-mcp/` directory is a self-contained Python package deployable independently.
