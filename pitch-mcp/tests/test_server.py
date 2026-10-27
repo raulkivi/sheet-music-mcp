@@ -56,11 +56,12 @@ def _make_wav(freq_hz: float = 440.0, duration_sec: float = 1.0) -> str:
 
 
 class TestListTools:
-    async def test_returns_eight_tools(self):
+    async def test_returns_nine_tools(self):
         tools = await list_tools()
         names = {t.name for t in tools}
         assert names == {
             "analyze_recording",
+            "describe_score",
             "load_score",
             "start_monitoring",
             "get_current_position",
@@ -75,14 +76,17 @@ class TestListTools:
         t = next(x for x in tools if x.name == "analyze_recording")
         req = t.input_schema["required"]
         assert "audio_path" in req
-        assert "musicxml" in req
+        # The score is `musicxml` or `musicxml_path`, exactly one (Wave 2 score references)
+        assert "musicxml" not in req
+        assert {"required": ["musicxml"]} in t.input_schema["oneOf"]
         # `part` (or its deprecated alias `part_id`) is required through anyOf
         assert {"required": ["part"]} in t.input_schema["anyOf"]
 
     async def test_load_score_schema(self):
         tools = await list_tools()
         t = next(x for x in tools if x.name == "load_score")
-        assert "musicxml" in t.input_schema["required"]
+        assert "musicxml" not in t.input_schema["required"]
+        assert {"required": ["musicxml_path"]} in t.input_schema["oneOf"]
         assert {"required": ["part"]} in t.input_schema["anyOf"]
 
     async def test_start_monitoring_schema(self):
@@ -110,12 +114,14 @@ class TestListCapabilities:
         assert payload["server"] == "pitch-mcp"
         assert payload["version"] == package_version("pitch-mcp")
         assert "musicxml" in payload["input_formats"]
+        assert "mxl" in payload["input_formats"]
         assert "wav" in payload["input_formats"]
         assert "pitch_backend" in payload
         assert "pitch_backend_version" in payload
         assert "microphone_available" in payload
         assert set(payload["tools"]) == {
             "analyze_recording",
+            "describe_score",
             "load_score",
             "start_monitoring",
             "get_current_position",

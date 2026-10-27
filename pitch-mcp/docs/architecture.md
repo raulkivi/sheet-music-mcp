@@ -72,7 +72,9 @@ The server is stateful in Phase B: sessions live in a module-level `SessionRegis
 
 MCP protocol layer. Contains no analysis logic.
 
-- Registers eight tools: `analyze_recording`, `load_score`, `start_monitoring`, `get_current_position`, `stop_monitoring`, `list_sessions`, `list_capabilities`, `health_check`
+- Registers nine tools: `analyze_recording`, `load_score`, `describe_score` (shared, from `sheet_music_mcp_core.references`), `start_monitoring`, `get_current_position`, `stop_monitoring`, `list_sessions`, `list_capabilities`, `health_check`
+- Resolves the score of `analyze_recording` and `load_score` with `_reference_score()`: the core's `references.load_score()` (inline `musicxml`, or `musicxml_path` confined to the read roots, `.mxl` unpacked) followed by the same `validate_musicxml()` check inline text always had. The engine still receives MusicXML text, so it is unchanged
+- `call_tool(name, arguments, ctx=None)` is wired with `make_handlers(..., pass_context=True)` so `load_score` can ask the client for its MCP roots
 - Reads `PITCH_BACKEND` environment variable; defaults to `"librosa"`
 - Checks microphone availability via `sounddevice.query_devices()`
 - Converts engine results and `ProcessingError` exceptions to `TextContent` JSON

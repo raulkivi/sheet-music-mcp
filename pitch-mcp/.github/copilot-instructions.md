@@ -7,8 +7,9 @@ Reports current score position (measure + beat), pitch accuracy in cents, and sh
 status while a singer sings. This is the most complex server in the project — it is stateful.
 
 **Status:** Phase A (offline analysis) + Phase B (real-time, audio-driven position tracking)
-complete. 112 unit + 4 integration tests pass (`-m integration`); 2 manual mic tests
-(`-m manual`) require real hardware.
+complete, plus UX Wave 2 (score references: `musicxml_path`, `describe_score`). 235 unit
+(+2 skipped) + 4 integration tests pass (`-m integration`); 2 manual mic tests (`-m manual`)
+require real hardware.
 
 ---
 
@@ -41,6 +42,7 @@ pitch-mcp/
 │   ├── test_aligner.py      # unit tests
 │   ├── test_pitch_detector.py  # unit tests
 │   ├── test_utils.py        # unit tests
+│   ├── test_score_references.py  # musicxml_path, read confinement, describe_score (Wave 2)
 │   ├── test_integration.py  # @pytest.mark.integration, runs against the fixture pair
 │   ├── test_manual.py       # @pytest.mark.manual, requires a real microphone
 │   └── fixtures/
@@ -60,12 +62,15 @@ MXL test fixtures are in `../omr-mcp/test_samples/pdmx_satb_samples/mxl/` — 10
 
 | Tool | Phase | Description |
 |------|-------|-------------|
-| `analyze_recording` | A | Pre-recorded WAV + MusicXML → per-note pitch accuracy report |
-| `load_score` | B | Load MusicXML into session, return session_id |
+| `analyze_recording` | A | Pre-recorded WAV + MusicXML (`musicxml` or `musicxml_path`) → per-note pitch accuracy report |
+| `load_score` | B | Load MusicXML (`musicxml` or `musicxml_path`) into session, return session_id |
+| `describe_score` | W2 | Shared core tool: title, key, tempo, parts with IDs and ranges |
 | `start_monitoring` | B | Open mic stream for a session |
 | `get_current_position` | B | Current measure/beat/pitch/accuracy from active session |
 | `stop_monitoring` | B | Stop stream, return summary, clean up session |
+| `list_sessions` | B | Open sessions: part, state (`loaded`/`monitoring`), idle seconds |
 | `list_capabilities` | — | Server metadata, pitch backend and version |
+| `health_check` | — | Runtime dependency status |
 
 ---
 
@@ -138,6 +143,9 @@ asyncio.run(_run())
   access session state.
 - **Audio callback constraint:** never do I/O, locking, or heavy computation inside the
   sounddevice callback. Only write chunks to a `queue.Queue`.
+- **Score paths go through the core** (`sheet_music_mcp_core.references.load_score()`, imported as
+  `read_score`), confined to the read roots; never open a score path yourself. `audio_path` is not
+  confined (Wave 2 decision W2-3).
 - **`analyze_recording` accepts 16-bit PCM WAV only.** Reject MP3/FLAC with `UNSUPPORTED_FORMAT`.
 - **Accuracy thresholds:** on_pitch = ±25 cents; sharp = >+25 cents; flat = <−25 cents.
 - **Session cleanup:** `stop_monitoring` must delete the session — a second call must return

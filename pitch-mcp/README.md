@@ -19,12 +19,18 @@ Supports both offline analysis of pre-recorded audio and real-time microphone in
 |------|-------------|
 | `analyze_recording` | Offline: analyse a WAV file against a reference MusicXML score |
 | `load_score` | Load a MusicXML score into a named session; returns a `session_id` |
+| `describe_score` | Summarize a score cheaply: title, key, tempo, parts with IDs and ranges |
 | `start_monitoring` | Open the microphone and begin real-time pitch detection |
 | `get_current_position` | Poll the current score position and pitch accuracy |
 | `stop_monitoring` | Stop the microphone and return a session summary |
 | `list_sessions` | List open practice sessions with their part, state (`loaded` / `monitoring`) and idle time |
 | `list_capabilities` | Return server metadata: pitch backend, microphone availability |
 | `health_check` | Check that runtime dependencies (librosa, sounddevice/portaudio) are available |
+
+Scores are given as `musicxml_path` (a `.musicxml`, `.xml` or `.mxl` file, preferred) or as
+inline `musicxml` text, never both. Paths must lie inside the output root
+(`SHEET_MUSIC_OUTPUT_ROOT`, default the working directory), the client's MCP roots or a folder in
+`SHEET_MUSIC_INPUT_ROOTS`.
 
 ## Installation
 
@@ -67,14 +73,17 @@ uv run pitch-mcp
 {
   "tool": "analyze_recording",
   "arguments": {
-    "wav_path": "/path/to/recording.wav",
+    "audio_path": "/path/to/recording.wav",
     "musicxml_path": "/path/to/score.mxl",
-    "part_name": "Soprano"
+    "part": "Soprano"
   }
 }
 
 // Real-time session
-{"tool": "load_score", "arguments": {"musicxml_path": "/path/to/score.mxl", "part_name": "Alto"}}
+{"tool": "describe_score", "arguments": {"musicxml_path": "/path/to/score.mxl"}}
+// → returns parts with IDs ("P1" …), names and ranges
+
+{"tool": "load_score", "arguments": {"musicxml_path": "/path/to/score.mxl", "part": "Alto"}}
 // → returns {"session_id": "abc123"}
 
 {"tool": "start_monitoring", "arguments": {"session_id": "abc123"}}
@@ -99,7 +108,7 @@ VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m manual
 ```
 
-112 of the 118 total tests are unit tests, run against mocks and synthetic (in-memory) WAV data —
+237 of the 243 total tests are unit tests (235 run, 2 skipped), run against mocks and synthetic (in-memory) WAV data —
 none require real audio hardware or pre-recorded fixtures. The other 6 are marked `integration`
 (4 — offline analysis against the committed `tests/fixtures/` pair) or `manual` (2 — full
 real-microphone session lifecycle) and are excluded from a plain `pytest tests/` run by
@@ -123,5 +132,5 @@ real-microphone session lifecycle) and are excluded from a plain `pytest tests/`
 
 | Phase | Status |
 |-------|--------|
-| Phase A — offline analysis | Complete. DTW-based alignment (`dtaidistance`); 112 unit tests plus 4 `-m integration` tests against a committed fixture pair (`tests/fixtures/`) |
+| Phase A — offline analysis | Complete. DTW-based alignment (`dtaidistance`); 235 unit tests plus 4 `-m integration` tests against a committed fixture pair (`tests/fixtures/`) |
 | Phase B — real-time monitoring | Complete. Position tracking is audio-driven (matches detected pitch, not just elapsed time); `tempo_bpm` override supported. Covered by unit tests with mocked `sounddevice`; full-lifecycle `-m manual` tests exist for real-microphone verification but require real hardware to run |
