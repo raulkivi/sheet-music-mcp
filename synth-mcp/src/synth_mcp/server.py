@@ -9,6 +9,13 @@ from mcp.types import TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from sheet_music_mcp_core.content import error_content, file_link, processing_error_content
 from sheet_music_mcp_core.params import aliased
+from sheet_music_mcp_core.references import (
+    DESCRIBE_SCORE_TOOL,
+    describe_score_tool,
+    exactly_one,
+    load_score,
+    score_input_properties,
+)
 from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
@@ -24,8 +31,19 @@ INSTRUCTIONS = (
     "Renders chosen voice parts of a MusicXML score to a WAV practice track. "
     "Call synthesize with parts as IDs, names or voices (e.g. 'P1', 'Alto', 'S'; default: all "
     "parts) and tempo_factor (0.75 = 75% speed); get_parts lists the parts. Needs an SF2 "
-    "soundfont in SYNTH_SOUNDFONT_PATH; run health_check if synthesis fails."
+    "soundfont in SYNTH_SOUNDFONT_PATH; run health_check if synthesis fails. "
+    "Prefer musicxml_path (a .musicxml, .xml or .mxl file, such as a path another tool returned) "
+    "over inline musicxml text, and use describe_score to learn part IDs cheaply."
 )
+
+
+def _score_input() -> dict:
+    """Schema properties for the musicxml / musicxml_path pair (Score References)."""
+    properties = score_input_properties("musicxml", "musicxml_path", what="the score")
+    properties["musicxml"]["description"] = (
+        "MusicXML document as a string. Give this or 'musicxml_path', not both."
+    )
+    return properties
 
 
 async def list_tools():
@@ -37,13 +55,8 @@ async def list_tools():
             description="List all voice parts available in a MusicXML score",
             input_schema={
                 "type": "object",
-                "properties": {
-                    "musicxml": {
-                        "type": "string",
-                        "description": "MusicXML document as a string",
-                    }
-                },
-                "required": ["musicxml"],
+                "properties": _score_input(),
+                **exactly_one("musicxml", "musicxml_path"),
             },
         ),
         Tool(
@@ -57,10 +70,7 @@ async def list_tools():
             input_schema={
                 "type": "object",
                 "properties": {
-                    "musicxml": {
-                        "type": "string",
-                        "description": "MusicXML document as a string",
-                    },
+                    **_score_input(),
                     "parts": {
                         "type": "array",
                         "items": {"type": "string"},
@@ -86,7 +96,7 @@ async def list_tools():
                         "description": "Path to write WAV file (auto-generated if omitted)",
                     },
                 },
-                "required": ["musicxml"],
+                **exactly_one("musicxml", "musicxml_path"),
             },
         ),
         Tool(
@@ -115,12 +125,16 @@ async def list_tools():
                 "required": [],
             },
         ),
+        DESCRIBE_SCORE_TOOL,
     ]
 
 
-async def call_tool(name: str, arguments: dict):
+async def call_tool(name: str, arguments: dict, ctx=None):
     if name == "get_parts":
-        musicxml = arguments.get("musicxml", "")
+        try:
+            musicxml = await load_score(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
 
         ok, err = validate_musicxml(musicxml)
         if not ok:
@@ -136,7 +150,10 @@ async def call_tool(name: str, arguments: dict):
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "synthesize":
-        musicxml = arguments.get("musicxml", "")
+        try:
+            musicxml = await load_score(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
         tempo_factor = arguments.get("tempo_factor", 1.0)
         output_path = arguments.get("output_path")
 
@@ -238,9 +255,10 @@ async def call_tool(name: str, arguments: dict):
         result = {
             "server": "synth-mcp",
             "version": __version__,
-            "input_formats": ["musicxml"],
+            "input_formats": ["musicxml", "mxl"],
+            "input_parameters": ["musicxml", "musicxml_path"],
             "output_formats": ["wav"],
-            "tools": ["get_parts", "synthesize", "list_capabilities", "health_check"],
+            "tools": ["get_parts", "synthesize", "describe_score", "list_capabilities", "health_check"],
             "backend": "fluidsynth",
             "backend_version": backend_version,
             "soundfont_loaded": soundfont_loaded,
@@ -304,10 +322,17 @@ async def call_tool(name: str, arguments: dict):
 
         return [TextContent(type="text", text="\n".join(lines))]
 
+    elif name == "describe_score":
+        try:
+            return await describe_score_tool(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
+
     raise ValueError(f"Unknown tool: {name}")
 
 
-_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
+# pass_context: load_score asks the client for its MCP roots (the allowed read folders).
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, pass_context=True, logger=logger)
 
 app = Server(
     "synth-mcp",
@@ -344,7 +369,8 @@ def main():
         logger.warning("FluidSynth library not available: %s", e)
 
     logger.info(
-        "synth-mcp started — tools: get_parts, synthesize, list_capabilities, health_check"
+        "synth-mcp started — tools: get_parts, synthesize, describe_score, list_capabilities, "
+        "health_check"
     )
 
     async def _run():

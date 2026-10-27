@@ -14,6 +14,7 @@ Takes a MusicXML score, optionally filters to one or more voice parts, and rende
 |------|-------------|
 | `get_parts` | List all voice parts in a score — returns part name, ID, and measure count |
 | `synthesize` | Render the score (or selected parts) to a WAV file, with optional tempo adjustment |
+| `describe_score` | Summarize a score cheaply: title, key, time, tempo, parts (ID, clef, range), measures, duration |
 | `list_capabilities` | Return server metadata: backend version, soundfont status, FluidSynth availability |
 | `health_check` | Check that the soundfont, FluidSynth, and music21 are all available and ready |
 
@@ -61,6 +62,8 @@ SYNTH_SOUNDFONT_PATH=/usr/share/sounds/sf2/TimGM6mb.sf2 uv run synth-mcp
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SYNTH_SOUNDFONT_PATH` | Yes | Path to an SF2 soundfont file |
+| `SHEET_MUSIC_OUTPUT_ROOT` | No | Folder `output_path` must be inside; also readable by `musicxml_path` (default: working directory) |
+| `SHEET_MUSIC_INPUT_ROOTS` | No | Extra folders `musicxml_path` may read (`:`-separated; `;` on Windows) |
 
 ## Claude Desktop configuration
 
@@ -83,6 +86,9 @@ SYNTH_SOUNDFONT_PATH=/usr/share/sounds/sf2/TimGM6mb.sf2 uv run synth-mcp
 ```json
 // List parts in a score
 {"tool": "get_parts", "arguments": {"musicxml": "<score-partwise>...</score-partwise>"}}
+
+// The same, reading a file instead of copying the score into the conversation
+{"tool": "get_parts", "arguments": {"musicxml_path": "scores/chorale.mxl"}}
 
 // Synthesize the full score
 {
@@ -108,6 +114,11 @@ SYNTH_SOUNDFONT_PATH=/usr/share/sounds/sf2/TimGM6mb.sf2 uv run synth-mcp
 `parts` accepts part IDs from `get_parts` (`"P1"`), part names (`"Soprano"`, any case) or voices
 (`"S"`, `"Alto"`, `"Alt"`, `"A1"` for divisi); an unknown part returns the valid choices.
 `part_ids` still works as a deprecated alias for one minor release.
+
+Every tool that takes `musicxml` also takes `musicxml_path` instead (exactly one of the two): a
+`.musicxml`, `.xml` or compressed `.mxl` file inside the output root, a folder the client shares as
+an MCP root, or a folder in `SHEET_MUSIC_INPUT_ROOTS`. Prefer it, and pass on paths other servers
+return. `describe_score` reports part IDs, ranges and duration without returning the score.
 
 `tempo_factor` range: 0.25–4.0. Values below 1.0 slow down; above 1.0 speed up. Does not affect pitch.
 
