@@ -7,9 +7,11 @@ from global similarity score down to individual note differences. Primary use ca
 version/arrangement comparison, OMR quality evaluation, round-trip fidelity testing.
 
 **Status:** Phase 4 (Advanced features) complete — all originally-scoped phases done. UX Wave 2
-(score references) complete. 239 unit tests pass (+7 integration, which need the omr-mcp `.mxl`
-samples). `server.py` exposes all 9 tools; engine.py/models.py/part_matcher.py/note_aligner.py/
-measure_comparator.py/report.py/annotator.py/utils.py are all implemented and independently usable.
+(score references) complete. UX Wave 3: `options.measure_range` renamed to `options.measures`
+(and `list_changes`'s `measure_range` to `measures`), old names kept as deprecated aliases.
+279 unit tests pass (+7 integration, which need the omr-mcp `.mxl` samples). `server.py` exposes
+all 9 tools; engine.py/models.py/part_matcher.py/note_aligner.py/measure_comparator.py/report.py/
+annotator.py/utils.py are all implemented and independently usable.
 
 ---
 
@@ -53,7 +55,7 @@ Install dependencies: `uv sync --extra dev` (pytest is in the `dev` extra; plain
 | `compare_musicxml` | Full diff of two scores (inline or by path) |
 | `compare_musicxml_files` | Full diff of two MusicXML file paths (read roots apply) |
 | `quick_similarity` | Similarity score (0.0–1.0) + summary |
-| `list_changes` | Filtered note-level diffs |
+| `list_changes` | Filtered note-level diffs (`part`, `measures`) |
 | `generate_comparison_report` | Human-readable version comparison report |
 | `export_annotated_musicxml` | Colored MusicXML diff export; paths for large results (`return`), feed them to render-mcp's `musicxml_path` |
 | `describe_score` | Shared core tool: parts (IDs), key, time, range, measures — cheap, no music21 |
@@ -65,6 +67,13 @@ Score references (UX Wave 2): every tool that took `reference_xml` / `target_xml
 `sheet_music_mcp_core.references`). Paths are confined to the read roots (`SHEET_MUSIC_OUTPUT_ROOT`,
 client roots, `SHEET_MUSIC_INPUT_ROOTS`) — `compare_musicxml_files` too, so tests that read files
 must set one of those to their tmp dir. Never open a score path yourself; use `load_pair()`.
+
+Measure ranges (UX Wave 3): `options.measures` and `list_changes`'s `measures` are `[start, end]`
+inclusive measure numbers (schema `sheet_music_mcp_core.measures.MEASURES_PROPERTY`, validated with
+`parse_range`). Unlike the other servers they **filter** the differences, they do not cut the
+scores. `measure_range` is a deprecated alias in both places (`params.aliased`): equal values are
+accepted, different values are `INVALID_PARAMETER`, the old name alone logs one warning per process.
+Remove the aliases in the release after 0.3.0.
 
 ---
 

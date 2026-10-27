@@ -78,7 +78,7 @@ listed in `SHEET_MUSIC_INPUT_ROOTS`.
     "reference_xml": "<score-partwise>...</score-partwise>",
     "target_xml": "<score-partwise>...</score-partwise>",
     "part": "Alto",
-    "measure_range": [17, 24]
+    "measures": [17, 24]
   }
 }
 // → {"changes": [{"measure_number": 18, "operation": "PITCH_CHANGE", "part_name": "Alto", ...}], "count": 1}
@@ -128,7 +128,8 @@ listed in `SHEET_MUSIC_INPUT_ROOTS`.
   "ignore_articulations": false,  // exclude articulations from NoteInfo/diffs
   "parts": ["Soprano"],           // compare only these parts: IDs, names or voices ("P1", "S");
                                   //   part_filter is a deprecated alias
-  "measure_range": [1, 32]        // compare only measures 1-32, inclusive
+  "measures": [1, 32]             // only differences in measures 1-32, inclusive (scores are not
+                                  //   cut); measure_range is a deprecated alias
 }
 ```
 

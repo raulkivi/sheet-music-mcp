@@ -7,6 +7,8 @@ from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from sheet_music_mcp_core.content import error_content, processing_error_content
+from sheet_music_mcp_core.measures import MEASURES_PROPERTY, parse_range
+from sheet_music_mcp_core.params import aliased
 from sheet_music_mcp_core.parts import PartInfo, resolve_parts
 from sheet_music_mcp_core.references import (
     DESCRIBE_SCORE_TOOL,
@@ -30,7 +32,7 @@ _OPTIONS_SCHEMA = {
     "description": (
         "Comparison options (docs/architecture.md §8). expand_repeats defaults to "
         "false (opt-in — see docs/PLAN.md 'Changed decisions'); normalize_pitch, "
-        "ignore_articulations, parts, measure_range all default to off/unset."
+        "ignore_articulations, parts, measures all default to off/unset."
     ),
     "properties": {
         "expand_repeats": {"type": "boolean"},
@@ -46,7 +48,13 @@ _OPTIONS_SCHEMA = {
             "items": {"type": "string"},
             "description": "(Deprecated: use `parts`) Compare only these parts.",
         },
-        "measure_range": {"type": "array", "items": {"type": "integer"}},
+        # Filters the differences by measure number; the scores are not cut (wave 3 plan §3.4).
+        **MEASURES_PROPERTY,
+        "measure_range": {
+            "type": "array",
+            "items": {"type": "integer"},
+            "description": "(Deprecated: use `measures`) Inclusive [start, end] measure numbers.",
+        },
     },
 }
 
@@ -54,12 +62,13 @@ _OPTIONS_SCHEMA = {
 # Sent to the client at initialize (docs/conventions.md, Server Instructions).
 INSTRUCTIONS = (
     "Music-aware comparison of two MusicXML scores (reference and target). Use quick_similarity "
-    "for a 0-1 score, list_changes for targeted questions (one part, a measure range), "
+    "for a 0-1 score, list_changes for targeted questions (one part, a range of measures), "
     "generate_comparison_report for a readable summary and export_annotated_musicxml for "
     "color-marked scores to render. compare_musicxml returns the full structured diff, which can "
     "be large. Prefer reference_path and target_path over inline reference_xml and target_xml, "
     "pass on the paths other tools return (export_annotated_musicxml returns paths for large "
-    "scores), and use describe_score to learn part IDs cheaply."
+    "scores), and use describe_score to learn part IDs cheaply. options.measures (list_changes: "
+    "measures) limits the differences to [start, end] measure numbers without cutting the scores."
 )
 
 
@@ -128,12 +137,13 @@ async def list_tools():
                         "type": "string",
                         "description": "Restrict results to this part: a part ID, name or voice (e.g. 'P1', 'Alto', 'A'). Omit for all parts.",
                     },
+                    **MEASURES_PROPERTY,
                     "measure_range": {
                         "type": "array",
                         "items": {"type": "integer"},
                         "minItems": 2,
                         "maxItems": 2,
-                        "description": "[start, end] measure numbers, inclusive. Omit for all measures.",
+                        "description": "(Deprecated: use `measures`) [start, end] measure numbers, inclusive.",
                     },
                 }
             ),
@@ -197,7 +207,7 @@ async def list_tools():
     ]
 
 
-def _filter_changes(result, part, measure_range) -> list[dict]:
+def _filter_changes(result, part, measures) -> list[dict]:
     wanted = None
     if part:
         # ID, name or voice, resolved against the compared parts by their stable reference IDs
@@ -208,9 +218,7 @@ def _filter_changes(result, part, measure_range) -> list[dict]:
         if wanted is not None and part_diff.reference_part_id not in wanted:
             continue
         for measure_diff in part_diff.measure_diffs:
-            if measure_range and not (
-                measure_range[0] <= measure_diff.measure_number <= measure_range[1]
-            ):
+            if measures and not (measures[0] <= measure_diff.measure_number <= measures[1]):
                 continue
             for note_diff in measure_diff.note_diffs:
                 if note_diff.operation == "MATCH":
@@ -283,28 +291,16 @@ async def call_tool(name: str, arguments: dict, ctx=None):
 
     elif name == "list_changes":
         part = arguments.get("part")
-        measure_range = arguments.get("measure_range")
 
         try:
             reference_xml, target_xml = await load_pair(arguments, ctx)
+            measures = parse_range(aliased(arguments, "measures", "measure_range"))
         except ProcessingError as e:
             return processing_error_content(e)
 
-        if measure_range is not None:
-            if (
-                not isinstance(measure_range, list)
-                or len(measure_range) != 2
-                or not all(isinstance(n, int) and not isinstance(n, bool) for n in measure_range)
-                or measure_range[0] > measure_range[1]
-            ):
-                return error_content(
-                    "measure_range must be a [start, end] pair of integers with start <= end.",
-                    "INVALID_PARAMETER",
-                )
-
         try:
             result = compare(reference_xml, target_xml)
-            changes = _filter_changes(result, part, measure_range)
+            changes = _filter_changes(result, part, measures)
             payload = {"changes": changes, "count": len(changes)}
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
         except ProcessingError as e:

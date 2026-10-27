@@ -7,7 +7,9 @@ from global similarity score down to individual note differences. Primary use ca
 version/arrangement comparison, OMR quality evaluation, round-trip fidelity testing.
 
 **Status:** Phase 4 (Advanced features) complete — all originally-scoped phases done. UX Wave 2
-(score references) complete. 239 unit tests pass (+7 integration). `server.py` exposes all 9 tools.
+(score references) complete. UX Wave 3: `options.measures` / `list_changes.measures` (old name
+`measure_range` kept as a deprecated alias). 279 unit tests pass (+7 integration). `server.py`
+exposes all 9 tools.
 
 ---
 
@@ -64,7 +66,7 @@ comparer-mcp/
 | `compare_musicxml` | Full diff of two scores (inline or by path) → structured `ComparisonResult` JSON |
 | `compare_musicxml_files` | Full diff of two MusicXML file paths (read roots apply) → structured `ComparisonResult` JSON |
 | `quick_similarity` | Similarity score (0.0–1.0) + summary statistics |
-| `list_changes` | Filtered note-level diffs (by part, measure range) |
+| `list_changes` | Filtered note-level diffs (by `part`, `measures`) |
 | `generate_comparison_report` | Human-readable version comparison report |
 | `export_annotated_musicxml` | Colored MusicXML diff export; paths for large results (`return`), feed them to render-mcp's `musicxml_path` |
 | `describe_score` | Shared core tool: parts (IDs), key, time, range, measures |
@@ -74,6 +76,13 @@ comparer-mcp/
 Each score is given inline (`reference_xml`, `target_xml`) or by path (`reference_path`,
 `target_path`), exactly one of each pair. Paths go through `sheet_music_mcp_core.references.load_score`
 (via `score_inputs.load_pair`), which confines them to the read roots.
+
+Measure ranges (UX Wave 3): `options.measures` and `list_changes`'s `measures` are `[start, end]`
+inclusive measure numbers (schema `sheet_music_mcp_core.measures.MEASURES_PROPERTY`, validated with
+`parse_range`). Unlike the other servers they **filter** the differences, they do not cut the
+scores. `measure_range` is a deprecated alias in both places (`params.aliased`): equal values are
+accepted, different values are `INVALID_PARAMETER`, the old name alone logs one warning per process.
+Remove the aliases in the release after 0.3.0.
 
 ---
 
