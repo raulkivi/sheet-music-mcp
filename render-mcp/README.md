@@ -67,9 +67,22 @@ No environment variables required.
     "dpi": 150
   }
 }
+
+// Render only bars 17–24 (printed measure numbers, inclusive) to PDF
+{
+  "tool": "render_to_pdf",
+  "arguments": {
+    "musicxml_path": "/path/to/score.mxl",
+    "measures": [17, 24]
+  }
+}
 ```
 
 DPI range: 72–600. Default: 150. Page numbers are 1-indexed.
+
+`measures: [start, end]` (optional, both tools) renders only those printed bars; a pickup bar is 0.
+The cut score keeps the key, time and clef in force at `start`. A reversed or out-of-range
+`measures` is an `INVALID_PARAMETER` error whose `hint` names the score's first and last bars.
 
 Give the score as `musicxml_path` (`.musicxml`, `.xml` or `.mxl`) or inline as `musicxml`, not both.
 A path must lie inside `SHEET_MUSIC_OUTPUT_ROOT` (default: the working directory), one of the

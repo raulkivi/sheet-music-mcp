@@ -7,6 +7,10 @@ Pipeline:
     MusicXML string
         → render_to_pdf()    → PDF file at output_path, returns (path, page_count)
         → render_to_image()  → image file at output_path, returns image metadata dict
+
+Both first cut the score to an optional ``measures=[start, end]`` with the core's
+``select_measures`` and only then dispatch to MuseScore or Verovio, so the backends see the
+same cut score and know nothing of ranges.
 """
 
 import io
@@ -15,9 +19,10 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 
 from sheet_music_mcp_core.errors import ProcessingError  # re-exported for server.py
+from sheet_music_mcp_core.measures import select_measures
 
 logger = logging.getLogger(__name__)
 
@@ -115,19 +120,25 @@ def get_health_status() -> dict:
 # render_to_pdf
 # ---------------------------------------------------------------------------
 
-def render_to_pdf(musicxml_str: str, output_path: str) -> tuple[str, int]:
+def render_to_pdf(
+    musicxml_str: str, output_path: str, measures: Optional[Sequence[int]] = None
+) -> tuple[str, int]:
     """Render a MusicXML score to a PDF file.
 
     Args:
         musicxml_str: MusicXML document as a string.
         output_path: Destination path for the PDF file.
+        measures: Optional inclusive [start, end] printed measure numbers; only those bars
+            are rendered (docs/conventions.md, Measure Ranges).
 
     Returns:
         (output_path, page_count) tuple.
 
     Raises:
-        ProcessingError: if no backend is available or rendering fails.
+        ProcessingError: if no backend is available, the measure range is invalid
+            (INVALID_PARAMETER) or rendering fails.
     """
+    musicxml_str = select_measures(musicxml_str, measures)
     backend = detect_backend()
     if backend is None:
         raise ProcessingError(
@@ -229,6 +240,7 @@ def render_to_image(
     fmt: str,
     dpi: int,
     output_path: str,
+    measures: Optional[Sequence[int]] = None,
 ) -> dict:
     """Render a single page of a MusicXML score to PNG or SVG.
 
@@ -238,14 +250,18 @@ def render_to_image(
         fmt: Output format — "png" or "svg".
         dpi: Resolution for PNG output (ignored for SVG).
         output_path: Destination path for the image file.
+        measures: Optional inclusive [start, end] printed measure numbers; only those bars
+            are rendered, and ``page`` counts pages of the cut score.
 
     Returns:
         dict with keys: image_path, format, page, total_pages, backend,
                         width_px, height_px (PNG only).
 
     Raises:
-        ProcessingError: on backend unavailability, invalid page, or render failure.
+        ProcessingError: on backend unavailability, invalid measure range or page, or
+            render failure.
     """
+    musicxml_str = select_measures(musicxml_str, measures)
     backend = detect_backend()
     if backend is None:
         raise ProcessingError(

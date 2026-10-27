@@ -137,7 +137,7 @@ class TestSchemas:
 
         assert "describe_score" in data["tools"]
         assert "mxl" in data["input_formats"]
-        assert data["input_parameters"] == ["musicxml", "musicxml_path"]
+        assert data["input_parameters"] == ["musicxml", "musicxml_path", "measures"]
 
 
 # ---------------------------------------------------------------------------

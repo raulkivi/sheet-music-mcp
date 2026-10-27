@@ -8,6 +8,7 @@ from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from sheet_music_mcp_core.content import error_content, file_link, png_block, processing_error_content
+from sheet_music_mcp_core.measures import MEASURES_PROPERTY
 from sheet_music_mcp_core.references import (
     DESCRIBE_SCORE_TOOL,
     describe_score_tool,
@@ -48,6 +49,7 @@ INSTRUCTIONS = (
     "Renders a MusicXML score to PDF (render_to_pdf) or one page to PNG or SVG (render_to_image). "
     "Output files are written under SHEET_MUSIC_OUTPUT_ROOT and never overwrite an existing file. "
     "PNG pages are also returned inline when the client shows images. "
+    "Pass measures=[start, end] (printed bar numbers) to render only those bars. "
     "Prefer musicxml_path over inline musicxml and pass on the score paths other tools return; "
     "use describe_score to learn a score's part IDs and size cheaply."
 )
@@ -62,6 +64,14 @@ def _score_properties() -> dict:
         "MusicXML document as a string. Give this or 'musicxml_path', not both."
     )
     return properties
+
+
+def _measures_argument(arguments: dict) -> dict:
+    """``{"measures": ...}`` when the caller passed a range, else ``{}`` (conventions, Measure Ranges).
+
+    The engine cuts the score before backend dispatch; without a range the call is unchanged.
+    """
+    return {"measures": arguments["measures"]} if arguments.get("measures") is not None else {}
 
 
 def _file_blocks(path: str, mime_type: str) -> list:
@@ -91,6 +101,7 @@ async def list_tools():
                 "type": "object",
                 "properties": {
                     **_score_properties(),
+                    **MEASURES_PROPERTY,
                     "output_path": {
                         "type": "string",
                         "description": "Path to write PDF file (auto-generated if omitted)",
@@ -110,6 +121,7 @@ async def list_tools():
                 "type": "object",
                 "properties": {
                     **_score_properties(),
+                    **MEASURES_PROPERTY,
                     "page": {
                         "type": "integer",
                         "description": "Page number to render, 1-indexed (default: 1)",
@@ -181,9 +193,11 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             return error_content(str(e), "INVALID_PARAMETER")
 
         try:
-            pdf_path, page_count = render_to_pdf(musicxml, resolved_output)
+            pdf_path, page_count = render_to_pdf(
+                musicxml, resolved_output, **_measures_argument(arguments)
+            )
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("render_to_pdf unexpected error: %s", e)
             return error_content(f"Rendering failed: {e}", "PROCESSING_FAILED")
@@ -235,9 +249,11 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             return error_content(str(e), "INVALID_PARAMETER")
 
         try:
-            result = render_to_image(musicxml, page, fmt, dpi, resolved_output)
+            result = render_to_image(
+                musicxml, page, fmt, dpi, resolved_output, **_measures_argument(arguments)
+            )
         except ProcessingError as e:
-            return error_content(str(e), e.error_code)
+            return processing_error_content(e)
         except Exception as e:
             logger.error("render_to_image unexpected error: %s", e)
             return error_content(f"Rendering failed: {e}", "PROCESSING_FAILED")
@@ -281,7 +297,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
                         "server": "render-mcp",
                         "version": __version__,
                         "input_formats": ["musicxml", "mxl"],
-                        "input_parameters": ["musicxml", "musicxml_path"],
+                        "input_parameters": ["musicxml", "musicxml_path", "measures"],
                         "output_formats": ["pdf", "png", "svg"],
                         "tools": [
                             "render_to_pdf",
