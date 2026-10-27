@@ -15,12 +15,13 @@ EXPECTED = {
     "start_monitoring": ("Start listening (microphone)", SESSION_STATE),
     "get_current_position": ("Current singing position", READ_ONLY),
     "stop_monitoring": ("Stop listening", SESSION_STATE),
+    "list_sessions": ("Practice sessions", READ_ONLY),
     "list_capabilities": ("Pitch capabilities", READ_ONLY),
     "health_check": ("Pitch health check", READ_ONLY),
 }
 
 # Phrases the instructions must contain: the routing knowledge the model needs up front.
-INSTRUCTION_PHRASES = ('load_score', 'stop_monitoring', 'microphone')
+INSTRUCTION_PHRASES = ('load_score', 'stop_monitoring', 'microphone', 'PITCH_SESSION_IDLE_MINUTES')
 
 
 def _tools():

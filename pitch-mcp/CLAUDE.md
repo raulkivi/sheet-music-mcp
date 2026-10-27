@@ -49,8 +49,10 @@ Install dependencies: `uv sync`
 | `load_score` | B | Load MusicXML into a session, return session_id |
 | `start_monitoring` | B | Open mic stream for a session |
 | `get_current_position` | B | Current measure/beat/pitch/accuracy from active session |
-| `stop_monitoring` | B | Stop stream, return summary, clean up session |
+| `stop_monitoring` | B | Stop stream, return summary, clean up session (`timed_out: true` if the idle timeout closed it) |
+| `list_sessions` | B | Open sessions: part, state (`loaded`/`monitoring`), idle seconds |
 | `list_capabilities` | — | Server metadata, pitch backend version |
+| `health_check` | — | Runtime dependency status |
 
 ---
 
@@ -100,9 +102,16 @@ asyncio.run(_run())
   `librosa` instead for all pitch detection.
 - **`sounddevice` streams fail at runtime** if `libportaudio2` is absent. Phase B real-time
   features simply won't work on machines without it; Phase A is unaffected.
-- **This is the only stateful server.** Sessions are held in module-level dict `_sessions`.
-  Use `threading.Lock` to protect shared state accessed by the audio callback thread and tool
-  handlers. Never do I/O inside the audio callback — only queue chunks.
+- **This is the only stateful server.** Sessions are held in the module-level `SessionRegistry`
+  (`engine._registry`), which has its own lock. Use `threading.Lock` to protect shared state accessed
+  by the worker thread and tool handlers. Never do I/O or take a lock inside the audio callback —
+  only queue chunks.
+- **Idle sessions are reaped.** A `Reaper` daemon thread (started by the first `load_score`) calls
+  `registry.reap(clock())` every 30 s and closes sessions idle longer than
+  `PITCH_SESSION_IDLE_MINUTES` (default 10, `0` = off, read once at import). Activity = creation,
+  `start_monitoring`, `get_current_position`. Timed-out summaries are kept 1 h for
+  `stop_monitoring` (`timed_out: true`). Test with an injected fake clock and `reap(now)`, never
+  with real waits; `tests/conftest.py` stops the reaper thread at the end of the run.
 - **`analyze_recording` accepts 16-bit PCM WAV only.** Reject MP3/FLAC with `UNSUPPORTED_FORMAT`.
 - **Accuracy thresholds:** on_pitch = ±25 cents; sharp = >+25 cents; flat = <−25 cents.
 

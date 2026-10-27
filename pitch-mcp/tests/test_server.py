@@ -56,7 +56,7 @@ def _make_wav(freq_hz: float = 440.0, duration_sec: float = 1.0) -> str:
 
 
 class TestListTools:
-    async def test_returns_seven_tools(self):
+    async def test_returns_eight_tools(self):
         tools = await list_tools()
         names = {t.name for t in tools}
         assert names == {
@@ -65,6 +65,7 @@ class TestListTools:
             "start_monitoring",
             "get_current_position",
             "stop_monitoring",
+            "list_sessions",
             "list_capabilities",
             "health_check",
         }
@@ -119,6 +120,7 @@ class TestListCapabilities:
             "start_monitoring",
             "get_current_position",
             "stop_monitoring",
+            "list_sessions",
             "list_capabilities",
             "health_check",
         }

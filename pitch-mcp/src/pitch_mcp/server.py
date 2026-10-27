@@ -17,6 +17,7 @@ from .engine import (
     analyze_recording,
     get_position,
     health_check,
+    list_sessions,
     load_score,
     start_monitoring,
     stop_monitoring,
@@ -32,8 +33,10 @@ INSTRUCTIONS = (
     "Follows a singer through a score from the microphone. Flow: load_score (score and part as "
     "an ID, name or voice such as 'Alto'), "
     "start_monitoring, get_current_position repeatedly, then stop_monitoring for the summary. "
-    "Always call stop_monitoring when done: it closes the microphone. analyze_recording scores a "
-    "recorded 16-bit WAV instead. Real-time monitoring needs PortAudio; see health_check."
+    "Always call stop_monitoring when done: it closes the microphone. Idle sessions close after "
+    "PITCH_SESSION_IDLE_MINUTES (default 10); stop_monitoring still returns their summary, and "
+    "list_sessions shows the open ones. analyze_recording scores a recorded 16-bit WAV instead. "
+    "Real-time monitoring needs PortAudio; see health_check."
 )
 
 
@@ -128,7 +131,8 @@ async def list_tools():
             annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Poll the current score position and pitch accuracy. "
-                "Call repeatedly while monitoring. Returns measure, beat, and accuracy."
+                "Call repeatedly while monitoring. Returns measure, beat, and accuracy. "
+                "Each call keeps the session from timing out."
             ),
             input_schema={
                 "type": "object",
@@ -147,7 +151,8 @@ async def list_tools():
             annotations=ToolAnnotations(**SESSION_STATE),
             description=(
                 "Stop the microphone and return a session summary. "
-                "The session is cleaned up after this call."
+                "The session is cleaned up after this call. If the session already closed "
+                "after being idle, returns the summary kept then, with timed_out: true."
             ),
             input_schema={
                 "type": "object",
@@ -158,6 +163,21 @@ async def list_tools():
                     },
                 },
                 "required": ["session_id"],
+            },
+        ),
+        Tool(
+            name="list_sessions",
+            title="Practice sessions",
+            annotations=ToolAnnotations(**READ_ONLY),
+            description=(
+                "List the open practice sessions: session_id, part, state ('loaded' or "
+                "'monitoring' when the microphone is on) and idle_seconds. Sessions close after "
+                "PITCH_SESSION_IDLE_MINUTES idle (default 10, shown as idle_timeout_minutes; 0 = never)."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {},
+                "required": [],
             },
         ),
         Tool(
@@ -291,6 +311,10 @@ async def call_tool(name: str, arguments: dict):
             logger.error("stop_monitoring unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
+    elif name == "list_sessions":
+        result = list_sessions()
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
     elif name == "list_capabilities":
         # Check aubio availability
         pitch_backend = _active_backend()
@@ -310,6 +334,7 @@ async def call_tool(name: str, arguments: dict):
                 "start_monitoring",
                 "get_current_position",
                 "stop_monitoring",
+                "list_sessions",
                 "list_capabilities",
                 "health_check",
             ],

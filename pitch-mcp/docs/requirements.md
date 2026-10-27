@@ -25,7 +25,8 @@ The response MUST include:
 
 The server MUST accept a MusicXML document and a part (ID, name or voice), parse the reference note sequence, and return a session ID.
 
-The session MUST persist in server memory until explicitly stopped or the server restarts.
+The session MUST persist in server memory until it is explicitly stopped, it has been idle longer
+than the idle timeout (FR-7), or the server restarts.
 
 ### FR-3 — Real-time monitoring start
 
@@ -61,6 +62,21 @@ The server MUST expose a tool that returns:
 - Active pitch detection backend and version
 - Microphone availability flag
 - List of available tools
+
+### FR-7 — Idle session timeout
+
+A session that sees no activity for `PITCH_SESSION_IDLE_MINUTES` (IR-8, default 10) MUST be
+closed: its microphone stream stopped and its memory freed. Activity is `load_score` (creation),
+`start_monitoring` and `get_current_position`. Sessions that were loaded but never started expire
+too. `0` disables the timeout.
+
+The summary of a timed-out session MUST stay available to `stop_monitoring` for 1 hour (IR-6), and
+`get_current_position` / `start_monitoring` on it MUST say that it timed out (IR-9).
+
+### FR-8 — Session listing
+
+The server MUST list the open sessions with their part, state and idle time (IR-6a), so a client
+that lost a `session_id` can find it and stop it.
 
 ---
 
@@ -107,6 +123,8 @@ The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The s
 
 `load_score`, `start_monitoring` and `stop_monitoring` use the `SESSION_STATE` preset, never
 `READ_ONLY`, so hosts that auto-approve read-only tools still ask before the microphone opens.
+`list_sessions` only reads the registry and is `READ_ONLY`. The instructions mention that idle
+sessions close after `PITCH_SESSION_IDLE_MINUTES` (default 10).
 
 ### IR-2 — Tool: `analyze_recording`
 
@@ -195,9 +213,29 @@ Input:
 Output:
   session_id  string
   summary     object
-    measures_sung        integer
+    measures_covered     integer
     avg_accuracy_cents   float
     accuracy_histogram   object (same structure as analyze_recording)
+  timed_out   boolean  true when the idle timeout had already closed the session (FR-7)
+```
+
+If the idle timeout closed the session less than 1 hour ago, `stop_monitoring` returns the summary
+taken at that moment with `timed_out: true`. Like a normal stop, it does so once; a second call,
+or a call after the hour, gives `SESSION_NOT_FOUND`.
+
+### IR-6a — Tool: `list_sessions`
+
+```
+Input: none
+
+Output:
+  idle_timeout_minutes  integer   the PITCH_SESSION_IDLE_MINUTES in force; 0 = no timeout
+  sessions              list[object]   open sessions, in load order (timed-out ones are not listed)
+    session_id    string
+    part_id       string   MusicXML score-part id
+    part_name     string
+    state         string   "loaded" (no microphone) | "monitoring" (microphone open)
+    idle_seconds  float    seconds since the last activity, one decimal
 ```
 
 ### IR-7 — Tool: `list_capabilities`
@@ -219,6 +257,7 @@ Output:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PITCH_BACKEND` | `librosa` | Pitch detection backend: `librosa` or `crepe` |
+| `PITCH_SESSION_IDLE_MINUTES` | `10` | Close sessions idle this many minutes (whole number); `0` disables the timeout. An invalid value logs a warning and uses 10. |
 
 `crepe` requires a manual TensorFlow install and is not tested in CI.
 
@@ -234,7 +273,7 @@ Output:
 | `UNSUPPORTED_FORMAT` | Audio file is not 16-bit PCM WAV |
 | `INVALID_INPUT` | MusicXML cannot be parsed |
 | `INVALID_PARAMETER` | Part name not found in score |
-| `SESSION_NOT_FOUND` | session_id is unknown; call `load_score` first |
+| `SESSION_NOT_FOUND` | session_id is unknown; call `load_score` first. If the idle timeout closed it, the error adds a `hint`: "The session timed out after N minutes idle; call stop_monitoring for the summary, then load_score to start again." |
 | `PROCESSING_FAILED` | Microphone unavailable; no pitch detected; audio hardware error |
 
 ---
@@ -267,6 +306,10 @@ Unit tests MUST cover:
 - `UNSUPPORTED_FORMAT` error for non-WAV input
 - Unknown part error with `choices`; selection by ID, name and voice, same-named and unnamed parts (`tests/test_part_selection.py`)
 - Unknown session ID error
+- Idle timeout with a fake clock (`tests/test_session_timeout.py`): no reap before the timeout,
+  reap closes the stream and keeps the summary, `stop_monitoring` / `get_current_position` after a
+  reap, activity resets idle time, `0` disables, env parsing, the `Reaper` loop with an injected
+  sleep, summaries dropped after 1 hour, `list_sessions` shape and states. No test waits on real time.
 - `list_capabilities` response schema
 
 Unit tests MUST mock sounddevice (no real audio hardware in CI). `dtaidistance` is pure-Python-
