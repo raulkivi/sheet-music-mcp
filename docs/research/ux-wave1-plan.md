@@ -172,25 +172,28 @@ The presets in `core.annotations`:
 
 | Server | Tool | Preset | Title |
 |---|---|---|---|
-| omr | `recognize_sheet` | READ_ONLY_DOWNLOADS | Recognise sheet music |
-| omr | `recognize_sheets` | READ_ONLY_DOWNLOADS | Recognise multi-page sheet music |
-| omr | `recognize_sheet_to_file` | WRITES_FILE_DOWNLOADS | Recognise sheet music to file |
-| omr | `list_capabilities`, `list_supported_formats`, `health_check` | READ_ONLY | OMR capabilities / formats / health |
+| omr | `recognize_sheet` | READ_ONLY_DOWNLOADS | Recognize sheet music |
+| omr | `recognize_sheets` | READ_ONLY_DOWNLOADS | Recognize multi-page sheet music |
+| omr | `recognize_sheet_to_file` | WRITES_FILE_DOWNLOADS | Recognize sheet music to file |
+| omr | `list_capabilities`, `list_supported_formats`, `health_check` | READ_ONLY | OMR capabilities / OMR formats (deprecated) / OMR health check |
 | render | `render_to_pdf` | WRITES_FILE | Render score to PDF |
 | render | `render_to_image` | WRITES_FILE | Render score page to image |
-| render | `list_capabilities`, `health_check` | READ_ONLY | Render capabilities / health |
+| render | `list_capabilities`, `health_check` | READ_ONLY | Render capabilities / Render health check |
 | synth | `get_parts` | READ_ONLY | List voice parts |
-| synth | `synthesize` | WRITES_FILE | Play voice parts (render audio) |
-| synth | `list_capabilities`, `health_check` | READ_ONLY | Synth capabilities / health |
+| synth | `synthesize` | WRITES_FILE | Play voice parts |
+| synth | `list_capabilities`, `health_check` | READ_ONLY | Synth capabilities / Synth health check |
 | abc | `musicxml_to_abc`, `abc_to_musicxml`, `validate_abc` | READ_ONLY | MusicXML to ABC / ABC to MusicXML / Validate ABC |
-| abc | `list_capabilities`, `health_check` | READ_ONLY | ABC capabilities / health |
-| pitch | `analyze_recording` | READ_ONLY | Analyse a recording |
+| abc | `list_capabilities`, `health_check` | READ_ONLY | ABC capabilities / ABC health check |
+| pitch | `analyze_recording` | READ_ONLY | Analyze a recording |
 | pitch | `load_score` | SESSION_STATE | Load score for practice |
 | pitch | `start_monitoring` | SESSION_STATE | Start listening (microphone) |
 | pitch | `get_current_position`, `list_sessions` | READ_ONLY | Current singing position / Practice sessions |
 | pitch | `stop_monitoring` | SESSION_STATE | Stop listening |
-| pitch | `list_capabilities`, `health_check` | READ_ONLY | Pitch capabilities / health |
-| comparer | all 8 tools | READ_ONLY | Compare scores / … |
+| pitch | `list_capabilities`, `health_check` | READ_ONLY | Pitch capabilities / Pitch health check |
+| comparer | all 8 tools | READ_ONLY | Compare scores, Compare score files, Score similarity, List score changes, Comparison report, Export color-annotated diff, Comparer capabilities, Comparer health check |
+
+The titles follow the repository's American spelling. The source of truth is each server's
+`tests/test_tool_metadata.py`. `list_sessions` gets its row in step 7.
 
 `start_monitoring` is deliberately **not** read-only, so hosts that auto-approve read-only tools
 still ask before the microphone opens.

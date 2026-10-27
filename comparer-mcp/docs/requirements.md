@@ -98,6 +98,13 @@ Standard error codes: `FILE_NOT_FOUND`, `INVALID_INPUT`, `UNSUPPORTED_FORMAT`, `
 
 ## Interfaces
 
+### Tool metadata and server instructions
+
+Every tool sets a human-readable `title` and an annotation preset from `sheet-music-mcp-core`
+(see [conventions: Tool Annotations and Titles](../../docs/conventions.md#tool-annotations-and-titles)).
+The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The server sends
+`instructions` at initialize ([conventions: Server Instructions](../../docs/conventions.md#server-instructions)).
+
 ### Input formats
 
 - MusicXML string (`<score-partwise>` or `<score-timewise>`)

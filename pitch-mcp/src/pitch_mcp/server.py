@@ -5,7 +5,8 @@ import os
 
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import TextContent, Tool
+from mcp.types import TextContent, Tool, ToolAnnotations
+from sheet_music_mcp_core.annotations import READ_ONLY, SESSION_STATE
 from sheet_music_mcp_core.content import error_content
 from sheet_music_mcp_core.wiring import make_handlers
 
@@ -25,10 +26,21 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# Sent to the client at initialize (docs/conventions.md, Server Instructions).
+INSTRUCTIONS = (
+    "Follows a singer through a score from the microphone. Flow: load_score (score and part), "
+    "start_monitoring, get_current_position repeatedly, then stop_monitoring for the summary. "
+    "Always call stop_monitoring when done: it closes the microphone. analyze_recording scores a "
+    "recorded 16-bit WAV instead. Real-time monitoring needs PortAudio; see health_check."
+)
+
+
 async def list_tools():
     return [
         Tool(
             name="analyze_recording",
+            title="Analyze a recording",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Analyse a pre-recorded WAV file against a reference score. "
                 "Returns per-note pitch accuracy and a summary histogram."
@@ -54,6 +66,8 @@ async def list_tools():
         ),
         Tool(
             name="load_score",
+            title="Load score for practice",
+            annotations=ToolAnnotations(**SESSION_STATE),
             description=(
                 "Load a reference MusicXML score into a named session. "
                 "Returns a session_id to use with start_monitoring."
@@ -75,6 +89,8 @@ async def list_tools():
         ),
         Tool(
             name="start_monitoring",
+            title="Start listening (microphone)",
+            annotations=ToolAnnotations(**SESSION_STATE),
             description=(
                 "Open the microphone and begin pitch detection against the loaded score. "
                 "Requires a session_id from load_score."
@@ -96,6 +112,8 @@ async def list_tools():
         ),
         Tool(
             name="get_current_position",
+            title="Current singing position",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Poll the current score position and pitch accuracy. "
                 "Call repeatedly while monitoring. Returns measure, beat, and accuracy."
@@ -113,6 +131,8 @@ async def list_tools():
         ),
         Tool(
             name="stop_monitoring",
+            title="Stop listening",
+            annotations=ToolAnnotations(**SESSION_STATE),
             description=(
                 "Stop the microphone and return a session summary. "
                 "The session is cleaned up after this call."
@@ -130,6 +150,8 @@ async def list_tools():
         ),
         Tool(
             name="list_capabilities",
+            title="Pitch capabilities",
+            annotations=ToolAnnotations(**READ_ONLY),
             description="List supported formats, tools, and backend information for this server",
             input_schema={
                 "type": "object",
@@ -139,6 +161,8 @@ async def list_tools():
         ),
         Tool(
             name="health_check",
+            title="Pitch health check",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Check that all runtime dependencies are available and report their status. "
                 "Use this to verify the server is set up correctly. "
@@ -315,7 +339,12 @@ def _check_microphone() -> bool:
 
 _on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
 
-app = Server("pitch-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
+app = Server(
+    "pitch-mcp",
+    instructions=INSTRUCTIONS,
+    on_list_tools=_on_list_tools,
+    on_call_tool=_on_call_tool,
+)
 
 
 def main():

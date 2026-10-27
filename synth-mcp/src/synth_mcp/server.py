@@ -5,7 +5,8 @@ import os
 
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import TextContent, Tool
+from mcp.types import TextContent, Tool, ToolAnnotations
+from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from sheet_music_mcp_core.content import error_content
 from sheet_music_mcp_core.wiring import make_handlers
 
@@ -17,10 +18,21 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# Sent to the client at initialize (docs/conventions.md, Server Instructions).
+INSTRUCTIONS = (
+    "Renders chosen voice parts of a MusicXML score to a WAV practice track. "
+    "Call get_parts to see the parts, then synthesize with part_ids (default: all parts) and "
+    "tempo_factor (0.75 = 75% speed). Needs an SF2 soundfont in SYNTH_SOUNDFONT_PATH; run "
+    "health_check if synthesis fails."
+)
+
+
 async def list_tools():
     return [
         Tool(
             name="get_parts",
+            title="List voice parts",
+            annotations=ToolAnnotations(**READ_ONLY),
             description="List all voice parts available in a MusicXML score",
             input_schema={
                 "type": "object",
@@ -35,6 +47,8 @@ async def list_tools():
         ),
         Tool(
             name="synthesize",
+            title="Play voice parts",
+            annotations=ToolAnnotations(**WRITES_FILE),
             description=(
                 "Synthesize audio from a MusicXML score. "
                 "Optionally select specific voice parts and adjust the tempo."
@@ -68,6 +82,8 @@ async def list_tools():
         ),
         Tool(
             name="list_capabilities",
+            title="Synth capabilities",
+            annotations=ToolAnnotations(**READ_ONLY),
             description="List supported formats and available tools for this synthesis server",
             input_schema={
                 "type": "object",
@@ -77,6 +93,8 @@ async def list_tools():
         ),
         Tool(
             name="health_check",
+            title="Synth health check",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Check whether all runtime dependencies are available and correctly configured. "
                 "Returns a human-readable status summary. Call this first to verify the server "
@@ -270,7 +288,12 @@ async def call_tool(name: str, arguments: dict):
 
 _on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
 
-app = Server("synth-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
+app = Server(
+    "synth-mcp",
+    instructions=INSTRUCTIONS,
+    on_list_tools=_on_list_tools,
+    on_call_tool=_on_call_tool,
+)
 
 
 def main():

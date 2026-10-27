@@ -4,7 +4,8 @@ import logging
 
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import TextContent, Tool
+from mcp.types import TextContent, Tool, ToolAnnotations
+from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from sheet_music_mcp_core.content import error_content
 from sheet_music_mcp_core.wiring import make_handlers
 
@@ -34,10 +35,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# Sent to the client at initialize (docs/conventions.md, Server Instructions).
+INSTRUCTIONS = (
+    "Renders a MusicXML score to PDF (render_to_pdf) or one page to PNG or SVG (render_to_image). "
+    "Output files are written under SHEET_MUSIC_OUTPUT_ROOT and never overwrite an existing file."
+)
+
+
 async def list_tools():
     return [
         Tool(
             name="render_to_pdf",
+            title="Render score to PDF",
+            annotations=ToolAnnotations(**WRITES_FILE),
             description="Render a MusicXML score to a PDF file",
             input_schema={
                 "type": "object",
@@ -56,6 +66,8 @@ async def list_tools():
         ),
         Tool(
             name="render_to_image",
+            title="Render score page to image",
+            annotations=ToolAnnotations(**WRITES_FILE),
             description=(
                 "Render a single page of a MusicXML score to PNG or SVG"
             ),
@@ -92,6 +104,8 @@ async def list_tools():
         ),
         Tool(
             name="list_capabilities",
+            title="Render capabilities",
+            annotations=ToolAnnotations(**READ_ONLY),
             description="List supported formats and available backends for this render server",
             input_schema={
                 "type": "object",
@@ -101,6 +115,8 @@ async def list_tools():
         ),
         Tool(
             name="health_check",
+            title="Render health check",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Check whether all runtime dependencies are available and the server "
                 "is ready to render scores. Returns a human-readable status summary."
@@ -255,7 +271,12 @@ async def call_tool(name: str, arguments: dict):
 
 _on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
 
-app = Server("render-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
+app = Server(
+    "render-mcp",
+    instructions=INSTRUCTIONS,
+    on_list_tools=_on_list_tools,
+    on_call_tool=_on_call_tool,
+)
 
 
 def main():

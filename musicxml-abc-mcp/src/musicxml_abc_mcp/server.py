@@ -4,7 +4,8 @@ import logging
 
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import TextContent, Tool
+from mcp.types import TextContent, Tool, ToolAnnotations
+from sheet_music_mcp_core.annotations import READ_ONLY
 from sheet_music_mcp_core.content import error_content
 from sheet_music_mcp_core.wiring import make_handlers
 
@@ -16,10 +17,21 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# Sent to the client at initialize (docs/conventions.md, Server Instructions).
+INSTRUCTIONS = (
+    "Converts MusicXML to compact ABC notation so you can read or edit a score as text "
+    "(musicxml_to_abc, optionally one part) and converts edited ABC back to MusicXML "
+    "(abc_to_musicxml). Check edits with validate_abc first. The round trip keeps the notes but "
+    "drops dynamics and complex articulations."
+)
+
+
 async def list_tools():
     return [
         Tool(
             name="musicxml_to_abc",
+            title="MusicXML to ABC",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Convert a MusicXML document to ABC notation. "
                 "ABC is compact and human-readable — ideal for Claude to read and edit scores directly. "
@@ -45,6 +57,8 @@ async def list_tools():
         ),
         Tool(
             name="abc_to_musicxml",
+            title="ABC to MusicXML",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Convert an ABC notation string back to MusicXML. "
                 "Use this after Claude has read or edited an ABC score to produce "
@@ -63,6 +77,8 @@ async def list_tools():
         ),
         Tool(
             name="validate_abc",
+            title="Validate ABC",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Validate an ABC notation string. "
                 "Returns whether the ABC is parseable and lists any errors or warnings."
@@ -80,6 +96,8 @@ async def list_tools():
         ),
         Tool(
             name="list_capabilities",
+            title="ABC capabilities",
+            annotations=ToolAnnotations(**READ_ONLY),
             description="List supported formats and available tools for this server",
             input_schema={
                 "type": "object",
@@ -89,6 +107,8 @@ async def list_tools():
         ),
         Tool(
             name="health_check",
+            title="ABC health check",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Check that the server and all its dependencies are working correctly. "
                 "Runs a short MusicXML → ABC → MusicXML round-trip and returns a "
@@ -187,7 +207,12 @@ async def call_tool(name: str, arguments: dict):
 
 _on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
 
-app = Server("musicxml-abc-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
+app = Server(
+    "musicxml-abc-mcp",
+    instructions=INSTRUCTIONS,
+    on_list_tools=_on_list_tools,
+    on_call_tool=_on_call_tool,
+)
 
 
 def main():

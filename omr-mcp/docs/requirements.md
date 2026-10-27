@@ -112,6 +112,16 @@ The server MUST communicate via MCP stdio transport. It MUST NOT require any net
 
 The server MUST implement the Model Context Protocol using `mcp.server.stdio.stdio_server()`. Tools MUST be registered with correct input schemas.
 
+### IR-1a — Tool metadata and server instructions
+
+Every tool sets a human-readable `title` and an annotation preset from `sheet-music-mcp-core`
+(see [conventions: Tool Annotations and Titles](../../docs/conventions.md#tool-annotations-and-titles)).
+The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The server sends
+`instructions` at initialize ([conventions: Server Instructions](../../docs/conventions.md#server-instructions)).
+
+The recognize tools set `openWorldHint` because first use downloads the oemer models or the
+Audiveris engine.
+
 ### IR-2 — Tool: `recognize_sheet`
 
 ```

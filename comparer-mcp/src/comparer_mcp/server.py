@@ -4,7 +4,8 @@ import logging
 
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import TextContent, Tool
+from mcp.types import TextContent, Tool, ToolAnnotations
+from sheet_music_mcp_core.annotations import READ_ONLY
 from sheet_music_mcp_core.content import error_content
 from sheet_music_mcp_core.wiring import make_handlers
 
@@ -34,10 +35,22 @@ _OPTIONS_SCHEMA = {
 }
 
 
+# Sent to the client at initialize (docs/conventions.md, Server Instructions).
+INSTRUCTIONS = (
+    "Music-aware comparison of two MusicXML scores (reference and target). Use quick_similarity "
+    "for a 0-1 score, list_changes for targeted questions (one part, a measure range), "
+    "generate_comparison_report for a readable summary and export_annotated_musicxml for "
+    "color-marked scores to render. compare_musicxml returns the full structured diff, which can "
+    "be large."
+)
+
+
 async def list_tools():
     return [
         Tool(
             name="compare_musicxml",
+            title="Compare scores",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Full music-aware diff of two MusicXML strings. Returns a structured "
                 "ComparisonResult with global similarity score, summary statistics, and "
@@ -61,6 +74,8 @@ async def list_tools():
         ),
         Tool(
             name="compare_musicxml_files",
+            title="Compare score files",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Full music-aware diff of two MusicXML files on disk (.musicxml, .xml, or "
                 "compressed .mxl). Returns the same structured ComparisonResult as "
@@ -84,6 +99,8 @@ async def list_tools():
         ),
         Tool(
             name="quick_similarity",
+            title="Score similarity",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Fast similarity check between two MusicXML strings: returns only the "
                 "0.0-1.0 similarity score and summary statistics, without per-note detail."
@@ -105,6 +122,8 @@ async def list_tools():
         ),
         Tool(
             name="list_changes",
+            title="List score changes",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "List only the note-level differences (operation != MATCH) between two "
                 "MusicXML strings, optionally filtered to one part and/or a measure range. "
@@ -138,6 +157,8 @@ async def list_tools():
         ),
         Tool(
             name="generate_comparison_report",
+            title="Comparison report",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Human-readable version comparison report: overall similarity headline, "
                 "missing/extra parts, missing/extra measures, key/time signature changes, "
@@ -162,6 +183,8 @@ async def list_tools():
         ),
         Tool(
             name="export_annotated_musicxml",
+            title="Export color-annotated diff",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Export both scores as MusicXML with per-note color annotations marking "
                 "the diff (pitch changes, duration changes, substitutions, insertions, "
@@ -189,6 +212,8 @@ async def list_tools():
         ),
         Tool(
             name="list_capabilities",
+            title="Comparer capabilities",
+            annotations=ToolAnnotations(**READ_ONLY),
             description="List supported formats and available tools for this server",
             input_schema={
                 "type": "object",
@@ -198,6 +223,8 @@ async def list_tools():
         ),
         Tool(
             name="health_check",
+            title="Comparer health check",
+            annotations=ToolAnnotations(**READ_ONLY),
             description=(
                 "Check that the server and all its dependencies are working correctly. "
                 "Runs a self-comparison smoke test and returns a structured status summary. "
@@ -416,7 +443,12 @@ async def call_tool(name: str, arguments: dict):
 
 _on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
 
-app = Server("comparer-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
+app = Server(
+    "comparer-mcp",
+    instructions=INSTRUCTIONS,
+    on_list_tools=_on_list_tools,
+    on_call_tool=_on_call_tool,
+)
 
 
 def main():

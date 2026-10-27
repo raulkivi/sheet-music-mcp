@@ -78,6 +78,13 @@ The server MUST communicate via MCP stdio transport.
 
 The server MUST implement MCP using `mcp.server.stdio.stdio_server()`.
 
+### IR-1a — Tool metadata and server instructions
+
+Every tool sets a human-readable `title` and an annotation preset from `sheet-music-mcp-core`
+(see [conventions: Tool Annotations and Titles](../../docs/conventions.md#tool-annotations-and-titles)).
+The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The server sends
+`instructions` at initialize ([conventions: Server Instructions](../../docs/conventions.md#server-instructions)).
+
 ### IR-2 — Tool: `render_to_pdf`
 
 ```
