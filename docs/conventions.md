@@ -241,6 +241,9 @@ before using it.
   using `sheet_music_mcp_core.content.file_link`.
 - A tool that writes a PNG appends an `ImageContent` block when the file is at most 1 MB, using
   `sheet_music_mcp_core.content.png_block`. SVG gets no image block.
+- A tool that writes a short WAV clip appends an `AudioContent` block (`audio/wav`) when the file
+  is at most 200 KB, using `sheet_music_mcp_core.content.audio_block`. Full practice tracks are
+  only linked.
 
 ---
 
@@ -315,6 +318,46 @@ ones the part selector accepts.
 
 ---
 
+## Measure Ranges
+
+Tools that play, show, export or practise part of a score take `measures: [start, end]`
+([wave 3 plan](research/ux-wave3-plan.md)).
+
+- **Printed numbers, inclusive.** `[17, 24]` means the bars numbered 17 to 24 on the page. A pickup
+  bar is 0 (a first measure marked `implicit="yes"` is always 0). A suffixed number (`"12a"`)
+  belongs to its integer (12); a number with no leading integer takes the previous bar's number.
+- **Written order.** Repeats are not expanded and voltas are not skipped.
+- **Cut, don't filter.** Use `sheet_music_mcp_core.measures.select_measures(text, measures)` on the
+  MusicXML text before the engine parses it. The cut score keeps the key, time, clef, divisions,
+  transposition and tempo in force at `start`, so the engine needs no range logic of its own.
+- **Schema.** Add `measures.MEASURES_PROPERTY`. Values arriving outside the top-level schema (direct
+  engine calls, an `options` object) go through `measures.parse_range()`.
+- **Errors.** `start > end`, a range outside the score or a range holding no bar is
+  `INVALID_PARAMETER` with a `hint` naming the score's first and last bar numbers.
+- **Name.** Always `measures`. comparer-mcp's `options.measure_range` is a deprecated alias.
+
+---
+
+## Practice Audio
+
+Parameter names for practice tracks (synth-mcp `synthesize`, [wave 3 plan](research/ux-wave3-plan.md#32-synth-mcp)):
+
+| Parameter | Type | Default | Meaning |
+|---|---|---|---|
+| `part_gains` | object: part (ID, name or voice) → number 0.0–2.0 | none | Per-part volume as MIDI CC7, `round(127 × gain / 2)`. Parts not listed get 1.0. |
+| `preset` | `learning` \| `karaoke` \| `equal` | none | Base gains: learning focus 1.5 / others 0.5; karaoke focus 0 / others 1.0; equal 1.0. `part_gains` overrides per part. |
+| `focus_part` | string (part ID, name or voice) | none | The part a `learning` or `karaoke` preset is for; required by those presets. |
+| `repeat` | integer 1–20 | 1 | Play the (selected) music this many times. |
+| `count_in_bars` | integer 0–4 | 0 | Bars of clicks before the music, in its first time signature and tempo. |
+| `metronome` | boolean | false | Clicks on every beat of the music too. |
+| `timbre` | `score` \| `piano` \| `choir` \| `organ` | `score` | GM program 0, 52 or 19 on every melodic channel; `score` keeps the score's instruments. |
+
+Clicks use MIDI channel 10: GM 76 (hi wood block) on beat 1 and 77 (low wood block) on other beats,
+with beats as music21 counts them (6/8 has two). Every default reproduces the MIDI of earlier
+releases.
+
+---
+
 ## Shared Core Library
 
 `sheet-music-mcp-core` (directory `sheet-music-mcp-core/`, import `sheet_music_mcp_core`) holds the
@@ -326,13 +369,14 @@ code every server needs, so it is written and tested once.
 | `parts` | `PartInfo`, `music21_part_infos()`, `resolve_parts()`, `resolve_part()`, `PartSelectionError` (music21 objects are duck-typed, not imported) | no |
 | `params` | `aliased()` for deprecated parameter names | no |
 | `annotations` | Annotation presets | no |
-| `content` | `error_content()`, `processing_error_content()`, `file_link()`, `png_block()` | yes |
+| `content` | `error_content()`, `processing_error_content()`, `file_link()`, `png_block()`, `audio_block()` | yes |
 | `paths` | Read roots, `confine_read_path()`, `confine_output_path()`, `new_output_path()`, `PathPolicyError` (see [Score References](#score-references)) | no |
-| `scores` | `read_score_file()` (`.musicxml`, `.xml`, `.mxl`), `describe_score()`, `score_summary()`, `ScoreFormatError`; parses with `defusedxml`, not music21 | no |
+| `scores` | `read_score_file()` (`.musicxml`, `.xml`, `.mxl`), `describe_score()`, `score_summary()`, `first_pitches()`, `ScoreFormatError`; parses with `defusedxml`, not music21 | no |
+| `measures` | `MEASURES_PROPERTY`, `parse_range()`, `printed_numbers()`, `select_measures()`, `MeasureRangeError` (see [Measure Ranges](#measure-ranges)) | no |
 | `references` | Score input schema helpers, `client_roots()`, `load_score()`, `deliver_score()`, the shared `describe_score` tool | yes |
 | `wiring` | `make_handlers()`: input-schema validation and error results for `Server(...)`; pass the server's own `logger=`. Schema failures (`INVALID_PARAMETER`) and exceptions a tool did not handle (`PROCESSING_FAILED`, or a `ProcessingError`'s own code, hint and choices) come back as `isError` results in the `{error, error_code}` envelope | yes |
 
-- Engines may import only the modules without `mcp` (`errors`, `parts`, `params`, `annotations`, `paths`, `scores`). This keeps `engine.py` free of MCP imports.
+- Engines may import only the modules without `mcp` (`errors`, `parts`, `params`, `annotations`, `paths`, `scores`, `measures`). This keeps `engine.py` free of MCP imports.
 - Servers depend on `sheet-music-mcp-core>=X.Y,<X.(Y+1)` while the core is 0.x. For development,
   they point uv at the local copy, which `uv build` leaves out of published wheels:
 

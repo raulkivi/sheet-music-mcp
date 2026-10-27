@@ -3,7 +3,7 @@
 **Date:** 2026-10-27
 **State of `main`:** `9eb0c33` (Wave 2 merged as #167). Waves 1 and 2 are done:
 [ux-wave1-plan.md](ux-wave1-plan.md), [ux-wave2-plan.md](ux-wave2-plan.md).
-**Next step:** write `ux-wave3-plan.md`, interview the owner on §4, then implement test-first.
+**Next step:** done — see [ux-wave3-plan.md](ux-wave3-plan.md) (owner answers recorded as W3-1…W3-8).
 
 ---
 
