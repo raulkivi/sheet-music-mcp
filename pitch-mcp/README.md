@@ -46,7 +46,7 @@ For real-time monitoring (`start_monitoring`), PortAudio is required:
 sudo apt install libportaudio2
 ```
 
-**Quick install:** on Ubuntu/Debian/Linux Mint, `bash install.sh` handles `uv` and the optional
+**Quick install:** on Ubuntu/Debian/Linux Mint, `bash install.sh` checks for `uv` and handles the optional
 `libportaudio2` install for you — see [SETUP.md](SETUP.md) for the full non-technical walkthrough.
 Ready-made client configs (Claude Desktop, Cursor, Windsurf, Continue, Zed) are in
 [`examples/`](examples/). If something goes wrong, check [TROUBLESHOOTING.md](TROUBLESHOOTING.md).

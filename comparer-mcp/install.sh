@@ -25,25 +25,13 @@ fi
 
 info "Detected apt-based system. Continuing."
 
-# ── 2. Install uv if not already present ─────────────────────────────────────
+# ── 2. Require uv ─────────────────────────────────────
 if command -v uv &>/dev/null; then
     info "uv is already installed: $(uv --version)"
 else
-    info "Installing uv..."
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-
-    # Add uv to PATH for the rest of this script
-    export PATH="$HOME/.local/bin:$PATH"
-
-    if ! command -v uv &>/dev/null; then
-        error "uv installation succeeded but 'uv' is not on PATH."
-        error "Please open a new terminal and re-run this script, or add"
-        error "  export PATH=\"\$HOME/.local/bin:\$PATH\""
-        error "to your ~/.bashrc (or ~/.zshrc) and then run: source ~/.bashrc"
-        exit 1
-    fi
-
-    info "uv installed: $(uv --version)"
+    error "uv is not installed. Install it, then re-run this script:"
+    error "  https://docs.astral.sh/uv/getting-started/installation/"
+    exit 1
 fi
 
 # ── 3. System apt packages ────────────────────────────────────────────────────

@@ -21,7 +21,7 @@ bash install.sh
 
 The script will:
 1. Check that your system is apt-based (Ubuntu / Debian / Mint)
-2. Install `uv` if it is not already present
+2. Check that `uv` is installed — if not, it stops and asks you to [install it first](https://docs.astral.sh/uv/getting-started/installation/)
 3. Set up the Python environment
 
 That's it. No other steps are needed before connecting your AI client.

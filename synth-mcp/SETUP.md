@@ -23,7 +23,7 @@ bash synth-mcp/install.sh
 ```
 
 The script will:
-1. Install `uv` (the tool that runs synth-mcp) if it isn't already on your system
+1. Check that `uv` (the tool that runs synth-mcp) is installed — if not, it stops and asks you to [install it first](https://docs.astral.sh/uv/getting-started/installation/)
 2. Install the audio library synth-mcp needs (`libfluidsynth-dev`)
 3. Find or download a soundfont — the audio "instrument bank" used to produce sound
 4. Print a ready-to-paste config snippet for your LLM client

@@ -27,7 +27,7 @@ bash install.sh
 
 The script will:
 1. Check that your system is Ubuntu, Debian, or Linux Mint
-2. Install `uv` (a fast Python tool runner) if it is not already present
+2. Check that `uv` (a fast Python tool runner) is installed — if not, it stops and asks you to [install it first](https://docs.astral.sh/uv/getting-started/installation/)
 3. Confirm that no additional system libraries are needed
 4. Print ready-to-paste config snippets for each supported LLM client
 

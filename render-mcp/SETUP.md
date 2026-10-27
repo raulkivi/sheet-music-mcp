@@ -23,7 +23,7 @@ bash install.sh
 
 The script will:
 1. Check that you are on a supported Linux system
-2. Install `uv` (a fast Python tool runner) if it is not already present
+2. Check that `uv` (a fast Python tool runner) is installed — if not, it stops and asks you to [install it first](https://docs.astral.sh/uv/getting-started/installation/)
 3. Install the `libcairo2` system library
 
 That's it. No further setup is needed — your AI client will download and run the server automatically the first time you use it.
