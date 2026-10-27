@@ -5,7 +5,7 @@
 Renders MusicXML scores to PDF (for printing) or PNG (for display in web/mobile apps).
 Backend: Verovio (in-process Python) + cairosvg + pypdf. No MuseScore CLI required.
 
-**Status:** Phase 1 complete. 73/73 tests pass including integration tests.
+**Status:** Phase 1 + UX Waves 1–2 complete. 147 unit tests (default run) + 9 integration tests.
 
 ---
 
@@ -33,6 +33,7 @@ render-mcp/
 │   ├── test_server.py       # protocol tests
 │   ├── test_engine.py       # unit + integration tests
 │   ├── test_utils.py        # unit tests
+│   ├── test_score_references.py  # musicxml_path, describe_score
 │   └── fixtures/
 └── docs/
     ├── requirements.md
@@ -50,6 +51,12 @@ MXL test fixtures are in `../omr-mcp/test_samples/pdmx_satb_samples/mxl/` — 10
 | `render_to_pdf` | MusicXML → multi-page PDF at caller-specified or auto-generated path |
 | `render_to_image` | MusicXML → PNG or SVG, single page, configurable DPI (72–600) |
 | `list_capabilities` | Server metadata, active backend, format support |
+| `health_check` | Runtime dependency check |
+| `describe_score` | Shared (core) tool: parts with IDs, key, time, tempo, measures, duration — no rendering |
+
+Both render tools take the score as `musicxml` (inline) or `musicxml_path` (`.musicxml`, `.xml`,
+`.mxl`; exactly one). Paths are read via `sheet_music_mcp_core.references.load_score()`, confined
+to the output root, the client's roots and `SHEET_MUSIC_INPUT_ROOTS` (UX Wave 2, score references).
 
 ---
 
@@ -71,6 +78,7 @@ MXL test fixtures are in `../omr-mcp/test_samples/pdmx_satb_samples/mxl/` — 10
 - **Standard error codes:** `INVALID_INPUT`, `PROCESSING_FAILED`, `INVALID_PARAMETER`, `FILE_NOT_FOUND`
 - **Integration tests** must be `@pytest.mark.integration` — not run in the default `pytest` invocation
 - **Python 3.11+**; `asyncio_mode = "auto"` in pytest config
+- **Score paths:** read only through `sheet_music_mcp_core.references.load_score()`; never open them directly
 
 ---
 
@@ -110,6 +118,8 @@ asyncio.run(_run())
 - **Multi-page PDF pipeline:** each SVG page → single-page PDF via cairosvg → merge with pypdf.
   Single-page scores skip the merge step.
 - **MuseScore is not installed.** Don't attempt to call any MuseScore CLI command.
+- **Schema `oneOf`, not `required`.** The render tools take exactly one of `musicxml` /
+  `musicxml_path`; there is no `required` list.
 
 ---
 

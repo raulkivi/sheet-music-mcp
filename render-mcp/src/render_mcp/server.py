@@ -7,7 +7,14 @@ import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
-from sheet_music_mcp_core.content import error_content, file_link, png_block
+from sheet_music_mcp_core.content import error_content, file_link, png_block, processing_error_content
+from sheet_music_mcp_core.references import (
+    DESCRIBE_SCORE_TOOL,
+    describe_score_tool,
+    exactly_one,
+    load_score,
+    score_input_properties,
+)
 from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
@@ -40,10 +47,21 @@ logger = logging.getLogger(__name__)
 INSTRUCTIONS = (
     "Renders a MusicXML score to PDF (render_to_pdf) or one page to PNG or SVG (render_to_image). "
     "Output files are written under SHEET_MUSIC_OUTPUT_ROOT and never overwrite an existing file. "
-    "PNG pages are also returned inline when the client shows images."
+    "PNG pages are also returned inline when the client shows images. "
+    "Prefer musicxml_path over inline musicxml and pass on the score paths other tools return; "
+    "use describe_score to learn a score's part IDs and size cheaply."
 )
 
 _IMAGE_MIME_TYPES = {"png": "image/png", "svg": "image/svg+xml"}
+
+
+def _score_properties() -> dict:
+    """The musicxml / musicxml_path pair; exactly one is required (docs/conventions.md)."""
+    properties = score_input_properties("musicxml", "musicxml_path", what="the score to render")
+    properties["musicxml"]["description"] = (
+        "MusicXML document as a string. Give this or 'musicxml_path', not both."
+    )
+    return properties
 
 
 def _file_blocks(path: str, mime_type: str) -> list:
@@ -72,16 +90,13 @@ async def list_tools():
             input_schema={
                 "type": "object",
                 "properties": {
-                    "musicxml": {
-                        "type": "string",
-                        "description": "MusicXML document as a string",
-                    },
+                    **_score_properties(),
                     "output_path": {
                         "type": "string",
                         "description": "Path to write PDF file (auto-generated if omitted)",
                     },
                 },
-                "required": ["musicxml"],
+                **exactly_one("musicxml", "musicxml_path"),
             },
         ),
         Tool(
@@ -94,10 +109,7 @@ async def list_tools():
             input_schema={
                 "type": "object",
                 "properties": {
-                    "musicxml": {
-                        "type": "string",
-                        "description": "MusicXML document as a string",
-                    },
+                    **_score_properties(),
                     "page": {
                         "type": "integer",
                         "description": "Page number to render, 1-indexed (default: 1)",
@@ -119,7 +131,7 @@ async def list_tools():
                         "description": "Path to write image file (auto-generated if omitted)",
                     },
                 },
-                "required": ["musicxml"],
+                **exactly_one("musicxml", "musicxml_path"),
             },
         ),
         Tool(
@@ -147,12 +159,16 @@ async def list_tools():
                 "required": [],
             },
         ),
+        DESCRIBE_SCORE_TOOL,
     ]
 
 
-async def call_tool(name: str, arguments: dict):
+async def call_tool(name: str, arguments: dict, ctx=None):
     if name == "render_to_pdf":
-        musicxml = arguments.get("musicxml", "")
+        try:
+            musicxml = await load_score(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
         output_path = arguments.get("output_path")
 
         ok, err = validate_musicxml(musicxml)
@@ -188,7 +204,10 @@ async def call_tool(name: str, arguments: dict):
         ]
 
     elif name == "render_to_image":
-        musicxml = arguments.get("musicxml", "")
+        try:
+            musicxml = await load_score(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
         page = arguments.get("page", PAGE_DEFAULT)
         fmt = arguments.get("format", "png")
         dpi = arguments.get("dpi", DPI_DEFAULT)
@@ -261,9 +280,15 @@ async def call_tool(name: str, arguments: dict):
                     {
                         "server": "render-mcp",
                         "version": __version__,
-                        "input_formats": ["musicxml"],
+                        "input_formats": ["musicxml", "mxl"],
+                        "input_parameters": ["musicxml", "musicxml_path"],
                         "output_formats": ["pdf", "png", "svg"],
-                        "tools": ["render_to_pdf", "render_to_image", "list_capabilities"],
+                        "tools": [
+                            "render_to_pdf",
+                            "render_to_image",
+                            "describe_score",
+                            "list_capabilities",
+                        ],
                         "backend": backend,
                         "backend_version": backend_version,
                         "musescore_available": ms_available,
@@ -273,6 +298,12 @@ async def call_tool(name: str, arguments: dict):
                 ),
             )
         ]
+
+    elif name == "describe_score":
+        try:
+            return await describe_score_tool(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
 
     elif name == "health_check":
         status = get_health_status()
@@ -293,7 +324,7 @@ async def call_tool(name: str, arguments: dict):
     raise ValueError(f"Unknown tool: {name}")
 
 
-_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, pass_context=True, logger=logger)
 
 app = Server(
     "render-mcp",

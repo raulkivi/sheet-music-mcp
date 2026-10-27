@@ -33,6 +33,24 @@ The server MUST write the output file to the specified path. If no path is provi
 
 The response MUST include the final output path.
 
+### FR-3a — Score references
+
+The render tools MUST accept the score either inline (`musicxml`) or as a file path
+(`musicxml_path`, `.musicxml`, `.xml` or `.mxl`), exactly one of them
+([conventions: Score References](../../docs/conventions.md#score-references)).
+
+- Paths are read through `sheet_music_mcp_core.references.load_score()`, confined to the read
+  roots: the output root (`SHEET_MUSIC_OUTPUT_ROOT`), the client's MCP roots and
+  `SHEET_MUSIC_INPUT_ROOTS`. Relative paths resolve against the output root.
+- A path call MUST give the same result as the inline call with the same score.
+- Errors MUST NOT echo the content of the file read.
+
+### FR-3b — Score description
+
+The server MUST expose the shared `describe_score` tool, which returns title, composer, key,
+time, tempo, parts (ID, name, abbreviation, clef, range), measures, lyrics presence and duration
+without rendering.
+
 ### FR-4 — Capability reporting
 
 The server MUST expose a tool that returns:
@@ -88,9 +106,10 @@ The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The s
 ### IR-2 — Tool: `render_to_pdf`
 
 ```
-Input:
-  musicxml     string  required  MusicXML document as a string
-  output_path  string  optional  path to write PDF; auto-generated if omitted
+Input (exactly one of musicxml / musicxml_path, schema `oneOf`):
+  musicxml       string  MusicXML document as a string
+  musicxml_path  string  path to a .musicxml, .xml or .mxl file inside the read roots (preferred)
+  output_path    string  optional  path to write PDF; auto-generated if omitted
 
 Output:
   pdf_path    string   path of written PDF file
@@ -105,8 +124,9 @@ Errors return only the error JSON.
 ### IR-3 — Tool: `render_to_image`
 
 ```
-Input:
-  musicxml     string   required  MusicXML document as a string
+Input (exactly one of musicxml / musicxml_path, schema `oneOf`):
+  musicxml       string   MusicXML document as a string
+  musicxml_path  string   path to a .musicxml, .xml or .mxl file inside the read roots (preferred)
   page         integer  optional  1-indexed page number; default: 1
   format       string   optional  "png" or "svg"; default: "png"
   dpi          integer  optional  72–600; default: 150; only applies to PNG
@@ -133,13 +153,29 @@ Content blocks: `content[0]` is the JSON text above. On success, extra blocks fo
 
 SVG gets no image block because many hosts cannot display SVG. Errors return only the error JSON.
 
+### IR-3a — Tool: `describe_score`
+
+The shared tool from `sheet_music_mcp_core.references` (`DESCRIBE_SCORE_TOOL`, title "Describe
+score", `READ_ONLY`). Takes exactly one of `musicxml` / `musicxml_path`.
+
+```
+Output:
+  title, composer, key, time, tempo_bpm
+  parts              list[{id, name, abbreviation, clef, range: {low, high}}]   ids P1 …
+  measures           integer
+  has_lyrics         boolean
+  duration_quarters  number
+  duration_seconds   number | null
+```
+
 ### IR-4 — Tool: `list_capabilities`
 
 ```
 Output:
   server            string
   version           string
-  input_formats     list[string]   ["musicxml"]
+  input_formats     list[string]   ["musicxml", "mxl"]
+  input_parameters  list[string]   ["musicxml", "musicxml_path"]
   output_formats    list[string]   ["pdf", "png", "svg"]
   tools             list[string]
   backend           string         active backend, e.g. "verovio"
@@ -155,8 +191,10 @@ Output:
 
 | Code | Condition |
 |------|-----------|
-| `INVALID_INPUT` | MusicXML cannot be parsed |
-| `INVALID_PARAMETER` | Page out of range; unsupported format; DPI out of range |
+| `INVALID_INPUT` | MusicXML cannot be parsed (inline or read from `musicxml_path`) |
+| `INVALID_PARAMETER` | Page out of range; unsupported format; DPI out of range; both or neither of `musicxml` / `musicxml_path`; `musicxml_path` outside the read roots or with another suffix; `output_path` outside the output root |
+| `FILE_NOT_FOUND` | `musicxml_path` inside the roots does not exist |
+| `FILE_TOO_LARGE` | `musicxml_path` larger than `SHEET_MUSIC_MAX_SCORE_BYTES` (default 16 MiB) |
 | `PROCESSING_FAILED` | No backend available; rendering error |
 
 ---
@@ -198,6 +236,9 @@ Unit tests MUST cover:
 - MusicXML parse error path
 - `list_capabilities` response schema
 - Output path auto-generation
+- Score references (`tests/test_score_references.py`): path call equals inline call (all
+  content blocks), `.mxl` paths, both/neither through the protocol, paths outside the roots
+  (absolute, `../`, symlink) with no file content in the error, `describe_score`
 
 Unit tests MUST mock Verovio and cairosvg. They MUST NOT produce real output files.
 

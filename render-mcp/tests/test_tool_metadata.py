@@ -14,10 +14,11 @@ EXPECTED = {
     "render_to_image": ("Render score page to image", WRITES_FILE),
     "list_capabilities": ("Render capabilities", READ_ONLY),
     "health_check": ("Render health check", READ_ONLY),
+    "describe_score": ("Describe score", READ_ONLY),
 }
 
 # Phrases the instructions must contain: the routing knowledge the model needs up front.
-INSTRUCTION_PHRASES = ('render_to_pdf', 'render_to_image')
+INSTRUCTION_PHRASES = ('render_to_pdf', 'render_to_image', 'musicxml_path', 'describe_score')
 
 
 def _tools():
