@@ -13,7 +13,8 @@ Takes a MusicXML score, optionally filters to one or more voice parts, and rende
 | Tool | Description |
 |------|-------------|
 | `get_parts` | List all voice parts in a score — returns part name, ID, and measure count |
-| `synthesize` | Render the score (or selected parts) to a WAV file, with optional tempo adjustment |
+| `synthesize` | Render the score (or selected parts) to a WAV file, with optional tempo adjustment and practice options (bars, repeats, count-in, metronome, timbre, part volumes) |
+| `starting_pitches` | Each part's first note as text (`"S: D5, A: A4, T: F#4, B: D3"`) and a short piano clip |
 | `describe_score` | Summarize a score cheaply: title, key, time, tempo, parts (ID, clef, range), measures, duration |
 | `list_capabilities` | Return server metadata: backend version, soundfont status, FluidSynth availability |
 | `health_check` | Check that the soundfont, FluidSynth, and music21 are all available and ready |
@@ -109,6 +110,22 @@ SYNTH_SOUNDFONT_PATH=/usr/share/sounds/sf2/TimGM6mb.sf2 uv run synth-mcp
     "tempo_factor": 0.8
   }
 }
+
+// Practice track: Alto loud, others soft, bars 17-24 three times, one bar of count-in
+{
+  "tool": "synthesize",
+  "arguments": {
+    "musicxml_path": "scores/chorale.mxl",
+    "preset": "learning",
+    "focus_part": "Alto",
+    "measures": [17, 24],
+    "repeat": 3,
+    "count_in_bars": 1
+  }
+}
+
+// Starting notes before singing
+{"tool": "starting_pitches", "arguments": {"musicxml_path": "scores/chorale.mxl"}}
 ```
 
 `parts` accepts part IDs from `get_parts` (`"P1"`), part names (`"Soprano"`, any case) or voices
@@ -121,6 +138,21 @@ an MCP root, or a folder in `SHEET_MUSIC_INPUT_ROOTS`. Prefer it, and pass on pa
 return. `describe_score` reports part IDs, ranges and duration without returning the score.
 
 `tempo_factor` range: 0.25–4.0. Values below 1.0 slow down; above 1.0 speed up. Does not affect pitch.
+
+Practice options on `synthesize` (all optional; leaving them out gives the plain track):
+
+| Option | Values | Effect |
+|--------|--------|--------|
+| `measures` | `[start, end]` | Only these printed bars (a pickup is 0) |
+| `repeat` | 1–20 | Play the selection this many times |
+| `count_in_bars` | 0–4 | Wood-block clicks before the music |
+| `metronome` | true / false | Clicks on every beat of the music too |
+| `timbre` | `score`, `piano`, `choir`, `organ` | Sound for every part (`score` keeps the score's instruments) |
+| `preset` + `focus_part` | `learning` (focus 1.5, others 0.5), `karaoke` (focus muted), `equal` | Part volumes |
+| `part_gains` | part → 0.0–2.0 | Per-part volume, overrides the preset |
+
+`starting_pitches` returns the text always; the clip (mono 16 kHz WAV, inline when ≤ 200 KB) needs
+the soundfont and FluidSynth. Without them the result says why in `audio_unavailable`.
 
 ## Testing
 

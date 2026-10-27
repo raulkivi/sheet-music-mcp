@@ -15,10 +15,12 @@ EXPECTED = {
     "list_capabilities": ("Synth capabilities", READ_ONLY),
     "health_check": ("Synth health check", READ_ONLY),
     "describe_score": ("Describe score", READ_ONLY),
+    "starting_pitches": ("Play starting pitches", WRITES_FILE),
 }
 
 # Phrases the instructions must contain: the routing knowledge the model needs up front.
-INSTRUCTION_PHRASES = ('get_parts', 'tempo_factor', 'SYNTH_SOUNDFONT_PATH', 'musicxml_path', 'describe_score')
+INSTRUCTION_PHRASES = ('get_parts', 'tempo_factor', 'SYNTH_SOUNDFONT_PATH', 'musicxml_path', 'describe_score',
+                       'measures', 'starting_pitches')
 
 
 def _tools():

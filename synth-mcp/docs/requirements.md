@@ -63,6 +63,41 @@ The server MUST expose the shared `describe_score` tool (`sheet_music_mcp_core.r
 title, composer, key, time, tempo, parts (ID, name, abbreviation, clef, range), measures, lyrics
 presence and duration, parsed without music21.
 
+### FR-5c — Practice tracks (UX Wave 3)
+
+`synthesize` MUST accept these optional practice options
+([conventions: Practice Audio](../../docs/conventions.md#practice-audio),
+[Measure Ranges](../../docs/conventions.md#measure-ranges)). Each default MUST give the same MIDI
+as without the option: no CC7, no program change, no clicks, the whole score.
+
+- **`measures: [start, end]`** (B2): inclusive printed bar numbers (pickup = 0). The score is cut
+  with core `select_measures` before music21 parses it, keeping the key, time, clef and tempo in
+  force at `start`. Out of range or reversed → `INVALID_PARAMETER` with the score's range as hint.
+- **`repeat`** 1–20 (C9): the selected bars are played this many times; ties are cut at the joins.
+- **`count_in_bars`** 0–4 and **`metronome`** (C10): wood-block clicks on MIDI channel 10, GM 76
+  on beat 1 and 77 on other beats, beats as music21 counts them (6/8 has two). The count-in uses
+  the time signature and scaled tempo in force at the first played bar and moves the music later
+  by its length; `metronome` clicks every beat of the music too. No melodic track uses channel 10.
+- **`timbre`** `score | piano | choir | organ` (C11): GM program 0, 52 or 19, one program change
+  at tick 0 on every melodic channel; `score` keeps the score's instruments.
+- **`part_gains`**, **`preset`** and **`focus_part`** (C8): one CC7 at tick 0 per selected part,
+  `round(127 × gain / 2)`. Presets: learning focus 1.5 / others 0.5, karaoke focus 0 / others 1.0,
+  equal 1.0; `part_gains` entries (part ID, name or voice, 0.0–2.0) override them, other parts get
+  1.0. With gains each melodic part gets its own MIDI channel (at most 15 pitched parts).
+  `learning` / `karaoke` without `focus_part`, an unknown `focus_part` or `part_gains` key, or
+  `focus_part` without a preset → `INVALID_PARAMETER` (with the part `choices` where a part is
+  missing or unknown).
+- `tempo_factor` also scales a tempo given only as `<sound tempo>` (music21 `numberSounding`),
+  which is how `select_measures` carries the tempo into a cut score.
+
+### FR-5d — Starting pitches (UX Wave 3 C13)
+
+`starting_pitches` MUST return each selected part's first sounding note as text
+(`"S: D5, A: A4, T: F#4, B: D3"`, from core `scores.first_pitches`, parts without notes left out)
+and, when FluidSynth and a soundfont work, a piano clip: each note for 1 s in score order, then
+the chord for 2 s, velocity 80, written as mono 16 kHz 16-bit WAV. Without audio the result MUST
+still succeed, with `"audio_path": null` and `"audio_unavailable"` (decision W3-6).
+
 ### FR-6 — Capability reporting
 
 The server MUST expose a tool that returns:
@@ -139,6 +174,14 @@ Input (exactly one of musicxml / musicxml_path, JSON Schema oneOf):
   output_path   string        optional  path to write WAV inside SHEET_MUSIC_OUTPUT_ROOT
                                         (.wav, .mid or .midi; always written as WAV);
                                         auto-generated in /tmp/synth-mcp-<uid>/ if omitted
+  measures      [int, int]    optional  inclusive printed bar numbers; default: whole score
+  repeat        integer       optional  1–20; default: 1
+  count_in_bars integer       optional  0–4; default: 0
+  metronome     boolean       optional  default: false
+  timbre        string        optional  score | piano | choir | organ; default: score
+  part_gains    object        optional  part (ID, name or voice) → number 0.0–2.0
+  preset        string        optional  learning | karaoke | equal
+  focus_part    string        optional  part (ID, name or voice); required by learning/karaoke
 
 Output:
   audio_path        string   path of written WAV file
@@ -146,11 +189,35 @@ Output:
   duration_seconds  float
   parts_included    list[string]
   tempo_factor      float
+  <practice option> as given  each practice option the caller passed, echoed back
 ```
 
 Content blocks: `content[0]` is the JSON text above. On success it is followed by a
 `resource_link` to the WAV file (`file://` URI of the resolved path, MIME type `audio/wav`;
 [conventions](../../docs/conventions.md#result-content)). Errors return only the error JSON.
+
+### IR-3b — Tool: `starting_pitches`
+
+Title "Play starting pitches", `WRITES_FILE`.
+
+```
+Input (exactly one of musicxml / musicxml_path, JSON Schema oneOf):
+  musicxml       string        MusicXML document as a string
+  musicxml_path  string        path to a .musicxml, .xml or .mxl file inside the read roots
+  parts          list[string]  optional  parts as IDs, names or voices; default: all parts
+  output_path    string        optional  .wav inside SHEET_MUSIC_OUTPUT_ROOT; default:
+                                         <output root>/audio/starting-pitches-<timestamp>.wav
+
+Output (content[0]):
+  text               string         "S: D5, A: A4, T: F#4, B: D3"
+  parts              list[{id, name, label, pitch}]   pitch null for a part without notes
+  audio_path         string | null
+  duration_seconds   number | null
+  audio_unavailable  string         only when there is no audio: the reason
+```
+
+Then, with audio: an `audio` block (`audio/wav`) when the WAV is at most 200 KB (a 4-part clip
+is about 192 KB), and a `resource_link` to the WAV. Without audio: no other blocks, not an error.
 
 ### IR-3a — Tool: `describe_score`
 
@@ -175,7 +242,10 @@ Output:
   server               string
   version              string
   input_formats        list[string]   ["musicxml", "mxl"]   (.mxl via musicxml_path only)
-  input_parameters     list[string]   ["musicxml", "musicxml_path"]   (give exactly one)
+  input_parameters     list[string]   ["musicxml", "musicxml_path"] (give exactly one), then
+                                      synthesize's practice options: measures, repeat,
+                                      count_in_bars, metronome, timbre, part_gains, preset,
+                                      focus_part
   output_formats       list[string]   ["wav"]
   tools                list[string]
   backend              string         "fluidsynth"
@@ -205,7 +275,7 @@ If `SYNTH_SOUNDFONT_PATH` is unset or points to a non-existent file, the server 
 | Code | Condition |
 |------|-----------|
 | `INVALID_INPUT` | MusicXML cannot be parsed; no parts found; bad `.mxl` |
-| `INVALID_PARAMETER` | Unknown part ID; tempo_factor out of range; both or neither of `musicxml` / `musicxml_path`; path outside the read roots or with another suffix |
+| `INVALID_PARAMETER` | Unknown part ID; tempo_factor out of range; a practice option out of range or inconsistent (see FR-5c); `measures` outside the score (with a `hint`); both or neither of `musicxml` / `musicxml_path`; path outside the read roots or with another suffix |
 | `FILE_NOT_FOUND` | `musicxml_path` inside the roots does not exist |
 | `FILE_TOO_LARGE` | `musicxml_path` larger than `SHEET_MUSIC_MAX_SCORE_BYTES` |
 | `PROCESSING_FAILED` | FluidSynth not installed; soundfont not found; synthesis error |
@@ -240,6 +310,11 @@ Unit tests MUST cover:
 - Score references (`tests/test_score_references.py`): a `musicxml_path` call (`.musicxml` and
   `.mxl`) gives the same result as the inline call; both or neither → `INVALID_PARAMETER`; paths
   outside the roots → `INVALID_PARAMETER` without file content; `describe_score`
+- Practice tracks at MIDI level with `music21.midi.MidiFile` (`tests/test_practice_midi.py`,
+  `tests/test_practice_server.py`): gains and presets (CC7), measures, repeat, count-in and
+  metronome clicks, timbre, defaults byte-identical
+- `starting_pitches` (`tests/test_starting_pitches.py`): text, clip MIDI, downmix, inline audio vs
+  link, no-soundfont result
 
 Unit tests MUST mock pyfluidsynth. They MUST NOT synthesize real audio.
 

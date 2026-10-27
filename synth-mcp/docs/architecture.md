@@ -16,7 +16,7 @@ synth-mcp is a stateless MCP server that synthesizes WAV audio from MusicXML. It
 ┌──────────────────────────▼────────────────────────────────┐
 │                       server.py                           │
 │                                                           │
-│  list_tools()   → 5 tool definitions                      │
+│  list_tools()   → 6 tool definitions                      │
 │  call_tool()    → load_score(), then dispatches to engine │
 └──────────┬──────────────────────────────┬─────────────────┘
            │                              │ references.load_score()
@@ -30,11 +30,12 @@ synth-mcp is a stateless MCP server that synthesizes WAV audio from MusicXML. It
 │       engine.py         │  │          utils.py            │
 │                         │  │                              │
 │  parse_parts()          │  │  validate_musicxml()         │
-│  extract_midi()         │  │  validate_tempo_factor()     │
+│  extract_midi() ────────┼─▶│  validate_tempo_factor()     │
 │  synthesize_midi()      │  │  generate_output_path()      │
 │  _get_wav_duration()    │  └──────────────────────────────┘
-│  ProcessingError        │
-└──────────┬──────────────┘
+│  ProcessingError        │  practice.py: gains, repeat, clicks, timbre, tune_midi()
+└──────────┬──────────────┘  clip.py: starting_pitches(), clip_midi(), render_clip(),
+           │                          downmix_wav()  (both MCP-free)
            │
      ┌─────┴──────────────┐
      │                    │
@@ -61,8 +62,10 @@ synth-mcp is a stateless MCP server that synthesizes WAV audio from MusicXML. It
 
 MCP protocol layer. Contains no business logic.
 
-- Registers five tools: `get_parts`, `synthesize`, `describe_score` (shared, from
-  `sheet_music_mcp_core.references`), `list_capabilities`, `health_check`
+- Registers six tools: `get_parts`, `synthesize`, `starting_pitches`, `describe_score` (shared,
+  from `sheet_music_mcp_core.references`), `list_capabilities`, `health_check`
+- Passes only the practice options the caller gave (`PRACTICE_PARAMETERS`) to `extract_midi` and
+  echoes them in the result, so a call without them is unchanged
 - Takes the score as `musicxml` or `musicxml_path` (`oneOf`). `references.load_score()` returns
   the inline text as is, or reads a confined path (`.musicxml`, `.xml`, `.mxl`); the handlers then
   run the same validation and engine calls either way. `make_handlers(..., pass_context=True)`
@@ -82,10 +85,38 @@ Core synthesis logic. No MCP imports.
 |----------|-------------|
 | `parse_parts(musicxml_str)` | Parse MusicXML with music21; return list of `{id, name, measure_count}` |
 | `resolve_part_ids(musicxml_str, requested)` | Resolve part IDs, names or voices to stable MusicXML part IDs |
-| `extract_midi(musicxml_str, part_ids, tempo_factor)` | Filter parts, apply tempo, export to MIDI bytes |
+| `extract_midi(musicxml_str, part_ids, tempo_factor, *, measures, repeat, count_in_bars, metronome, timbre, part_gains, preset, focus_part)` | Cut bars, filter parts, practice steps, apply tempo, export to MIDI bytes |
 | `synthesize_midi(midi_bytes, output_path)` | Write MIDI to temp file; render to WAV via pyfluidsynth |
 | `_get_wav_duration(wav_path)` | Read WAV header; return duration in seconds |
 | `ProcessingError(message, error_code)` | Structured exception for all engine errors |
+
+### `practice.py`
+
+Practice-track steps for `extract_midi` (UX Wave 3, [conventions: Practice Audio](../../docs/conventions.md#practice-audio)).
+No MCP imports; each step is a no-op at its default.
+
+| Function | Description |
+|----------|-------------|
+| `validate_options(repeat, count_in_bars, metronome, timbre)` | Bounds for direct engine calls; returns the timbre's GM program (None for `score`) |
+| `resolve_gains(parts, part_gains, preset, focus_part)` | One gain per selected part (preset base, `part_gains` overrides via `resolve_parts`), or None |
+| `cc7_value(gain)` | `round(127 × gain / 2)` |
+| `expand_repeats(score)` | Written repeats played out before clicks are laid (music21's export would do it anyway) |
+| `repeat_music(score, times)` | Appends each part's bars `times − 1` more times; ties cut at the joins |
+| `scale_tempo(score, factor)` | Scales `number` and `numberSounding` of every MetronomeMark; default 120 × factor when none |
+| `add_clicks(score, count_in_bars, metronome)` | Shifts the music by the count-in, adds the wood-block click part (appended last) |
+| `tune_midi(midi_file, *, percussion, gains, program, clicks)` | After export: click track on channel 10 (program 0), one channel per melodic part with gains, program changes for timbre, CC7 at tick 0 |
+
+### `clip.py`
+
+`starting_pitches` pieces (UX Wave 3 C13). No MCP imports.
+
+| Function | Description |
+|----------|-------------|
+| `starting_pitches(musicxml, parts)` | Core `scores.first_pitches`, filtered with `resolve_parts` against the core's part list |
+| `pitches_text(entries)` | `"S: D5, A: A4, T: F#4, B: D3"` (parts without notes left out) |
+| `clip_midi(midi_numbers)` | Piano, 60 BPM: each note 1 quarter (1 s), then the chord for 2 s, velocity 80, no end delay |
+| `render_clip(midi_bytes, output_path)` | `synthesize_midi` into a temp WAV, then `downmix_wav` to the target (new `audio/starting-pitches-<timestamp>.wav` only after rendering worked) |
+| `downmix_wav(source, target)` | numpy: average channels, 63-tap windowed-sinc low-pass, linear resample to 16 kHz, 16-bit mono via stdlib `wave` |
 
 ### `utils.py`
 
@@ -116,16 +147,23 @@ call_tool("synthesize", {musicxml | musicxml_path, parts, tempo_factor, output_p
   ├─ engine: resolve_part_ids(musicxml, parts) → stable IDs ("P1", …)
   │     └─ PartSelectionError (INVALID_PARAMETER + choices) if a part matches nothing
   │
-  ├─ engine: extract_midi(musicxml, part_ids, tempo_factor)
+  ├─ engine: extract_midi(musicxml, part_ids, tempo_factor, **practice options given)
+  │     ├─ practice.validate_options(repeat, count_in_bars, metronome, timbre)
+  │     ├─ core measures.select_measures(musicxml, measures)   (B2)
   │     ├─ music21.converter.parseData(musicxml)
   │     ├─ select parts by position against music21_part_infos(score.parts)
+  │     ├─ practice.resolve_gains(selected infos, part_gains, preset, focus_part)   (C8)
   │     ├─ deep-copy selected parts into new Score
   │     ├─ if the selected parts have no MetronomeMarks: copy the score's marks
   │     │     (usually only in the top part) into the first selected part, at their offsets
-  │     ├─ apply tempo_factor to all MetronomeMarks
-  │     │     └─ mark.number *= tempo_factor
+  │     ├─ if count-in or metronome: practice.expand_repeats(score)
+  │     ├─ practice.repeat_music(score, repeat)                             (C9)
+  │     ├─ practice.scale_tempo(score, tempo_factor)
+  │     │     └─ mark.number and mark.numberSounding *= tempo_factor
   │     │     └─ if no marks: insert MetronomeMark(120 * tempo_factor) at measure 1
+  │     ├─ practice.add_clicks(score, count_in_bars, metronome)             (C10)
   │     ├─ music21.midi.translate.streamToMidiFile(score)
+  │     ├─ practice.tune_midi(...) if gains, timbre or clicks               (C8, C10, C11)
   │     └─ return MIDI bytes
   │
   ├─ engine: synthesize_midi(midi_bytes, output_path)
@@ -149,6 +187,42 @@ call_tool("synthesize", {musicxml | musicxml_path, parts, tempo_factor, output_p
   │
   └─ return {audio_path, format, duration_seconds, parts_included, tempo_factor}
 ```
+
+### `starting_pitches` tool
+
+```
+call_tool("starting_pitches", {musicxml | musicxml_path, parts, output_path})
+  │
+  ├─ references.load_score; utils: validate_musicxml; confine_output_path(output_path, .wav)
+  ├─ clip.starting_pitches(musicxml, parts) → first_pitches entries (score order)
+  ├─ payload = {text, parts, audio_path: null, duration_seconds: null}
+  ├─ no pitched part → payload.audio_unavailable, return [json]
+  ├─ clip.render_clip(clip.clip_midi(midis), output_path)
+  │     └─ ProcessingError (no soundfont / FluidSynth / render failure)
+  │           → payload.audio_unavailable = reason, return [json]   (not an error, W3-6)
+  └─ return [json, audio_block(path) if ≤ 200 KB, file_link(path, "audio/wav")]
+```
+
+---
+
+## Practice Track MIDI
+
+- **Channels.** music21 gives parts with the same instrument one MIDI channel (keyed by program),
+  so CC7 could not tell them apart. With gains, `tune_midi` moves every melodic track to its own
+  channel (1–9, 11–16; more than 15 pitched parts → `INVALID_PARAMETER`). Score percussion stays on
+  10. Without gains, a melodic track music21 put on channel 10 (it does when a score percussion
+  part shares the "no program" key) moves to a free channel whenever `tune_midi` runs.
+- **Track order.** Track 0 is music21's conductor track, then one per selected part in order,
+  then the click part, which `add_clicks` appends last.
+- **Count-in tempo.** music21's conductor track keeps a tempo or time signature only when met in
+  ascending offset order, reading the first part first. The count-in's meter and tempo (the
+  already scaled mark at the first bar) therefore go at offset 0 of the first part, not in the
+  click part.
+- **Clicks.** One click bar per music bar (after repeat expansion), beats from
+  `TimeSignature.beatCount` / `beatDuration`; a pickup's missing start (`paddingLeft`) aligns its
+  beats to the end of the bar. Notes 76 (beat 1) and 77; the track's program is set to 0.
+- **Ties at repeat joins.** `repeat_music` drops the tie side that would cross a join (a
+  `continue` becomes `start` or `stop`), so music21's `stripTies` never merges two passes.
 
 ### `get_parts` tool
 
@@ -174,13 +248,17 @@ music21 represents tempo as `MetronomeMark` objects embedded in the score. The e
 
 ```python
 for mark in score.flatten().getElementsByClass(MetronomeMark):
-    mark.number = mark.number * tempo_factor
+    mark.number = mark.number * tempo_factor                  # when set
+    mark.numberSounding = mark.numberSounding * tempo_factor  # when set
 
 if no marks found:
     score.parts[0].measure(1).insert(0, MetronomeMark(number=120 * tempo_factor))
 ```
 
 This scales time uniformly. Pitch is not affected because the MIDI note numbers are unchanged.
+A bare `<sound tempo>` (how `select_measures` carries the tempo into a cut score) gives a mark with
+`number` None and `numberSounding` set, and music21's MIDI export prefers `numberSounding`, so
+both are scaled.
 
 MusicXML usually carries the tempo marking only in the top part. Before scaling, if none of the
 selected parts has a `MetronomeMark`, `_carry_over_tempo_marks()` copies the full score's marks
@@ -236,6 +314,7 @@ Engine errors are raised as `ProcessingError(message, error_code)`. The server l
 | No parts found in score | `INVALID_INPUT` |
 | Unknown part ID | `INVALID_PARAMETER` |
 | tempo_factor out of range | `INVALID_PARAMETER` |
+| Practice option out of range or inconsistent; `measures` outside the score (with hint) | `INVALID_PARAMETER` |
 | `SYNTH_SOUNDFONT_PATH` not set | `PROCESSING_FAILED` |
 | Soundfont file not found | `PROCESSING_FAILED` |
 | libfluidsynth not installed | `PROCESSING_FAILED` |
@@ -278,10 +357,14 @@ synth-mcp/
 │       ├── __init__.py
 │       ├── server.py     ← MCP layer (tool registration, dispatch)
 │       ├── engine.py     ← Business logic (music21, pyfluidsynth)
+│       ├── practice.py   ← Practice-track steps (gains, repeat, clicks, timbre)
+│       ├── clip.py       ← starting_pitches (text, clip MIDI, downmix)
 │       └── utils.py      ← Validation, path generation
 └── tests/
     ├── test_server.py
     ├── test_engine.py
     ├── test_utils.py
-    └── fixtures/
+    ├── test_practice_midi.py, test_practice_server.py, test_starting_pitches.py
+    ├── midi_helpers.py   ← MIDI bytes → events for assertions
+    └── fixtures/         ← satb_4bars, six_eight, pickup_sound_tempo (.musicxml)
 ```
