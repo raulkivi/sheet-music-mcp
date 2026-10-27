@@ -48,7 +48,7 @@ dependencies = [
     "opencv-python-headless==4.14.0.94",
     "Pillow>=10.0.0",
     "defusedxml>=0.7.0",
-    "sheet-music-mcp-core>=0.1.0,<0.2.0",
+    "sheet-music-mcp-core>=0.2.0,<0.3.0",
 ]
 
 [project.scripts]

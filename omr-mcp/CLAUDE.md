@@ -7,9 +7,9 @@ in-process) and `audiveris` (opt-in via `engine="audiveris"`, subprocess). Entry
 pipeline — all other servers consume MusicXML produced here.
 
 **Status:** Phases 1–4 code complete, including the Audiveris backend option (shipped 2026-08-16).
-111 unit tests pass. Integration tests run against real oemer for the first time (2026-08-15):
-fixing a 100%-blocking API bug plus pinning `onnxruntime` and `opencv-python-headless` took the
-suite from 0/41 to 20/41 passing. **oemer's default output is not usable for SATB scores** — it
+UX Wave 2 (score references) done. 164 unit tests pass (+48 skipped). Integration tests run
+against real oemer for the first time (2026-08-15): fixing a 100%-blocking API bug plus pinning
+`onnxruntime` and `opencv-python-headless` took the suite from 0/41 to 20/41 passing. **oemer's default output is not usable for SATB scores** — it
 reads multi-staff systems sequentially instead of simultaneously, so a 4-voice choir score comes
 out as one part with the clef alternating back and forth instead of 4 parts sounding together;
 root-caused 2026-08-16 as an architectural limitation (`build_system.py` hard-asserts at most 2
@@ -26,7 +26,7 @@ both root-caused 2026-08-16 (one is the SATB bug itself manifesting as a hard cr
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v                # 111 unit tests (fast; all subprocess/network calls mocked)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v                # 164 unit tests (+48 skipped; fast; all subprocess/network calls mocked)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration # invokes real oemer (~3–5 min/page)
 ```
 
@@ -54,9 +54,9 @@ Install dependencies: `uv sync`
 
 | Tool | Input | Output |
 |------|-------|--------|
-| `recognize_sheet` | Image path or base64; optional `engine` ("oemer"\|"audiveris") | MusicXML string + metadata |
-| `recognize_sheet_to_file` | Image path; optional `engine` | MusicXML file path + metadata |
-| `recognize_sheets` | List of image paths/base64; optional `engine` | Single merged MusicXML (multi-page) |
+| `recognize_sheet` | Image path or base64; optional `engine` ("oemer"\|"audiveris"), `return` ("auto"\|"path"\|"inline") | MusicXML string + metadata; large results (`auto`) as `musicxml_path` + `score_summary` |
+| `recognize_sheet_to_file` | Image path; optional `engine` | MusicXML file path + metadata + `score_summary` |
+| `recognize_sheets` | List of image paths/base64; optional `engine`, `return` | Single merged MusicXML (multi-page); large results as `musicxml_path` + `score_summary` |
 | `list_capabilities` | — | Server capabilities incl. per-engine availability |
 | `list_supported_formats` | — | Deprecated alias for `list_capabilities` |
 | `health_check` | — | Runtime dependency status incl. oemer/model cache/Audiveris |
@@ -123,6 +123,14 @@ asyncio.run(_run())
 - **Audiveris can exit 0 while producing no output** (e.g. it rejected every sheet for low
   resolution) — `_run_audiveris()` detects failure by checking for the expected `.mxl` output
   file's existence, not the subprocess exit code.
+- **Large recognition results come back as a file (UX Wave 2).** `recognize_sheet` and
+  `recognize_sheets` default to `return="auto"`: above `SHEET_MUSIC_INLINE_MAX_BYTES` (8192 bytes)
+  the score is written to `<SHEET_MUSIC_OUTPUT_ROOT>/scores/recognized-<timestamp>.musicxml` and
+  the JSON holds `musicxml_path` + `score_summary` instead of `musicxml`. Tests that need the text
+  pass `return="inline"` or keep the mocked score small; set `SHEET_MUSIC_OUTPUT_ROOT` to `tmp_path`
+  so nothing is written to the working directory. Both tools are therefore `WRITES_FILE_DOWNLOADS`.
+  Delivery uses `sheet_music_mcp_core.references.deliver_score`; `confine_output_path` in
+  `utils.py` is a re-export of the core one.
 
 ---
 

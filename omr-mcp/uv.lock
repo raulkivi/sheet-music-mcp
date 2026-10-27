@@ -1971,15 +1971,17 @@ wheels = [
 
 [[package]]
 name = "sheet-music-mcp-core"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "../sheet-music-mcp-core" }
 dependencies = [
+    { name = "defusedxml" },
     { name = "jsonschema" },
     { name = "mcp" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "defusedxml", specifier = ">=0.7.1" },
     { name = "jsonschema", specifier = ">=4.20.0" },
     { name = "mcp", specifier = ">=2.2.0,<3.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },

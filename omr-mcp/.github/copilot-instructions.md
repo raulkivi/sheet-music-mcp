@@ -7,10 +7,11 @@ in-process) and `audiveris` (opt-in via `engine="audiveris"`, subprocess — cor
 multi-staff SATB scores where oemer flattens or crashes). This is the entry point of the choir
 music pipeline — all other servers consume MusicXML produced here.
 
-**Status:** Phases 1–4 complete, including the Audiveris backend option (2026-08-16). 111 unit
-tests pass (all mocked — no real oemer/Audiveris invocation). Integration tests verified against
-real oemer (2026-08-15); oemer's SATB voice-loss is root-caused as an architectural limitation,
-fixed via the opt-in Audiveris engine, not yet the default. See `docs/HANDOVER.md`.
+**Status:** Phases 1–4 complete, including the Audiveris backend option (2026-08-16), and UX
+Wave 2 (score references). 164 unit tests pass, 48 skipped (all mocked — no real
+oemer/Audiveris invocation). Integration tests verified against real oemer (2026-08-15);
+oemer's SATB voice-loss is root-caused as an architectural limitation, fixed via the opt-in
+Audiveris engine, not yet the default. See `docs/HANDOVER.md`.
 
 ---
 
@@ -52,9 +53,9 @@ omr-mcp/
 
 | Tool | Input | Output |
 |------|-------|--------|
-| `recognize_sheet` | Image path or base64; optional `engine` ("oemer"\|"audiveris") | MusicXML string + metadata |
-| `recognize_sheet_to_file` | Image path; optional `engine` | MusicXML file path + metadata |
-| `recognize_sheets` | List of image paths/base64; optional `engine` | Single merged MusicXML (multi-page) |
+| `recognize_sheet` | Image path or base64; optional `engine` ("oemer"\|"audiveris"), `return` ("auto"\|"path"\|"inline") | MusicXML string + metadata; large results (`auto`) as `musicxml_path` + `score_summary` |
+| `recognize_sheet_to_file` | Image path; optional `engine` | MusicXML file path + metadata + `score_summary` |
+| `recognize_sheets` | List of image paths/base64; optional `engine`, `return` | Single merged MusicXML (multi-page); large results as `musicxml_path` + `score_summary` |
 | `list_capabilities` | — | Server capabilities incl. per-engine availability |
 | `list_supported_formats` | — | Deprecated alias for `list_capabilities` |
 | `health_check` | — | Runtime dependency status incl. oemer/model cache/Audiveris |
@@ -118,6 +119,10 @@ asyncio.run(_run())
 - **Audiveris genuinely needs 300+ DPI input** and can exit 0 while producing no output if it
   rejects a low-resolution sheet — detect failure by checking for the expected `.mxl` file, not
   the exit code. oemer, by contrast, is DPI-insensitive (normalizes internally).
+- **Large recognition results come back as a file (UX Wave 2).** `recognize_sheet` and
+  `recognize_sheets` default to `return="auto"`: above 8192 bytes the score is written to
+  `<SHEET_MUSIC_OUTPUT_ROOT>/scores/` and the JSON holds `musicxml_path` + `score_summary` instead
+  of `musicxml`. In tests, set `SHEET_MUSIC_OUTPUT_ROOT` to `tmp_path`.
 
 ---
 

@@ -1,8 +1,12 @@
 import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
-from sheet_music_mcp_core.annotations import READ_ONLY, READ_ONLY_DOWNLOADS, WRITES_FILE_DOWNLOADS
-from sheet_music_mcp_core.content import error_content, file_link
+from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE_DOWNLOADS
+from sheet_music_mcp_core.content import error_content, file_link, processing_error_content
+from sheet_music_mcp_core.errors import ProcessingError
+from sheet_music_mcp_core.paths import max_score_bytes
+from sheet_music_mcp_core.references import RETURN_PROPERTY, SCORE_MIME_TYPE, deliver_score
+from sheet_music_mcp_core.scores import read_score_file, score_summary
 from sheet_music_mcp_core.wiring import make_handlers
 import asyncio
 import json
@@ -23,10 +27,15 @@ INSTRUCTIONS = (
     "Converts photos or scans of printed sheet music (PNG or JPEG) to MusicXML. "
     "For choir (SATB, multi-staff) scores use engine='audiveris' with 300+ DPI images; the default "
     "oemer engine merges the staves into one part. recognize_sheets merges several pages into one score. "
-    "First use downloads models (oemer ~100 MB, Audiveris ~80 MB) and a page can take minutes."
+    "First use downloads models (oemer ~100 MB, Audiveris ~80 MB) and a page can take minutes. "
+    "Large results come back as a musicxml_path (a file) plus a short score_summary instead of the "
+    "MusicXML text; pass that path on to other servers' tools as their musicxml_path parameter "
+    "rather than copying the score."
 )
 
-MUSICXML_MIME_TYPE = "application/vnd.recordare.musicxml+xml"
+MUSICXML_MIME_TYPE = SCORE_MIME_TYPE
+# File name stem of scores that recognize_sheet / recognize_sheets write in 'path' mode.
+RECOGNIZED_STEM = "recognized"
 
 
 async def list_tools():
@@ -34,8 +43,15 @@ async def list_tools():
         Tool(
             name="recognize_sheet",
             title="Recognize sheet music",
-            annotations=ToolAnnotations(**READ_ONLY_DOWNLOADS),
-            description="Recognize music notation from an image and return MusicXML",
+            annotations=ToolAnnotations(**WRITES_FILE_DOWNLOADS),
+            description=(
+                "Recognize music notation from an image and return MusicXML. Small scores come back "
+                "inline as 'musicxml'; large ones (return='auto', the default) are written to a file "
+                "and come back as 'musicxml_path' plus a short 'score_summary' (title, parts with IDs "
+                "and ranges, measures, key, time, tempo). Pass that path to other tools as "
+                "musicxml_path. Use return='inline' to always get the text, return='path' to always "
+                "get a file."
+            ),
             input_schema={
                 "type": "object",
                 "properties": {
@@ -58,7 +74,8 @@ async def list_tools():
                             "flattens them into one part or fails outright — but requires 300+ DPI "
                             "source images and downloads a much larger (~80 MB) engine on first use."
                         )
-                    }
+                    },
+                    **RETURN_PROPERTY,
                 },
                 "required": ["image"]
             }
@@ -67,7 +84,11 @@ async def list_tools():
             name="recognize_sheet_to_file",
             title="Recognize sheet music to file",
             annotations=ToolAnnotations(**WRITES_FILE_DOWNLOADS),
-            description="Process sheet music image and save MusicXML result to filesystem",
+            description=(
+                "Process sheet music image and save MusicXML result to filesystem. Returns the "
+                "output_path (pass it to other tools as musicxml_path) and a short score_summary "
+                "of the written score."
+            ),
             input_schema={
                 "type": "object",
                 "properties": {
@@ -91,8 +112,13 @@ async def list_tools():
         Tool(
             name="recognize_sheets",
             title="Recognize multi-page sheet music",
-            annotations=ToolAnnotations(**READ_ONLY_DOWNLOADS),
-            description="Process multiple pages of sheet music in order and return a single merged MusicXML",
+            annotations=ToolAnnotations(**WRITES_FILE_DOWNLOADS),
+            description=(
+                "Process multiple pages of sheet music in order and return a single merged MusicXML. "
+                "Like recognize_sheet, a large merged score (return='auto', the default) comes back "
+                "as 'musicxml_path' plus a 'score_summary' instead of inline 'musicxml'; pass that "
+                "path to other tools as musicxml_path. return='inline' or 'path' forces either form."
+            ),
             input_schema={
                 "type": "object",
                 "properties": {
@@ -105,7 +131,8 @@ async def list_tools():
                         "type": "string",
                         "enum": ["oemer", "audiveris"],
                         "description": "OMR backend to use — see recognize_sheet's 'engine' parameter."
-                    }
+                    },
+                    **RETURN_PROPERTY,
                 },
                 "required": ["images"]
             }
@@ -158,6 +185,25 @@ def _detect_input_format(image: str, format_hint: str | None) -> str:
         return "base64"
     return "path"
 
+def _deliver_recognized(result: dict, mode) -> list:
+    """A recognize_sheet(s) result as content: the engine's error dicts as before, successes
+    inline or as a musicxml_path + score_summary (docs/conventions.md, Score References).
+    Raises ProcessingError for an unknown mode."""
+    if "error" in result:
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+    return deliver_score(result, field="musicxml", mode=mode, stem=RECOGNIZED_STEM)
+
+
+def _written_score_summary(path) -> dict | None:
+    """The score_summary of a MusicXML file the engine wrote; None if it can't be read or parsed."""
+    if not path:
+        return None
+    try:
+        return score_summary(read_score_file(path, max_bytes=max_score_bytes()))
+    except (ProcessingError, OSError):
+        return None
+
+
 async def _run_with_progress(fn, *args, ctx=None, message_prefix: str, interval_seconds: float = 5.0, **kwargs):
     """Run a blocking, long-running engine call off the event loop, emitting periodic MCP
     progress notifications when the client supplied a progress token (PLAN.md Phase 2). oemer
@@ -208,7 +254,9 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             result = await _run_with_progress(
                 recognize_image, image_path, engine=engine, ctx=ctx, message_prefix="Running OMR recognition"
             )
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+            return _deliver_recognized(result, arguments.get("return"))
+        except ProcessingError as e:
+            return processing_error_content(e)
         except Exception as e:
             logger.error(f"Error processing image: {str(e)}")
             return error_content(f"Failed to process image: {str(e)}", "PROCESSING_FAILED")
@@ -229,9 +277,11 @@ async def call_tool(name: str, arguments: dict, ctx=None):
                 ctx=ctx,
                 message_prefix="Running OMR recognition",
             )
-            content = [TextContent(type="text", text=json.dumps(result, indent=2))]
             # docs/conventions.md, Result Content. The engine returns (not raises) error dicts.
             written = result.get("output_path") if "error" not in result else None
+            if "error" not in result:
+                result = {**result, "score_summary": _written_score_summary(written)}
+            content = [TextContent(type="text", text=json.dumps(result, indent=2))]
             if written and os.path.isfile(written):
                 content.append(file_link(written, MUSICXML_MIME_TYPE))
             return content
@@ -272,7 +322,9 @@ async def call_tool(name: str, arguments: dict, ctx=None):
                 ctx=ctx,
                 message_prefix=f"Running OMR recognition on {len(resolved_paths)} page(s)",
             )
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+            return _deliver_recognized(result, arguments.get("return"))
+        except ProcessingError as e:
+            return processing_error_content(e)
         except Exception as e:
             logger.error(f"Error processing images: {str(e)}")
             return error_content(f"Failed to process images: {str(e)}", "PROCESSING_FAILED")

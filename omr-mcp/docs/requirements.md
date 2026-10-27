@@ -21,6 +21,7 @@ The server MUST accept a single sheet music image and return a valid MusicXML st
 ### FR-2 — Save result to file
 
 The server MUST accept an output file path and write the MusicXML to disk, returning the written path.
+The result also carries a `score_summary` of the written file (FR-7).
 
 ### FR-3 — Multi-page recognition
 
@@ -87,6 +88,23 @@ The server MUST reject input that fails the following checks and return a descri
 
 ---
 
+### FR-7 — Score references (UX Wave 2)
+
+`recognize_sheet` and `recognize_sheets` MUST accept `return: "auto" | "path" | "inline"` (default
+`auto`) and deliver the score through `sheet_music_mcp_core.references.deliver_score`
+([conventions: Score References](../../docs/conventions.md#score-references)):
+
+- `inline`: `musicxml` holds the text, byte-identical to the pre-Wave-2 result.
+- `path`: the score is written to `<SHEET_MUSIC_OUTPUT_ROOT>/scores/recognized-<timestamp>.musicxml`;
+  in the JSON `musicxml` is replaced by `musicxml_path` and a `score_summary` is added, and a
+  `ResourceLink` to the file follows.
+- `auto`: `inline` up to `SHEET_MUSIC_INLINE_MAX_BYTES` (default 8192 bytes of UTF-8), else `path`.
+
+Error results (the engine returns error dicts) are returned inline unchanged in every mode. Because
+both tools may write a file, they use the `WRITES_FILE_DOWNLOADS` annotation preset (plan decision
+W2-5). The server takes no score input, so it has no `musicxml_path` parameters and no
+`describe_score` tool.
+
 ## Non-Functional Requirements
 
 ### NFR-1 — Accuracy
@@ -150,9 +168,11 @@ Input:
   image   string  required  file path or base64-encoded image data
   format  string  (optional) "path" or "base64" hint; auto-detected if omitted
   engine  string  (optional) "oemer" (default) or "audiveris" — see FR-6
+  return  string  (optional) "auto" (default), "path" or "inline" — see FR-7
 
 Output:
-  musicxml     string  MusicXML document
+  musicxml       string  MusicXML document (inline results)
+  musicxml_path  string  written MusicXML file, in place of musicxml (path results, FR-7)
   metadata     object
     source              string   original image path
     staves_detected     integer
@@ -160,7 +180,11 @@ Output:
     processing_time_ms  integer
     engine              string   "oemer" | "audiveris"
   warnings     list[string]  optional; only present when non-empty (FR-6a, audiveris only)
+  score_summary  object  path results only: {title, parts: [{id, name, range}], measures, key,
+                         time, tempo_bpm}; null if the score does not parse
 ```
+
+Path results are followed by a `ResourceLink` to the written file.
 
 ### IR-3 — Tool: `recognize_sheet_to_file`
 
@@ -171,9 +195,11 @@ Input:
   engine       string  optional  "oemer" (default) or "audiveris" — see FR-6
 
 Output:
-  output_path  string  path of written file
-  metadata     object  same structure as recognize_sheet
-  warnings     list[string]  optional; as recognize_sheet
+  output_path    string  path of written file
+  metadata       object  same structure as recognize_sheet
+  warnings       list[string]  optional; as recognize_sheet
+  score_summary  object  summary of the written file, as recognize_sheet; null if it cannot be
+                         read or parsed
 ```
 
 On success the JSON text block is followed by a `ResourceLink` to the written file (`file://` URI,
@@ -185,11 +211,13 @@ extra blocks.
 
 ```
 Input:
-  image_paths  list[string]  required  ordered list of image paths
+  images       list[string]  required  ordered list of image paths or base64 images
   engine       string        optional  "oemer" (default) or "audiveris" — see FR-6
+  return       string        optional  "auto" (default), "path" or "inline" — see FR-7
 
 Output:
-  musicxml     string  merged MusicXML document
+  musicxml     string  merged MusicXML document (inline results)
+  musicxml_path, score_summary  path results, as recognize_sheet (FR-7)
   page_count   integer
   metadata     object
   warnings     list[string]  optional; each entry prefixed "Page N: " (FR-6a)
@@ -257,6 +285,7 @@ Unit tests MUST cover:
 - Error response format and error codes
 - `list_capabilities` response schema
 - MusicXML string return path vs file write path
+- `return` modes of the producers and `score_summary` (`tests/test_score_references.py`)
 
 Unit tests MUST mock the oemer engine and MUST NOT perform real OMR.
 

@@ -46,7 +46,13 @@ class TestRecognizeSheetToFile:
 
         result = asyncio.run(srv.call_tool("recognize_sheet_to_file", {"input_path": input_path}))
 
-        expected = fake(input_path, None, "oemer")
+        # The engine result, plus the score_summary of the written file (UX Wave 2).
+        expected = {
+            **fake(input_path, None, "oemer"),
+            "score_summary": {
+                "title": None, "parts": [], "measures": 0, "key": None, "time": None, "tempo_bpm": None,
+            },
+        }
         assert result[0].type == "text"
         assert result[0].text == json.dumps(expected, indent=2)
 

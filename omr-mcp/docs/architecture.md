@@ -79,6 +79,13 @@ Entry point and MCP protocol layer. Contains no business logic.
   offloads it to a worker thread (`asyncio.to_thread`) and — if the client supplied an MCP
   `progressToken` — sends periodic elapsed-time heartbeat notifications until it completes
 - Converts engine results and exceptions into `TextContent` JSON responses
+- Delivers `recognize_sheet` / `recognize_sheets` successes through the core's
+  `references.deliver_score` (`_deliver_recognized`): inline `musicxml`, or for large results
+  (`return="auto"`) and `return="path"` a file under `<SHEET_MUSIC_OUTPUT_ROOT>/scores/` returned as
+  `musicxml_path` + `score_summary` with a `ResourceLink`. The engine's error dicts skip this and
+  stay inline
+- Adds `score_summary` to `recognize_sheet_to_file` results by reading the written file with the
+  core's `scores.read_score_file` + `score_summary` (`_written_score_summary`; `null` on failure)
 - Starts the server with `mcp.server.stdio.stdio_server()`
 
 **Format detection heuristic in `_detect_input_format`:**
@@ -112,6 +119,7 @@ Input validation and helper utilities. No engine logic.
 | `decode_base64_image(data, output_path)` | Decode base64 (strips `data:` prefix), write to temp file, verify with Pillow |
 | `get_image_info(path)` | Return width, height, format, mode, file size via Pillow |
 | `format_file_size(bytes)` | Human-readable string (KB / MB) |
+| `confine_output_path(path, suffixes)` | Re-export of `sheet_music_mcp_core.paths.confine_output_path` (UX Wave 2); the engine uses it for a caller-chosen `output_path` |
 
 ---
 
