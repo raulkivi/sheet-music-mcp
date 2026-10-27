@@ -1,6 +1,7 @@
 # UX improvements: architecture and MCP tool changes
 
-**Status:** Research / proposal. No code has been written.
+**Status:** Research / proposal; decisions recorded in [§9](#9-decisions). No code has been
+written. Next step: [Wave 1 plan](ux-wave1-plan.md).
 **Date:** 2026-10-27
 **Companion to:** [mcp-apps-ux-proposal.md](mcp-apps-ux-proposal.md). That document adds UIs; this
 one changes what sits underneath them: tool contracts, data flow and packaging. Most items help
@@ -18,7 +19,7 @@ one changes what sits underneath them: tool contracts, data flow and packaging. 
 6. [Compatibility and versioning](#6-compatibility-and-versioning)
 7. [Acceptance criteria for the top items (TDD)](#7-acceptance-criteria-for-the-top-items-tdd)
 8. [Roadmap and interplay with MCP Apps](#8-roadmap-and-interplay-with-mcp-apps)
-9. [Questions for the owner](#9-questions-for-the-owner)
+9. [Decisions](#9-decisions)
 
 ---
 
@@ -44,7 +45,7 @@ The ten changes worth doing first, ordered by UX gain per unit of effort:
 | **C23** | **Pitch session idle timeout:** close the microphone automatically. | Privacy: today the mic stays open if `stop_monitoring` is never called. | S | No |
 | **A4** | **MCP Tasks for long jobs:** OMR, long synthesis. | Multi-minute OMR no longer blocks the conversation, and the user can cancel it. | M | No |
 
-Larger bets, each needing an owner decision ([§9](#9-questions-for-the-owner)):
+Larger bets, decided in [§9](#9-decisions):
 
 - **A3:** an optional all-in-one `sheet-music-mcp` distribution (one config entry, and
   cross-server MCP Apps become possible).
@@ -452,13 +453,17 @@ parallel. Wave 1's B3 and B4 also apply to render-mcp and can share its PR.
 
 ---
 
-## 9. Questions for the owner
+## 9. Decisions
 
-1. **A2 shared core library:** accept a shared `sheet-music-mcp-core` dependency, or keep
-   copied code plus a conformance suite?
-2. **A3 all-in-one distribution:** worth adding as a seventh package (likely as the Phase 2
-   backend), or keep strictly six servers?
-3. **C24 consolidation:** OK to deprecate and later remove four comparer tool names?
-4. **A7 platforms:** bring macOS and Windows (and `.mcpb` bundles) into the next setup phase?
-5. **A1 read roots:** is `SHEET_MUSIC_OUTPUT_ROOT` plus MCP roots enough, or do users need a
-   configurable `SHEET_MUSIC_INPUT_ROOTS` (for example `~/Downloads`) from day one?
+Agreed with the project owner on 2026-10-27.
+
+| # | Question | Decision | Consequence |
+|---|---|---|---|
+| E1 | A2: how to share the copied plumbing | **Shared core library** `sheet-music-mcp-core` on PyPI, with no heavy dependencies. | Each server depends on it and still installs alone. Wave 1 bootstraps it ([plan](ux-wave1-plan.md)). |
+| E2 | A3: all-in-one distribution | **Later, as the Phase 2 backend.** Decide after A1 and A2 land. | The six standalone servers stay primary. No near-term work. |
+| E3 | C24: merge the comparer tools | **Merge into `compare_scores`.** The old names stay as deprecated aliases for **one** minor release, then are removed. | Wave 5. |
+| E4 | A1: folders servers may read scores from | **The output root, plus MCP client roots, plus an optional `SHEET_MUSIC_INPUT_ROOTS` setting** from day one. | Wave 2. The policy goes in `core.paths`. |
+| E5 | A7: platforms for the next setup phase | **`.mcpb` bundles** for one-click Claude Desktop install. | ⚠️ Claude Desktop runs only on macOS and Windows, so bundles need at least documented macOS and Windows setup for the system libraries (Cairo, FluidSynth, PortAudio). Full macOS and Windows installers stay out of scope. To be confirmed when Wave 5 is planned. |
+| E6 | C1: when `engine: "auto"` becomes the default | **Opt-in first, the default one minor release later**, with a changelog note. | Wave 4. |
+| E7 | C18: where `describe_score` lives | **In the core library, exposed by every server that takes a score.** | It must parse MusicXML without music21 (stdlib `xml.etree`) so the core stays light. Wave 2, together with the A1 score loader. |
+| E8 | Next step | **Plan Wave 1 test-first** for approval. | [ux-wave1-plan.md](ux-wave1-plan.md) |
