@@ -1,6 +1,7 @@
 # MCP Apps for sheet-music-mcp: tool use cases and proposed UIs
 
-**Status:** Research / proposal. No code has been written.
+**Status:** Research / proposal; decisions recorded in [§10](#10-decisions). No code has been
+written. Next step: [Phase 0 spike plan](mcp-apps-phase0-spike-plan.md).
 **Date:** 2026-10-27
 **Scope:** All 34 tools across the six servers (`omr-mcp`, `render-mcp`, `synth-mcp`,
 `musicxml-abc-mcp`, `pitch-mcp`, `comparer-mcp`).
@@ -28,7 +29,7 @@ Which apps are worth building first?
 7. [Security](#7-security)
 8. [Testing strategy (TDD)](#8-testing-strategy-tdd)
 9. [Roadmap](#9-roadmap)
-10. [Open questions](#10-open-questions)
+10. [Decisions](#10-decisions)
 11. [References](#references)
 
 ---
@@ -269,8 +270,9 @@ fills the context with position snapshots (pain points P2, P4).
 
 - **Start, Pause, Stop** call `start_monitoring` and `stop_monitoring` directly (`tools/call`). No
   model turn is involved.
-- **Polling:** `get_current_position` every 100–200 ms while running. The cursor and meter animate
-  between samples (`requestAnimationFrame`).
+- **Polling:** `get_current_position` at an adaptive 5–10 Hz while running: start at 10 Hz and
+  back off to 5 Hz when round trips are slow (decision [D7](#10-decisions)). The cursor and meter
+  animate between samples (`requestAnimationFrame`).
 - **Picture-in-picture:** `ui/request-display-mode {mode:"pip"}` keeps the meter visible while
   the user chats or scrolls. On `platform: "mobile"` the app starts in fullscreen.
 - **Ask Claude for tips** sends `ui/message` with a short summary ("Tenor m.5–6 consistently
@@ -380,7 +382,9 @@ no per-part gain.
 **Engine changes (small, test first)**
 
 - Optional `part_gains: {part_id: 0.0–2.0}` on `synthesize` for U2 and U5. In `extract_midi`, map
-  each gain to MIDI channel volume (CC7). This is additive and backward compatible.
+  each gain to MIDI channel volume (CC7). This is additive and backward compatible. The UI adds
+  presets on top ("learning track", "karaoke", "all equal") that compute `part_gains`
+  (decision [D3](#10-decisions)).
 - An optional `count_in_bars` integer for metronome clicks (later).
 
 **Delivering the audio (the iframe cannot read `audio_path`)**
@@ -455,7 +459,8 @@ means another prompt per page (P1, P3).
 - Rendered client-side with Verovio WASM from the MusicXML in `tool-input`. Paging, zoom and
   re-flow on `containerDimensions` changes need no tool calls.
 - **Download PDF:** an app-only `get_pdf(pdf_id)` returns base64. The UI builds a Blob download.
-  If the sandbox blocks downloads, it falls back to `ui/open-link` (see [Open questions](#10-open-questions)).
+  If the sandbox blocks downloads, the app shows where the PDF was saved and offers a button that
+  asks the model to help open or share it (decision [D6](#10-decisions)).
 - **Highlight voice:** client-side CSS on Verovio's per-staff SVG groups.
 - `render_to_image` keeps returning the PNG and also adds it as an `ImageContent` block, so
   text-only hosts that show images get a preview as well.
@@ -756,7 +761,7 @@ ui/                                   # NEW - TypeScript workspace (pnpm or npm)
 
 <server>/src/<pkg>/ui/
   __init__.py                         # UiRegistry (see 6.4)
-  assets/<app>.html                   # built artifact, committed or built in CI
+  assets/<app>.html                   # built in CI (decision D1), gitignored
 ```
 
 - Each app builds to **one self-contained HTML file** with JS, CSS and the Verovio WASM inlined
@@ -905,21 +910,25 @@ Each phase updates the server docs (`HANDOVER.md`, `PLAN.md`, `requirements.md`,
 
 ---
 
-## 10. Open questions
+## 10. Decisions
 
-1. **Committed or CI-built HTML assets?** Committing keeps `uvx <server>` working from source
-   without Node. Building in CI keeps the repo lean but needs a release-time build step.
-   *Leaning:* build in CI and include the files in the sdist and wheel. Commit nothing.
-2. **Bundle size budget.** Is a resource of several MB (Verovio WASM inlined) acceptable in the
-   target hosts, especially on mobile? To be measured in the Phase 0 spike.
-3. **Downloads from the sandbox.** Do target hosts allow Blob downloads (`get_pdf`) from the
-   iframe? If not, use `ui/open-link` or tell the user where the file is.
-4. **Browser mic priority.** Should option B (browser microphone) move into Phase 1, given the
-   Phase 3 Android goal?
-5. **Per-part gain semantics.** Linear 0.0–2.0 on CC7, or dB? Should "my part" be a named
-   preset ("learning track for Alto")?
-6. **Pitch polling rate.** Is 5–10 tool calls per second through the host acceptable for every
-   target host, or do some throttle app-initiated `tools/call`?
+Agreed with the project owner on 2026-10-27. Earlier sections have been updated to match.
+
+| # | Question | Decision | Consequence |
+|---|---|---|---|
+| D1 | How do built HTML assets reach users? | **Built in CI.** The release workflow builds `ui/` and includes each app's HTML in the server's sdist and wheel. Generated HTML is not committed. | Contributors need Node only for UI work. Running a server from a source checkout without a UI build serves text-only tools, and `resources/read` returns a clear error. |
+| D2 | When does pitch tracking use the browser microphone? | **Roadmap phase 3, after the server-mic version.** The Practice Coach ships first with today's server-side capture (option A). Browser capture (option B) and the `AudioSource` refactor follow behind feature detection. | No engine change in Phase 1. |
+| D3 | How does per-voice volume work? | **Linear `part_gains` 0.0–2.0** (mapped to MIDI CC7), **plus presets** in the UI: "learning track for *voice*" (that voice 1.5, others 0.5), "karaoke" (that voice 0, others 1.0), "all equal". | Presets are UI-side only and call `synthesize` with computed `part_gains`. The engine API stays a single parameter. |
+| D4 | Size budget for one app page | **Measure first.** The Phase 0 spike measures size and time to first render on desktop and a mid-range phone. The budget is set from those numbers. | Client-side Verovio stays the working assumption until measured. |
+| D5 | First target hosts | **Claude Desktop / claude.ai and VS Code.** | Manual end-to-end checklists, polling limits and download behaviour are verified in these two first. ChatGPT and mobile follow. |
+| D6 | When a host blocks downloads from the iframe | **Show the saved path, and offer a button that posts a chat message** (`ui/message`) asking the model to help open or share the file. | No `ui/open-link` with `file://` URLs. The download button tries a Blob download first and falls back to this. |
+| D7 | Practice Coach polling rate | **Adaptive 5–10 Hz.** Start at 10 Hz and back off to 5 Hz when the median `get_current_position` round trip exceeds about 80 ms. Animate between samples. | Verified per host in D5. |
+
+**Still open (answered by the Phase 0 spike, not by a decision):**
+
+- Does Verovio apply the comparer's MusicXML `color` attributes? ([§5.4](#54-comparer-mcp-diff-viewer))
+- Do Claude Desktop and VS Code allow Blob downloads from the app iframe? (D6 fallback either way)
+- Actual bundle size and load time (D4).
 
 ---
 
