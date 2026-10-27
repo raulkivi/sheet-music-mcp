@@ -45,8 +45,8 @@ A soundfont (SF2) file is also required. Free options:
 
 ### Quick install
 
-Prefer not to do the above by hand? Run `./install.sh` — it installs `uv`, the system
-`libfluidsynth` package, and a soundfont automatically. See [SETUP.md](SETUP.md) for a
+Prefer not to do the above by hand? Run `./install.sh` — with `uv` already installed, it installs the system
+`libfluidsynth` package and a soundfont automatically. See [SETUP.md](SETUP.md) for a
 non-technical walkthrough, and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if something goes wrong.
 Ready-made client configs (Claude Desktop, Cursor, Windsurf, Continue, Zed) are in
 [`examples/`](examples/).
