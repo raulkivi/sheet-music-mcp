@@ -1,6 +1,6 @@
 # UX Wave 2 plan: score references
 
-**Status:** In progress
+**Status:** Implemented 2026-10-27 (all four steps, see Progress). Release follows §6: publish core 0.2.0 first.
 **Date:** 2026-10-27
 **Parent:** [ux-architecture-and-tool-improvements.md](ux-architecture-and-tool-improvements.md),
 roadmap wave 2 (A1, C5, C25, C18), decisions E4 and E7.
@@ -10,10 +10,10 @@ roadmap wave 2 (A1, C5, C25, C18), decisions E4 and E7.
 
 | Step | Content | Status |
 |---|---|---|
-| 1 | Plan and conventions contract (Score References) | ⏳ |
-| 2 | Core 0.2.0: `paths`, `scores`, `references`; wiring messages for `oneOf` | ⏳ |
-| 3 | Servers adopt score references and `describe_score` (six subagents, one per server) | ⏳ |
-| 4 | Review, relock, docs and status tables | ⏳ |
+| 1 | Plan and conventions contract (Score References) | ✅ `5c71397` |
+| 2 | Core 0.2.0: `paths`, `scores`, `references`; wiring messages for `oneOf` | ✅ `63bcb73` (96 → 268 tests) |
+| 3 | Servers adopt score references and `describe_score` (six subagents, one per server) | ✅ render `cd82fc8`, abc `637971b`, synth `89a320b`, omr `b7f05ba`, pitch `62467cb`, comparer (this commit) |
+| 4 | Review, relock, docs and status tables | ✅ |
 
 ---
 
@@ -203,7 +203,47 @@ been released, so Wave 1 and Wave 2 ship in the same server minors.
 
 ---
 
-## 7. Decisions
+## 7. Outcome and follow-ups
+
+| Server | Unit tests before → after |
+|---|---|
+| core | 96 → 268 |
+| omr | 134 → 164 (+48 skipped) |
+| render | 104 → 147 |
+| synth | 121 → 158 |
+| abc | 105 → 140 |
+| pitch | 192 → 235 (+2 skipped) |
+| comparer | 167 → 239 |
+
+**Behaviour changes for the changelogs** (all intentional, DoD-1):
+
+- `recognize_sheet`, `recognize_sheets`, `abc_to_musicxml` and `export_annotated_musicxml` return a
+  path plus `score_summary` for results over 8 KB by default (W2-1), and use the `WRITES_FILE`
+  presets (W2-5). `recognize_sheet_to_file` adds `score_summary`.
+- `compare_musicxml_files` reads only inside the read roots (W2-2); a wrong suffix is now
+  `INVALID_PARAMETER` instead of `UNSUPPORTED_FORMAT`.
+- A direct `call_tool` with neither score parameter returns `INVALID_PARAMETER` instead of
+  `INVALID_INPUT` (through the protocol the schema already rejected it). Inline `""` is unchanged.
+- `list_capabilities` adds `mxl` to `input_formats` and a new `input_parameters` list.
+
+**Learned while implementing:**
+
+- MCP client roots are reachable only on connections that negotiated protocol 2025-11-25 or
+  earlier. On 2026-07-28 the server has no back channel, so `client_roots` returns `[]` and only
+  the output root and `SHEET_MUSIC_INPUT_ROOTS` apply. mcp 2.x also marks `roots/list` deprecated.
+- `defusedxml` error text can contain an entity's `system_id`, so the core never surfaces it.
+
+**Follow-ups:**
+
+- Confine image and audio inputs with `confine_read_path` (W2-3).
+- The real-audio acceptance test (synth, integration) and the integration suites that need the
+  gitignored `omr-mcp/test_samples/` have not run in this container.
+- Servers have no `docs/HANDOVER.md`, `docs/PLAN.md` or changelog in git; per-server Wave 2 notes
+  are in each server's `CLAUDE.md`, `requirements.md` and `architecture.md`.
+
+---
+
+## 8. Decisions
 
 Agreed with the project owner on 2026-10-27.
 

@@ -5,16 +5,22 @@ import logging
 import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
-from sheet_music_mcp_core.annotations import READ_ONLY
+from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from sheet_music_mcp_core.content import error_content, processing_error_content
 from sheet_music_mcp_core.parts import PartInfo, resolve_parts
+from sheet_music_mcp_core.references import (
+    DESCRIBE_SCORE_TOOL,
+    RETURN_PROPERTY,
+    deliver_score,
+    describe_score_tool,
+)
 from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
 from .annotator import annotate
-from .engine import ProcessingError, compare, compare_files, health_check
+from .engine import ProcessingError, compare, health_check
 from .report import generate_report
-from .utils import validate_musicxml
+from .score_inputs import INPUT_PARAMETERS, load_pair, pair_schema
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -51,7 +57,9 @@ INSTRUCTIONS = (
     "for a 0-1 score, list_changes for targeted questions (one part, a measure range), "
     "generate_comparison_report for a readable summary and export_annotated_musicxml for "
     "color-marked scores to render. compare_musicxml returns the full structured diff, which can "
-    "be large."
+    "be large. Prefer reference_path and target_path over inline reference_xml and target_xml, "
+    "pass on the paths other tools return (export_annotated_musicxml returns paths for large "
+    "scores), and use describe_score to learn part IDs cheaply."
 )
 
 
@@ -62,25 +70,12 @@ async def list_tools():
             title="Compare scores",
             annotations=ToolAnnotations(**READ_ONLY),
             description=(
-                "Full music-aware diff of two MusicXML strings. Returns a structured "
+                "Full music-aware diff of two MusicXML scores, given inline or as file paths. "
+                "Returns a structured "
                 "ComparisonResult with global similarity score, summary statistics, and "
                 "per-part/measure/note detail."
             ),
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "reference_xml": {
-                        "type": "string",
-                        "description": "Reference MusicXML document as a string",
-                    },
-                    "target_xml": {
-                        "type": "string",
-                        "description": "Target MusicXML document as a string, compared against the reference",
-                    },
-                    "options": _OPTIONS_SCHEMA,
-                },
-                "required": ["reference_xml", "target_xml"],
-            },
+            input_schema=pair_schema({"options": _OPTIONS_SCHEMA}),
         ),
         Tool(
             name="compare_musicxml_files",
@@ -89,7 +84,8 @@ async def list_tools():
             description=(
                 "Full music-aware diff of two MusicXML files on disk (.musicxml, .xml, or "
                 "compressed .mxl). Returns the same structured ComparisonResult as "
-                "compare_musicxml."
+                "compare_musicxml. Files must be inside the allowed folders (the output folder, "
+                "the client's roots or SHEET_MUSIC_INPUT_ROOTS)."
             ),
             input_schema={
                 "type": "object",
@@ -115,20 +111,7 @@ async def list_tools():
                 "Fast similarity check between two MusicXML strings: returns only the "
                 "0.0-1.0 similarity score and summary statistics, without per-note detail."
             ),
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "reference_xml": {
-                        "type": "string",
-                        "description": "Reference MusicXML document as a string",
-                    },
-                    "target_xml": {
-                        "type": "string",
-                        "description": "Target MusicXML document as a string, compared against the reference",
-                    },
-                },
-                "required": ["reference_xml", "target_xml"],
-            },
+            input_schema=pair_schema(),
         ),
         Tool(
             name="list_changes",
@@ -139,17 +122,8 @@ async def list_tools():
                 "MusicXML strings, optionally filtered to one part and/or a measure range. "
                 "Useful for targeted queries like 'what changed in the Alto, measures 17-24?'"
             ),
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "reference_xml": {
-                        "type": "string",
-                        "description": "Reference MusicXML document as a string",
-                    },
-                    "target_xml": {
-                        "type": "string",
-                        "description": "Target MusicXML document as a string, compared against the reference",
-                    },
+            input_schema=pair_schema(
+                {
                     "part": {
                         "type": "string",
                         "description": "Restrict results to this part: a part ID, name or voice (e.g. 'P1', 'Alto', 'A'). Omit for all parts.",
@@ -161,9 +135,8 @@ async def list_tools():
                         "maxItems": 2,
                         "description": "[start, end] measure numbers, inclusive. Omit for all measures.",
                     },
-                },
-                "required": ["reference_xml", "target_xml"],
-            },
+                }
+            ),
         ),
         Tool(
             name="generate_comparison_report",
@@ -175,50 +148,24 @@ async def list_tools():
                 "and note-level differences grouped into measure-range summaries (e.g. "
                 "'transposed by 3 semitones in measures 17-24')."
             ),
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "reference_xml": {
-                        "type": "string",
-                        "description": "Reference MusicXML document as a string",
-                    },
-                    "target_xml": {
-                        "type": "string",
-                        "description": "Target MusicXML document as a string, compared against the reference",
-                    },
-                    "options": _OPTIONS_SCHEMA,
-                },
-                "required": ["reference_xml", "target_xml"],
-            },
+            input_schema=pair_schema({"options": _OPTIONS_SCHEMA}),
         ),
         Tool(
             name="export_annotated_musicxml",
             title="Export color-annotated diff",
-            annotations=ToolAnnotations(**READ_ONLY),
+            annotations=ToolAnnotations(**WRITES_FILE),
             description=(
                 "Export both scores as MusicXML with per-note color annotations marking "
                 "the diff (pitch changes, duration changes, substitutions, insertions, "
-                "deletions). Returns two documents: reference_annotated_musicxml (shows "
-                "deletions and pre-change values) and target_annotated_musicxml (shows "
-                "insertions and post-change values). Feed either directly into render-mcp's "
-                "render_to_pdf or render_to_image to visualize the diff — both take a raw "
-                "musicxml string."
+                "deletions): the reference shows deletions and pre-change values, the target "
+                "insertions and post-change values. Small results come back inline as "
+                "reference_annotated_musicxml and target_annotated_musicxml; large ones "
+                "(return: 'auto', the default) are written to files and returned as "
+                "reference_annotated_musicxml_path and target_annotated_musicxml_path plus a "
+                "score_summary. Feed the returned paths to render-mcp's render_to_pdf or "
+                "render_to_image as musicxml_path to visualize the diff."
             ),
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "reference_xml": {
-                        "type": "string",
-                        "description": "Reference MusicXML document as a string",
-                    },
-                    "target_xml": {
-                        "type": "string",
-                        "description": "Target MusicXML document as a string, compared against the reference",
-                    },
-                    "options": _OPTIONS_SCHEMA,
-                },
-                "required": ["reference_xml", "target_xml"],
-            },
+            input_schema=pair_schema({"options": _OPTIONS_SCHEMA, **RETURN_PROPERTY}),
         ),
         Tool(
             name="list_capabilities",
@@ -246,6 +193,7 @@ async def list_tools():
                 "required": [],
             },
         ),
+        DESCRIBE_SCORE_TOOL,
     ]
 
 
@@ -273,18 +221,14 @@ def _filter_changes(result, part, measure_range) -> list[dict]:
     return changes
 
 
-async def call_tool(name: str, arguments: dict):
+async def call_tool(name: str, arguments: dict, ctx=None):
     if name == "compare_musicxml":
-        reference_xml = arguments.get("reference_xml", "")
-        target_xml = arguments.get("target_xml", "")
         options = arguments.get("options")
 
-        ok, err = validate_musicxml(reference_xml)
-        if not ok:
-            return error_content(f"reference_xml: {err}", "INVALID_INPUT")
-        ok, err = validate_musicxml(target_xml)
-        if not ok:
-            return error_content(f"target_xml: {err}", "INVALID_INPUT")
+        try:
+            reference_xml, target_xml = await load_pair(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
 
         try:
             result = compare(reference_xml, target_xml, options)
@@ -306,7 +250,10 @@ async def call_tool(name: str, arguments: dict):
             return error_content("target_path is required.", "INVALID_PARAMETER")
 
         try:
-            result = compare_files(reference_path, target_path, options)
+            # Same read policy as every score path (plan decision W2-2), then the text engine:
+            # compare_files() gives the same result for the same content (.mxl included).
+            reference_xml, target_xml = await load_pair(arguments, ctx)
+            result = compare(reference_xml, target_xml, options)
             return [TextContent(type="text", text=json.dumps(result.to_dict(), indent=2))]
         except ProcessingError as e:
             return processing_error_content(e)
@@ -315,15 +262,11 @@ async def call_tool(name: str, arguments: dict):
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "quick_similarity":
-        reference_xml = arguments.get("reference_xml", "")
-        target_xml = arguments.get("target_xml", "")
 
-        ok, err = validate_musicxml(reference_xml)
-        if not ok:
-            return error_content(f"reference_xml: {err}", "INVALID_INPUT")
-        ok, err = validate_musicxml(target_xml)
-        if not ok:
-            return error_content(f"target_xml: {err}", "INVALID_INPUT")
+        try:
+            reference_xml, target_xml = await load_pair(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
 
         try:
             result = compare(reference_xml, target_xml)
@@ -339,17 +282,13 @@ async def call_tool(name: str, arguments: dict):
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "list_changes":
-        reference_xml = arguments.get("reference_xml", "")
-        target_xml = arguments.get("target_xml", "")
         part = arguments.get("part")
         measure_range = arguments.get("measure_range")
 
-        ok, err = validate_musicxml(reference_xml)
-        if not ok:
-            return error_content(f"reference_xml: {err}", "INVALID_INPUT")
-        ok, err = validate_musicxml(target_xml)
-        if not ok:
-            return error_content(f"target_xml: {err}", "INVALID_INPUT")
+        try:
+            reference_xml, target_xml = await load_pair(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
 
         if measure_range is not None:
             if (
@@ -375,16 +314,12 @@ async def call_tool(name: str, arguments: dict):
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "generate_comparison_report":
-        reference_xml = arguments.get("reference_xml", "")
-        target_xml = arguments.get("target_xml", "")
         options = arguments.get("options")
 
-        ok, err = validate_musicxml(reference_xml)
-        if not ok:
-            return error_content(f"reference_xml: {err}", "INVALID_INPUT")
-        ok, err = validate_musicxml(target_xml)
-        if not ok:
-            return error_content(f"target_xml: {err}", "INVALID_INPUT")
+        try:
+            reference_xml, target_xml = await load_pair(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
 
         try:
             result = compare(reference_xml, target_xml, options)
@@ -397,20 +332,21 @@ async def call_tool(name: str, arguments: dict):
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "export_annotated_musicxml":
-        reference_xml = arguments.get("reference_xml", "")
-        target_xml = arguments.get("target_xml", "")
         options = arguments.get("options")
 
-        ok, err = validate_musicxml(reference_xml)
-        if not ok:
-            return error_content(f"reference_xml: {err}", "INVALID_INPUT")
-        ok, err = validate_musicxml(target_xml)
-        if not ok:
-            return error_content(f"target_xml: {err}", "INVALID_INPUT")
+        try:
+            reference_xml, target_xml = await load_pair(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
 
         try:
             payload = annotate(reference_xml, target_xml, options)
-            return [TextContent(type="text", text=json.dumps(payload, indent=2))]
+            return deliver_score(
+                payload,
+                field=("reference_annotated_musicxml", "target_annotated_musicxml"),
+                mode=arguments.get("return"),
+                stem="annotated",
+            )
         except ProcessingError as e:
             return processing_error_content(e)
         except Exception as e:
@@ -428,7 +364,8 @@ async def call_tool(name: str, arguments: dict):
         result = {
             "server": "comparer-mcp",
             "version": __version__,
-            "input_formats": ["musicxml"],
+            "input_formats": ["musicxml", "mxl"],
+            "input_parameters": INPUT_PARAMETERS,
             "output_formats": ["json"],
             "tools": [
                 "compare_musicxml",
@@ -439,11 +376,18 @@ async def call_tool(name: str, arguments: dict):
                 "export_annotated_musicxml",
                 "list_capabilities",
                 "health_check",
+                "describe_score",
             ],
             "backend": "music21",
             "backend_version": backend_version,
         }
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+    elif name == "describe_score":
+        try:
+            return await describe_score_tool(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
 
     elif name == "health_check":
         try:
@@ -456,7 +400,7 @@ async def call_tool(name: str, arguments: dict):
     raise ValueError(f"Unknown tool: {name}")
 
 
-_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, pass_context=True, logger=logger)
 
 app = Server(
     "comparer-mcp",
@@ -481,7 +425,7 @@ def main():
     logger.info(
         "comparer-mcp ready. Tools: compare_musicxml, compare_musicxml_files, "
         "quick_similarity, list_changes, generate_comparison_report, "
-        "export_annotated_musicxml, list_capabilities, health_check"
+        "export_annotated_musicxml, list_capabilities, health_check, describe_score"
     )
 
     async def _run():

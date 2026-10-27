@@ -26,7 +26,14 @@ _TOOL_NAMES = {
     "export_annotated_musicxml",
     "list_capabilities",
     "health_check",
+    "describe_score",
 }
+
+# Each side is given inline or by path (docs/conventions.md, Score References).
+_PAIR_ONE_OF = [
+    {"oneOf": [{"required": ["reference_xml"]}, {"required": ["reference_path"]}]},
+    {"oneOf": [{"required": ["target_xml"]}, {"required": ["target_path"]}]},
+]
 
 
 def _score_xml(parts: dict) -> str:
@@ -54,7 +61,7 @@ TARGET_XML = _score_xml(
 
 
 class TestListTools:
-    async def test_returns_eight_tools(self):
+    async def test_returns_nine_tools(self):
         tools = await list_tools()
         names = {t.name for t in tools}
         assert names == _TOOL_NAMES
@@ -63,9 +70,10 @@ class TestListTools:
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "compare_musicxml")
         schema = tool.input_schema
-        assert set(schema["required"]) == {"reference_xml", "target_xml"}
+        assert schema["allOf"] == _PAIR_ONE_OF
+        assert "required" not in schema
         assert "options" in schema["properties"]
-        assert "options" not in schema["required"]
+        assert "options" not in schema.get("required", [])
 
     async def test_compare_musicxml_files_schema(self):
         tools = await list_tools()
@@ -77,30 +85,34 @@ class TestListTools:
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "quick_similarity")
         schema = tool.input_schema
-        assert set(schema["required"]) == {"reference_xml", "target_xml"}
+        assert schema["allOf"] == _PAIR_ONE_OF
+        assert "required" not in schema
 
     async def test_list_changes_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "list_changes")
         schema = tool.input_schema
-        assert set(schema["required"]) == {"reference_xml", "target_xml"}
+        assert schema["allOf"] == _PAIR_ONE_OF
+        assert "required" not in schema
         assert "part" in schema["properties"]
         assert "measure_range" in schema["properties"]
-        assert "part" not in schema["required"]
-        assert "measure_range" not in schema["required"]
+        assert "part" not in schema.get("required", [])
+        assert "measure_range" not in schema.get("required", [])
 
     async def test_generate_comparison_report_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "generate_comparison_report")
         schema = tool.input_schema
-        assert set(schema["required"]) == {"reference_xml", "target_xml"}
+        assert schema["allOf"] == _PAIR_ONE_OF
+        assert "required" not in schema
         assert "options" in schema["properties"]
 
     async def test_export_annotated_musicxml_schema(self):
         tools = await list_tools()
         tool = next(t for t in tools if t.name == "export_annotated_musicxml")
         schema = tool.input_schema
-        assert set(schema["required"]) == {"reference_xml", "target_xml"}
+        assert schema["allOf"] == _PAIR_ONE_OF
+        assert "required" not in schema
         assert "options" in schema["properties"]
 
     async def test_list_capabilities_schema(self):
@@ -119,7 +131,7 @@ class TestCallToolListCapabilities:
         result = await call_tool("list_capabilities", {})
         payload = json.loads(result[0].text)
         assert payload["server"] == "comparer-mcp"
-        assert payload["input_formats"] == ["musicxml"]
+        assert payload["input_formats"] == ["musicxml", "mxl"]
         assert payload["output_formats"] == ["json"]
         assert set(payload["tools"]) == _TOOL_NAMES
         assert payload["backend"] == "music21"
@@ -170,6 +182,14 @@ class TestCallToolCompareMusicxml:
 
 
 class TestCallToolCompareMusicxmlFiles:
+    """Files are read through the shared read policy (plan decision W2-2), so the tmp dir is made
+    the output root."""
+
+    @pytest.fixture(autouse=True)
+    def _root(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("SHEET_MUSIC_OUTPUT_ROOT", str(tmp_path))
+        monkeypatch.delenv("SHEET_MUSIC_INPUT_ROOTS", raising=False)
+
     async def test_valid_files(self, tmp_path):
         ref_path = tmp_path / "reference.musicxml"
         tgt_path = tmp_path / "target.musicxml"
@@ -206,7 +226,8 @@ class TestCallToolCompareMusicxmlFiles:
             {"reference_path": str(ref_path), "target_path": str(tgt_path)},
         )
         payload = json.loads(result[0].text)
-        assert payload["error_code"] == "UNSUPPORTED_FORMAT"
+        # The shared read policy rejects a wrong suffix as INVALID_PARAMETER (was UNSUPPORTED_FORMAT).
+        assert payload["error_code"] == "INVALID_PARAMETER"
 
     async def test_missing_path_argument_returns_error(self):
         result = await call_tool(
@@ -374,6 +395,11 @@ class TestUnknownTool:
 @pytest.mark.integration
 class TestIntegrationRealSATBFiles:
     """End-to-end tool calls against real compressed .mxl SATB scores shared with omr-mcp."""
+
+    @pytest.fixture(autouse=True)
+    def _input_roots(self, monkeypatch):
+        # The fixtures live outside the output root; allow their folder (plan decision W2-2).
+        monkeypatch.setenv("SHEET_MUSIC_INPUT_ROOTS", str(_SATB_MXL_DIR))
 
     async def test_compare_musicxml_files_identical(self):
         mxl_files = sorted(_SATB_MXL_DIR.glob("*.mxl"))

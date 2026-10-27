@@ -52,7 +52,7 @@ before writing any code.
 | render-mcp | ✅ Phase 1 + UX complete | 147 unit + 9 integration |
 | musicxml-abc-mcp | ✅ Phase 1 + UX complete | 140 unit + 4 integration |
 | pitch-mcp | ✅ Phase A+B + UX complete (audio-driven position tracking, DTW via dtaidistance) | 235 unit (+2 skipped) + 4 integration |
-| comparer-mcp | ✅ Phase 4 (Advanced features) complete — all originally-scoped phases done | 167 unit + 7 integration |
+| comparer-mcp | ✅ Phase 4 (Advanced features) complete — all originally-scoped phases done | 239 unit + 7 integration |
 
 | sheet-music-mcp-core | ✅ 0.2.0 shared library: Wave 1 helpers plus score references (`paths`, `scores`, `references`). Not yet on PyPI — publish before the next server release | 268 unit |
 

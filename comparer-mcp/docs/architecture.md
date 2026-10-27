@@ -50,8 +50,15 @@ that answers:
 │  list_changes()                 → filtered note diffs      │
 │  generate_comparison_report()   → human-readable report    │
 │  export_annotated_musicxml()    → colored MusicXML diff    │
+│                                   (inline, or paths: core  │
+│                                    deliver_score)          │
+│  describe_score()               → score summary (core)     │
 │  health_check()                 → status                   │
 │  list_capabilities()            → server metadata          │
+│                                                           │
+│  score_inputs.py: reference/target pair schema + loading  │
+│   (inline text, or a path read by core load_score under   │
+│    the shared read policy)                                │
 └──────────────────────────┬────────────────────────────────┘
                            │
 ┌──────────────────────────▼────────────────────────────────┐
@@ -372,6 +379,7 @@ comparer-mcp/
 │   └── comparer_mcp/
 │       ├── __init__.py
 │       ├── server.py            # MCP tool definitions, dispatches to engine
+│       ├── score_inputs.py      # Reference/target pair: schema, load_pair() (inline or path)
 │       ├── engine.py            # ScoreComparator — orchestrates the pipeline
 │       │                        # (NO mcp imports — independently testable)
 │       ├── part_matcher.py      # Part matching logic (name, instrument, range)
@@ -390,6 +398,7 @@ comparer-mcp/
 │   ├── test_measure_comparator.py # Key/time signature + voice matching tests
 │   ├── test_report.py           # generate_comparison_report tests
 │   ├── test_annotator.py        # export_annotated_musicxml tests
+│   ├── test_score_references.py # Path inputs, read policy, return modes, describe_score
 │   └── test_utils.py
 │   # No static tests/fixtures/ directory: unit-test fixtures are built
 │   # programmatically via music21 objects (see docs/PLAN.md "Changed decisions");
@@ -418,14 +427,24 @@ All error responses use `{"error": "...", "error_code": "..."}` per conventions.
 
 | Tool | Input | Output |
 |------|-------|--------|
-| `compare_musicxml` | `reference_xml` (string), `target_xml` (string), optional `options` | Full `ComparisonResult` JSON |
+| `compare_musicxml` | reference, target, optional `options` | Full `ComparisonResult` JSON |
 | `compare_musicxml_files` | `reference_path` (string), `target_path` (string), optional `options` | Full `ComparisonResult` JSON |
-| `quick_similarity` | `reference_xml` (string), `target_xml` (string) | `{ "similarity_score": 0.87, "summary": {...} }` |
-| `list_changes` | `reference_xml`, `target_xml`, optional `part` filter, optional `measure_range` | Filtered list of `NoteDiff` entries (for targeted queries) |
-| `generate_comparison_report` | `reference_xml`, `target_xml`, optional `options` | `{ "report": "...", "similarity_score": 0.87 }` — human-readable summary |
-| `export_annotated_musicxml` | `reference_xml`, `target_xml`, optional `options` | `{ "reference_annotated_musicxml": "...", "target_annotated_musicxml": "...", "similarity_score": ..., "legend": {...} }` |
+| `quick_similarity` | reference, target | `{ "similarity_score": 0.87, "summary": {...} }` |
+| `list_changes` | reference, target, optional `part` filter, optional `measure_range` | Filtered list of `NoteDiff` entries (for targeted queries) |
+| `generate_comparison_report` | reference, target, optional `options` | `{ "report": "...", "similarity_score": 0.87 }` — human-readable summary |
+| `export_annotated_musicxml` | reference, target, optional `options`, `return` (`auto`/`path`/`inline`) | `{ "reference_annotated_musicxml": "...", "target_annotated_musicxml": "...", "similarity_score": ..., "legend": {...} }`; for large scores (or `return: "path"`) the two texts become `*_path` fields plus `score_summary`, with two `ResourceLink`s |
+| `describe_score` | `musicxml` or `musicxml_path` | Shared core tool: title, key, time, tempo, parts (ID, name, clef, range), measures, duration |
 | `health_check` | — | `{ "status": "ok", "music21_version": "..."}` |
 | `list_capabilities` | — | Server metadata per conventions |
+
+"Reference, target" means each score is given inline or by path: `reference_xml` or
+`reference_path`, and `target_xml` or `target_path`, exactly one of each (`allOf` of two
+`oneOf`s, built by `score_inputs.pair_schema()`). `score_inputs.load_pair()` loads both through
+the core's `load_score` (read roots, suffix, size, `.mxl`) and keeps the inline
+`reference_xml: ...` / `target_xml: ...` checks. `compare_musicxml_files` loads its two paths the
+same way and runs the text `compare()`; `engine.compare_files()` gives the same result for the same
+files (checked in `tests/test_score_references.py`) and stays as the engine's unconfined API for
+direct Python use.
 
 ### Options object
 
@@ -523,3 +542,14 @@ Dev dependencies: `pytest`, `pytest-asyncio` (per conventions).
 - [x] Diff export to MusicXML with colored annotations (`annotator.py`, `export_annotated_musicxml`
       tool) — chainable directly into render-mcp's `render_to_pdf`/`render_to_image` for
       visualization, without comparer-mcp calling render-mcp directly (see §2: independent servers)
+
+### UX Wave 2 — Score references — COMPLETE
+
+See [ux-wave2-plan.md](../../docs/research/ux-wave2-plan.md).
+
+- [x] `reference_path` / `target_path` siblings for the five inline-pair tools (`score_inputs.py`)
+- [x] `compare_musicxml_files` reads through the shared read policy (decision W2-2)
+- [x] `export_annotated_musicxml` takes `return` and writes both annotated scores for large results
+      (C25); annotation preset `WRITES_FILE` (decision W2-5)
+- [x] Shared `describe_score` tool (C18); `list_capabilities` lists it, `mxl` and the input parameters
+- [x] `make_handlers(..., pass_context=True)` so `load_score` can ask the client for its roots
