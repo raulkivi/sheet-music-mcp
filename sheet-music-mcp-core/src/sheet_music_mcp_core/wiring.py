@@ -12,19 +12,27 @@ from typing import Awaitable, Callable
 import jsonschema
 from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 ListTools = Callable[[], Awaitable[list[Tool]]]
 CallTool = Callable[..., Awaitable["list | CallToolResult"]]
 
 
-def make_handlers(list_tools: ListTools, call_tool: CallTool, *, pass_context: bool = False):
+def make_handlers(
+    list_tools: ListTools,
+    call_tool: CallTool,
+    *,
+    pass_context: bool = False,
+    logger: logging.Logger | None = None,
+):
     """Return ``(on_list_tools, on_call_tool)`` for ``Server(...)``.
 
     ``call_tool(name, arguments)`` returns a list of content blocks or a full ``CallToolResult``.
     With ``pass_context=True`` it is called as ``call_tool(name, arguments, ctx)``, for tools that
-    need the request context (progress notifications).
+    need the request context (progress notifications). Failures are logged to ``logger``, the
+    server's own logger (docs/conventions.md: logger name = package name).
     """
+    log = logger or _logger
 
     async def on_list_tools(ctx, params) -> ListToolsResult:
         return ListToolsResult(tools=await list_tools())
@@ -43,7 +51,7 @@ def make_handlers(list_tools: ListTools, call_tool: CallTool, *, pass_context: b
             else:
                 result = await call_tool(params.name, arguments)
         except Exception as e:
-            logger.error("Tool %s failed: %s", params.name, e)
+            log.error("Tool %s failed: %s", params.name, e)
             return _error_result(str(e))
         if isinstance(result, CallToolResult):
             return result

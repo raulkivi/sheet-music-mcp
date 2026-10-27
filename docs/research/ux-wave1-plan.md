@@ -60,7 +60,7 @@ sheet-music-mcp-core/                       # new top-level directory; not an MC
     parts.py         # PartInfo, resolve_parts(), resolve_part(), PartSelectionError
     params.py        # aliased(arguments, name, deprecated) -- deprecated parameter names (W1)
     annotations.py   # READ_ONLY, WRITES_FILE, SESSION_STATE, DOWNLOADS presets -> ToolAnnotations kwargs
-    content.py       # error_content(...) -> [TextContent]; image_block(path), file_link(path, mime)
+    content.py       # error_content(...) -> [TextContent]; png_block(path), file_link(path, mime)
     wiring.py        # make_handlers(list_tools, call_tool) -> (on_list_tools, on_call_tool)
   tests/
 ```
@@ -107,16 +107,18 @@ Each requested string is matched in tiers, and the first tier that matches wins:
 
 | Role | Aliases (normalised) |
 |---|---|
-| soprano | `s`, `sop`, `soprano`, `soprani`, `sopran`, `cantus`, `canto` |
+| soprano | `s`, `sop`, `soprano`, `soprani`, `sopran`, `cantus`, `canto`, `tr`, `treble`, `trebles` |
 | alto | `a`, `alt`, `alto`, `alti`, `contralto`, `altus` |
+| countertenor | `ct`, `countertenor`, `counter tenor`, `countertenors`, `contratenor`, `contra tenor` |
 | tenor | `t`, `ten`, `tenor`, `tenori` |
 | bass | `b`, `bas`, `bass`, `bassi`, `basso`, `bassus` |
 | mezzo-soprano | `ms`, `mez`, `mezzo`, `mezzo soprano`, `mezzosoprano` |
 | baritone | `bar`, `bari`, `bariton`, `baritone`, `baritono` |
 
 Latin and Italian forms (W2): `cantus` and `canto` map to soprano, `altus` to alto, `bassus` and
-`basso` to bass. Mezzo-soprano and baritone are roles of their own (W2): `"Alto"` never selects a
-mezzo part and `"Bass"` never selects a baritone part.
+`basso` to bass. Treble is a soprano alias (R5). Mezzo-soprano, baritone (W2) and countertenor
+(R5) are roles of their own: `"Alto"` never selects a mezzo or countertenor part, and `"Bass"`
+never selects a baritone part.
 
 Divisi: `A1`, `Alto 1` and `Alt I` match only `Alto 1`. `Sopran` and `Alt` cover the German and
 Estonian part names common in choir editions.
@@ -130,6 +132,10 @@ Results and errors:
 - No match raises `INVALID_PARAMETER` with `choices: ["Soprano (P1)", "Alto (P2)", …]`. An
   ambiguous match does the same, with the matching parts as `choices`. The `hint` is "Pass one of
   the listed part names or IDs".
+
+**Part IDs** ([review F1](core-library-review.md#f1)): every adopting engine builds its part list
+with `music21_part_infos(score.parts)` and selects parts by position against it, never by music21's
+`part.id`. `get_parts` reports the same IDs.
 
 **Adoption per server**
 

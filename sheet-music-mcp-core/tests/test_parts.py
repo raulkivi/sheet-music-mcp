@@ -3,7 +3,13 @@
 import pytest
 
 from sheet_music_mcp_core.errors import ProcessingError
-from sheet_music_mcp_core.parts import PartInfo, PartSelectionError, resolve_part, resolve_parts
+from sheet_music_mcp_core.parts import (
+    PartInfo,
+    PartSelectionError,
+    music21_part_infos,
+    resolve_part,
+    resolve_parts,
+)
 
 SATB = [
     PartInfo("P1", "Soprano"),
@@ -48,6 +54,19 @@ class TestTier2NameOrId:
         parts = [PartInfo("P1", "Mezzo-soprano")]
 
         assert resolve_part("mezzo soprano", parts) == "P1"
+
+    def test_abbreviation(self):
+        parts = [
+            PartInfo("P1", "Canto", "C."),
+            PartInfo("P2", "Quinto", "Q."),
+            PartInfo("P3", "Basso", "B."),
+        ]
+
+        assert resolve_part("Q", parts) == "P2"
+        assert resolve_part("q.", parts) == "P2"
+
+    def test_abbreviation_defaults_to_empty(self):
+        assert PartInfo("P1", "Soprano").abbreviation == ""
 
     def test_name_beats_role(self):
         parts = [PartInfo("P1", "Alto"), PartInfo("P2", "Alto 1")]
@@ -110,6 +129,25 @@ class TestTier3VoiceRole:
     def test_divisi_request_selects_one_division(self, request_):
         assert resolve_parts([request_], DIVISI) == ["P3"]
 
+    def test_treble_is_soprano(self):
+        parts = [PartInfo("P1", "Treble"), PartInfo("P2", "Alto")]
+
+        assert resolve_parts(["Soprano"], parts) == ["P1"]
+        assert resolve_parts(["Tr"], [PartInfo("P1", "Soprano")]) == ["P1"]
+
+    def test_countertenor_is_its_own_role(self):
+        parts = [
+            PartInfo("P1", "Countertenor"),
+            PartInfo("P2", "Alto"),
+            PartInfo("P3", "Tenor"),
+        ]
+
+        assert resolve_parts(["Alto"], parts) == ["P2"]
+        assert resolve_parts(["Tenor"], parts) == ["P3"]
+        assert resolve_parts(["CT"], parts) == ["P1"]
+        assert resolve_parts(["Contratenor"], parts) == ["P1"]
+        assert resolve_parts(["Counter-tenor"], parts) == ["P1"]
+
     def test_divisi_request_does_not_match_undivided_part(self):
         with pytest.raises(PartSelectionError):
             resolve_parts(["S1"], SATB)
@@ -163,3 +201,76 @@ class TestErrors:
 
 def test_resolve_part_returns_single_id():
     assert resolve_part("Tenor", SATB) == "P3"
+
+
+class _FakeInstrument:
+    def __init__(self, part_id):
+        self.partId = part_id
+
+
+class _FakePart:
+    """The music21 Part attributes the adapter reads."""
+
+    def __init__(self, music21_id, name, part_id, abbreviation=None):
+        self.id = music21_id
+        self.partName = name
+        self.partAbbreviation = abbreviation
+        self._instrument = _FakeInstrument(part_id) if part_id is not None else None
+
+    def getInstrument(self, returnDefault=True):
+        assert returnDefault is False
+        return self._instrument
+
+
+class TestMusic21PartInfos:
+    """music21 replaces part.id with the part name, duplicates it for same-named parts and gives
+    unnamed parts a new integer each parse; the MusicXML score-part id survives as
+    instrument.partId (docs/research/core-library-review.md, F1)."""
+
+    def test_uses_musicxml_part_id_not_music21_id(self):
+        parts = [_FakePart("Soprano", "Soprano", "P1", "S."), _FakePart("Alto", "Alto", "P2", "A.")]
+
+        assert music21_part_infos(parts) == [
+            PartInfo("P1", "Soprano", "S."),
+            PartInfo("P2", "Alto", "A."),
+        ]
+
+    def test_same_named_parts_get_distinct_ids(self):
+        parts = [_FakePart("Tenor", "Tenor", "P3"), _FakePart("Tenor", "Tenor", "P4")]
+
+        infos = music21_part_infos(parts)
+
+        assert [i.id for i in infos] == ["P3", "P4"]
+        assert resolve_part("P4", infos) == "P4"
+
+    def test_unnamed_parts_get_stable_string_ids(self):
+        parts = [_FakePart(140320038121744, None, "P1"), _FakePart(140320019650960, None, "P2")]
+
+        assert music21_part_infos(parts) == [PartInfo("P1", ""), PartInfo("P2", "")]
+
+    def test_missing_instrument_falls_back_to_position(self):
+        parts = [_FakePart(1, None, None), _FakePart(2, "Alto", "")]
+
+        assert [i.id for i in music21_part_infos(parts)] == ["P1", "P2"]
+
+    def test_staves_of_one_part_use_music21_staff_ids(self):
+        # A two-staff piano part becomes two PartStaff objects sharing partId "P3".
+        parts = [
+            _FakePart("P1", "Soprano", "P1"),
+            _FakePart("P3-Staff1", "Piano", "P3"),
+            _FakePart("P3-Staff2", "Piano", "P3"),
+        ]
+
+        assert [i.id for i in music21_part_infos(parts)] == ["P1", "P3-Staff1", "P3-Staff2"]
+
+    def test_duplicate_ids_without_usable_music21_ids_are_numbered(self):
+        parts = [_FakePart(11, None, "P1"), _FakePart(12, None, "P1")]
+
+        assert [i.id for i in music21_part_infos(parts)] == ["P1-1", "P1-2"]
+
+    def test_ids_are_unique_even_when_a_fallback_collides(self):
+        parts = [_FakePart(1, None, None), _FakePart(2, None, "P1")]
+
+        ids = [i.id for i in music21_part_infos(parts)]
+
+        assert len(set(ids)) == 2

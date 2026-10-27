@@ -149,26 +149,35 @@ never by hand.
 ## Part Selection
 
 Every parameter that names a voice part uses the shared resolver in `sheet_music_mcp_core.parts`.
+
+**Part IDs.** A part's ID is its MusicXML `<score-part id>` (`P1`, `P2`, …), never music21's
+`part.id`. music21 replaces `part.id` with the part name, repeats it for same-named parts, and
+gives unnamed parts a new integer on every parse. Build the part list with
+`music21_part_infos(score.parts)` and select parts **by position** against that list. Staves of one
+multi-staff part (a piano) keep music21's staff IDs (`P3-Staff1`, `P3-Staff2`). Report the same IDs
+from tools that list parts (`get_parts`).
+
 A requested string is matched in tiers, and the first tier that matches wins:
 
 1. **Exact part ID**, case-sensitive (`P2`).
-2. **Part name or ID** after normalising: casefold, strip punctuation, collapse spaces, and turn
-   Roman numerals `I`/`II`/`III`/`IV` into `1`/`2`/`3`/`4`. So `"alto ii"` matches `Alto 2`
-   and `"p2"` matches `P2`.
+2. **Part name, abbreviation or ID** after normalising: casefold, strip punctuation, collapse
+   spaces, and turn Roman numerals `I`/`II`/`III`/`IV` into `1`/`2`/`3`/`4`. So `"alto ii"`
+   matches `Alto 2`, `"q"` matches a part abbreviated `Q.` and `"p2"` matches `P2`.
 3. **Voice role**, from the alias table below. A role matches every part whose normalised name is
    one of the role's aliases, optionally followed by a divisi number.
 
 | Role | Aliases (normalised) |
 |------|----------------------|
-| soprano | `s`, `sop`, `soprano`, `soprani`, `sopran`, `cantus`, `canto` |
+| soprano | `s`, `sop`, `soprano`, `soprani`, `sopran`, `cantus`, `canto`, `tr`, `treble`, `trebles` |
 | mezzo-soprano | `ms`, `mez`, `mezzo`, `mezzo soprano`, `mezzosoprano` |
 | alto | `a`, `alt`, `alto`, `alti`, `contralto`, `altus` |
+| countertenor | `ct`, `countertenor`, `counter tenor`, `countertenors`, `contratenor`, `contra tenor` |
 | tenor | `t`, `ten`, `tenor`, `tenori` |
 | baritone | `bar`, `bari`, `bariton`, `baritone`, `baritono` |
 | bass | `b`, `bas`, `bass`, `bassi`, `basso`, `bassus` |
 
-- Mezzo-soprano and baritone are roles of their own: `"Alto"` never selects a mezzo part, and
-  `"Bass"` never selects a baritone part.
+- Mezzo-soprano, countertenor and baritone are roles of their own: `"Alto"` never selects a mezzo
+  or countertenor part, and `"Bass"` never selects a baritone part. Treble is a soprano alias.
 - A divisi request (`A1`, `Alto 1`, `Alt I`) matches only that division. A role without a
   number (`Alto`) matches every division (`Alto 1`, `Alto 2`).
 - Tools that take several parts call `resolve_parts` and get the IDs in request order, without
@@ -229,7 +238,7 @@ before using it.
 - A tool that writes a file appends a `ResourceLink` with a `file://` URI and the file's MIME type,
   using `sheet_music_mcp_core.content.file_link`.
 - A tool that writes a PNG appends an `ImageContent` block when the file is at most 1 MB, using
-  `sheet_music_mcp_core.content.image_block`. SVG gets no image block.
+  `sheet_music_mcp_core.content.png_block`. SVG gets no image block.
 
 ---
 
@@ -250,11 +259,11 @@ code every server needs, so it is written and tested once.
 | Module | Purpose | Imports `mcp`? |
 |--------|---------|----------------|
 | `errors` | `ProcessingError` (with optional `hint` and `choices`), `error_payload()` dict | no |
-| `parts` | `PartInfo`, `resolve_parts()`, `resolve_part()`, `PartSelectionError` | no |
+| `parts` | `PartInfo`, `music21_part_infos()`, `resolve_parts()`, `resolve_part()`, `PartSelectionError` (music21 objects are duck-typed, not imported) | no |
 | `params` | `aliased()` for deprecated parameter names | no |
 | `annotations` | Annotation presets | no |
-| `content` | `error_content()`, `file_link()`, `image_block()` | yes |
-| `wiring` | `make_handlers()`: input-schema validation and error results for `Server(...)` | yes |
+| `content` | `error_content()`, `file_link()`, `png_block()` | yes |
+| `wiring` | `make_handlers()`: input-schema validation and error results for `Server(...)`; pass the server's own `logger=` | yes |
 
 - Engines may import only the modules without `mcp`. This keeps `engine.py` free of MCP imports.
 - Servers depend on `sheet-music-mcp-core>=X.Y,<X.(Y+1)` while the core is 0.x. For development,

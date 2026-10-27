@@ -37,7 +37,7 @@ def file_link(path: str, mime_type: str) -> ResourceLink:
     )
 
 
-def image_block(path: str, *, max_bytes: int = IMAGE_MAX_BYTES) -> ImageContent | None:
+def png_block(path: str, *, max_bytes: int = IMAGE_MAX_BYTES) -> ImageContent | None:
     """The PNG at ``path`` as an inline image, or None if it is larger than ``max_bytes``."""
     data = Path(path).read_bytes()
     if len(data) > max_bytes:

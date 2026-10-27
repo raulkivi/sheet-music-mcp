@@ -2,6 +2,7 @@
 low-level handlers no longer provide themselves (CLAUDE.md, MCP stdio pattern)."""
 
 import asyncio
+import logging
 
 from mcp import Client
 from mcp.server import Server
@@ -102,3 +103,25 @@ def test_passes_request_context_when_asked():
 
     assert seen["ctx"] is not None
     assert seen["ctx"].request_id is not None
+
+
+def test_logs_failures_under_the_given_logger(caplog):
+    caplog.set_level(logging.ERROR)
+
+    _with_client(
+        _server(logger=logging.getLogger("render_mcp.server")),
+        lambda c: c.call_tool("echo", {"word": "boom"}),
+    )
+
+    [record] = [r for r in caplog.records if "failed" in r.getMessage()]
+    assert record.name == "render_mcp.server"
+    assert "echo" in record.getMessage()
+
+
+def test_logs_under_the_core_logger_by_default(caplog):
+    caplog.set_level(logging.ERROR)
+
+    _with_client(_server(), lambda c: c.call_tool("echo", {"word": "boom"}))
+
+    [record] = [r for r in caplog.records if "failed" in r.getMessage()]
+    assert record.name == "sheet_music_mcp_core.wiring"

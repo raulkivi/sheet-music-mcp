@@ -3,7 +3,7 @@
 import base64
 import json
 
-from sheet_music_mcp_core.content import error_content, file_link, image_block
+from sheet_music_mcp_core.content import error_content, file_link, png_block
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 
@@ -49,12 +49,12 @@ class TestFileLink:
         assert str(link.uri) == (tmp_path / "a.wav").resolve().as_uri()
 
 
-class TestImageBlock:
+class TestPngBlock:
     def test_png_becomes_base64_image(self, tmp_path):
         path = tmp_path / "page.png"
         path.write_bytes(PNG_BYTES)
 
-        block = image_block(str(path))
+        block = png_block(str(path))
 
         assert block.type == "image"
         assert block.mime_type == "image/png"
@@ -64,16 +64,16 @@ class TestImageBlock:
         path = tmp_path / "page.png"
         path.write_bytes(PNG_BYTES)
 
-        assert image_block(str(path), max_bytes=len(PNG_BYTES) - 1) is None
+        assert png_block(str(path), max_bytes=len(PNG_BYTES) - 1) is None
 
     def test_exactly_at_limit_is_included(self, tmp_path):
         path = tmp_path / "page.png"
         path.write_bytes(PNG_BYTES)
 
-        assert image_block(str(path), max_bytes=len(PNG_BYTES)) is not None
+        assert png_block(str(path), max_bytes=len(PNG_BYTES)) is not None
 
     def test_default_limit_is_one_megabyte(self, tmp_path):
         path = tmp_path / "big.png"
         path.write_bytes(b"\x00" * (1024 * 1024 + 1))
 
-        assert image_block(str(path)) is None
+        assert png_block(str(path)) is None

@@ -1,6 +1,6 @@
 # sheet-music-mcp-core 0.1.0: review guide and findings
 
-**Status:** For owner review before any server depends on the library.
+**Status:** Reviewed. All findings accepted and fixed ([§6](#6-decisions-and-outcome)). §2 describes the API as reviewed; §7 lists what changed.
 **Date:** 2026-10-27
 **Commit under review:** `46921a0` ("Add sheet-music-mcp-core shared library")
 **Plan:** [ux-wave1-plan.md](ux-wave1-plan.md) §3, step 2
@@ -215,12 +215,37 @@ Treble would map to soprano. Countertenor could be its own role or map to alto. 
 
 ---
 
-## 6. Decisions needed
+## 6. Decisions and outcome
 
-| # | Question | Recommendation |
+Owner decisions on 2026-10-27. All were implemented test-first: the new tests failed before the
+change, and 91 tests pass after it.
+
+| # | Decision | Outcome |
 |---|---|---|
-| R1 | Fix F1 in the core (`music21_part_infos`) and make servers select parts by position? | **Yes.** Without it, unnamed and same-named parts stay broken whatever the resolver does. |
-| R2 | F3: match part abbreviations? | Yes. It is small. |
-| R3 | F4: `logger=` parameter on `make_handlers`? | Yes. |
-| R4 | F5: rename `image_block` to `png_block`? | Yes, while nothing uses it yet. |
-| R5 | F6: add Treble, and Countertenor (own role or alto)? | Add Treble as soprano and Countertenor as its own role. |
+| R1 | Fix F1 in the core | `parts.music21_part_infos(parts)` builds a `PartInfo` per music21 part from `instrument.partId`. It falls back to `P<position>`, keeps music21 staff IDs for multi-staff parts (`P3-Staff1`), and numbers any remaining duplicates. It is duck-typed, so the core still never imports music21. The conventions now require engines to select parts by position against this list. |
+| R2 | Match abbreviations | `PartInfo.abbreviation` (default `""`) is matched in tier 2: `"Q"` finds Quinto. |
+| R3 | `logger=` on `make_handlers` | Failures are logged under the server's logger when one is given, otherwise under `sheet_music_mcp_core.wiring`. |
+| R4 | Rename | `image_block` is now `png_block`. |
+| R5 | Voice aliases | `tr`, `treble` and `trebles` map to soprano. Countertenor is its own role (`ct`, `countertenor`, `counter tenor`, `contratenor`, …). |
+
+**Checked against real music21 10.5 parses:**
+
+- Named, same-named and unnamed parts get the same IDs on every parse (`P1`/`P2`, `P3`/`P4`).
+- `"P1"` resolves on a named SATB score.
+- The Palestrina tenors resolve to two distinct IDs.
+- The Schumann piano staves become `P3-Staff1` and `P3-Staff2`.
+- Monteverdi `"Q"` finds Quinto.
+
+## 7. Changes since the reviewed commit
+
+```python
+@dataclass(frozen=True)
+class PartInfo:
+    id: str
+    name: str
+    abbreviation: str = ""                       # new (R2)
+
+music21_part_infos(parts) -> list[PartInfo]      # new (R1)
+png_block(path, *, max_bytes=1_048_576)          # renamed from image_block (R4)
+make_handlers(list_tools, call_tool, *, pass_context=False, logger=None)   # logger new (R3)
+```
