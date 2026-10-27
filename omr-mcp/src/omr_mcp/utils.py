@@ -1,11 +1,13 @@
 """Utility functions for OMR MCP server."""
 
-import os
 import base64
 from pathlib import Path
 from typing import NamedTuple, Optional, Tuple
 from PIL import Image
 import logging
+
+# Moved to the shared core in UX Wave 2; re-exported so existing imports keep working.
+from sheet_music_mcp_core.paths import confine_output_path  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -149,21 +151,3 @@ def get_image_info(image_path: str) -> dict:
         logger.error(f"Failed to get image info for {image_path}: {str(e)}")
         return {"error": str(e)}
 
-
-def confine_output_path(output_path: str, suffixes: tuple[str, ...]) -> str:
-    """Return *output_path* resolved inside the output root, or raise ValueError.
-
-    The path is chosen by the model, so it must not escape SHEET_MUSIC_OUTPUT_ROOT
-    (default: the server's working directory), carry another file type, or
-    overwrite an existing file.
-    """
-    root = Path(os.environ.get("SHEET_MUSIC_OUTPUT_ROOT") or Path.cwd()).resolve()
-    candidate = Path(output_path).expanduser()
-    resolved = (candidate if candidate.is_absolute() else root / candidate).resolve()
-    if not resolved.is_relative_to(root):
-        raise ValueError(f"output_path must be inside {root}")
-    if resolved.suffix.lower() not in suffixes:
-        raise ValueError(f"output_path must end with one of {', '.join(suffixes)}")
-    if resolved.exists():
-        raise ValueError(f"output_path already exists: {resolved}")
-    return str(resolved)

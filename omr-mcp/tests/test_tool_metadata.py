@@ -5,21 +5,22 @@ import asyncio
 
 import pytest
 from mcp import Client
-from sheet_music_mcp_core.annotations import READ_ONLY, READ_ONLY_DOWNLOADS, WRITES_FILE_DOWNLOADS
+from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE_DOWNLOADS
 
 from omr_mcp.server import app, list_tools
 
 EXPECTED = {
-    "recognize_sheet": ("Recognize sheet music", READ_ONLY_DOWNLOADS),
+    "recognize_sheet": ("Recognize sheet music", WRITES_FILE_DOWNLOADS),
     "recognize_sheet_to_file": ("Recognize sheet music to file", WRITES_FILE_DOWNLOADS),
-    "recognize_sheets": ("Recognize multi-page sheet music", READ_ONLY_DOWNLOADS),
+    "recognize_sheets": ("Recognize multi-page sheet music", WRITES_FILE_DOWNLOADS),
     "list_capabilities": ("OMR capabilities", READ_ONLY),
     "list_supported_formats": ("OMR formats (deprecated)", READ_ONLY),
     "health_check": ("OMR health check", READ_ONLY),
 }
 
 # Phrases the instructions must contain: the routing knowledge the model needs up front.
-INSTRUCTION_PHRASES = ('audiveris', '300+ DPI')
+# 'musicxml_path': large results come back as a path to pass on (UX Wave 2).
+INSTRUCTION_PHRASES = ('audiveris', '300+ DPI', 'musicxml_path')
 
 
 def _tools():

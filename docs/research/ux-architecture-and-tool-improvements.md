@@ -455,8 +455,8 @@ Written as failing tests to start from.
 
 | Wave | Items | Unlocks |
 |---|---|---|
-| **1. Contract foundation** | conventions.md update, B1, B3, B4, B5, C3, C23, A5 | Fewer retries and prompts, safer mic handling. All small. |
-| **2. Score references** | A1, C5, C25, C18 (and A2 if approved, since A1 is its first client) | Fast and reliable chaining. The MCP Apps' "handles not paths" rule reuses A1's path policy. |
+| **1. Contract foundation** ✅ ([plan](ux-wave1-plan.md)) | conventions.md update, B1, B3, B4, B5, C3, C23, A5 | Fewer retries and prompts, safer mic handling. All small. |
+| **2. Score references** ✅ ([plan](ux-wave2-plan.md)) | A1, C5, C25, C18 (and A2 if approved, since A1 is its first client) | Fast and reliable chaining. The MCP Apps' "handles not paths" rule reuses A1's path policy. |
 | **3. Practice features** | C8–C11, C13, B2, C19, C22 | The Practice Player and Practice Coach apps (proposal §5.1–5.2) need C8, B2 and C22. |
 | **4. Smarter OMR and editing** | C1, C2, C4, C15–C17, A4 | Recognition Review and ABC Workbench apps (proposal §5.5–5.6). |
 | **5. Consolidation and distribution** | C24, B6, A6, A7, A3 (if approved) | One install. Cross-server Rehearsal Studio app. |

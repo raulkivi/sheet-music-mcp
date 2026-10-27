@@ -23,7 +23,7 @@ The response MUST include:
 
 ### FR-2 — Score loading
 
-The server MUST accept a MusicXML document and a part (ID, name or voice), parse the reference note sequence, and return a session ID.
+The server MUST accept a MusicXML document (inline, or as a file path: FR-8) and a part (ID, name or voice), parse the reference note sequence, and return a session ID.
 
 The session MUST persist in server memory until it is explicitly stopped, it has been idle longer
 than the idle timeout (FR-7), or the server restarts.
@@ -78,6 +78,22 @@ The summary of a timed-out session MUST stay available to `stop_monitoring` for 
 The server MUST list the open sessions with their part, state and idle time (IR-6a), so a client
 that lost a `session_id` can find it and stop it.
 
+### FR-8 — Score references (UX Wave 2)
+
+`analyze_recording` and `load_score` MUST accept the score as inline text (`musicxml`) or as a
+file path (`musicxml_path`, `.musicxml`, `.xml` or `.mxl`), exactly one of the two
+([conventions: Score References](../../docs/conventions.md#score-references)). A path is read
+through `sheet_music_mcp_core.references.load_score()`, which confines it to the read roots
+(`SHEET_MUSIC_OUTPUT_ROOT`, the client's MCP roots, `SHEET_MUSIC_INPUT_ROOTS`) and never echoes
+file contents in an error. A score loaded by path then gets the same checks and gives the same
+result as the same score inline: `load_score` creates the same session (part, notes, tempo).
+
+`audio_path` is not confined in this wave (plan decision W2-3): it is read as before.
+
+The server MUST expose the shared `describe_score` tool (title, composer, key, time, tempo,
+parts with IDs, names, clefs and ranges, measures, lyrics, duration) so a client can learn the
+part IDs without loading the score into a session.
+
 ---
 
 ## Non-Functional Requirements
@@ -123,15 +139,17 @@ The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The s
 
 `load_score`, `start_monitoring` and `stop_monitoring` use the `SESSION_STATE` preset, never
 `READ_ONLY`, so hosts that auto-approve read-only tools still ask before the microphone opens.
-`list_sessions` only reads the registry and is `READ_ONLY`. The instructions mention that idle
+`list_sessions` and `describe_score` only read and are `READ_ONLY`. The instructions mention that idle
 sessions close after `PITCH_SESSION_IDLE_MINUTES` (default 10).
 
 ### IR-2 — Tool: `analyze_recording`
 
 ```
 Input:
-  audio_path  string  required  absolute path to a 16-bit PCM WAV file
-  musicxml    string  required  MusicXML document as a string
+  audio_path     string  required  absolute path to a 16-bit PCM WAV file (not confined, W2-3)
+  musicxml       string            MusicXML text of the reference score
+  musicxml_path  string            path to the score (.musicxml, .xml, .mxl) inside the read roots;
+                                   exactly one of musicxml / musicxml_path (schema oneOf)
   part        string  required  part to compare against: ID, name or voice (e.g. "P1", "Soprano", "S")
   part_id     string            deprecated alias of `part` (removed next minor); one of the two is required
 
@@ -158,9 +176,11 @@ Output:
 
 ```
 Input:
-  musicxml   string  required  MusicXML document as a string
-  part       string  required  part to monitor: ID, name or voice (e.g. "P1", "Soprano", "S")
-  part_id    string            deprecated alias of `part` (removed next minor); one of the two is required
+  musicxml       string            MusicXML text of the score to practise
+  musicxml_path  string            path to the score (.musicxml, .xml, .mxl) inside the read roots;
+                                   exactly one of musicxml / musicxml_path (schema oneOf)
+  part           string  required  part to monitor: ID, name or voice (e.g. "P1", "Soprano", "S")
+  part_id        string            deprecated alias of `part` (removed next minor); one of the two is required
 
 Output:
   session_id       string
@@ -238,13 +258,28 @@ Output:
     idle_seconds  float    seconds since the last activity, one decimal
 ```
 
+### IR-6b — Tool: `describe_score`
+
+The shared tool from `sheet-music-mcp-core` (`references.DESCRIBE_SCORE_TOOL`), `READ_ONLY`.
+
+```
+Input:
+  musicxml       string  MusicXML text
+  musicxml_path  string  path to the score; exactly one of the two
+
+Output:
+  title, composer, key, time, tempo_bpm, measures, has_lyrics, duration_quarters, duration_seconds
+  parts  list[object]   id ("P1" …, the IDs `part` accepts), name, abbreviation, clef, range {low, high}
+```
+
 ### IR-7 — Tool: `list_capabilities`
 
 ```
 Output:
   server                  string
   version                 string
-  input_formats           list[string]   ["musicxml", "wav"]
+  input_formats           list[string]   ["musicxml", "mxl", "wav"]
+  input_parameters        list[string]   ["musicxml", "musicxml_path"]  (the score parameter pair)
   output_formats          list[string]   ["json"]
   tools                   list[string]
   pitch_backend           string         "librosa"
@@ -259,6 +294,10 @@ Output:
 | `PITCH_BACKEND` | `librosa` | Pitch detection backend: `librosa` or `crepe` |
 | `PITCH_SESSION_IDLE_MINUTES` | `10` | Close sessions idle this many minutes (whole number); `0` disables the timeout. An invalid value logs a warning and uses 10. |
 
+Score paths follow the shared variables ([conventions: Score References](../../docs/conventions.md#score-references)):
+`SHEET_MUSIC_OUTPUT_ROOT` (default: the working directory), `SHEET_MUSIC_INPUT_ROOTS` (extra read
+folders, `os.pathsep`-separated) and `SHEET_MUSIC_MAX_SCORE_BYTES` (default 16 MiB).
+
 `crepe` requires a manual TensorFlow install and is not tested in CI.
 
 ### IR-9 — Error response format
@@ -269,10 +308,11 @@ Output:
 
 | Code | Condition |
 |------|-----------|
-| `FILE_NOT_FOUND` | Audio file path does not exist |
+| `FILE_NOT_FOUND` | Audio file path does not exist; `musicxml_path` inside the read roots does not exist |
+| `FILE_TOO_LARGE` | `musicxml_path` (or an `.mxl` member) is larger than `SHEET_MUSIC_MAX_SCORE_BYTES` |
 | `UNSUPPORTED_FORMAT` | Audio file is not 16-bit PCM WAV |
-| `INVALID_INPUT` | MusicXML cannot be parsed |
-| `INVALID_PARAMETER` | Part name not found in score |
+| `INVALID_INPUT` | MusicXML cannot be parsed (inline or from `musicxml_path`) |
+| `INVALID_PARAMETER` | Part name not found in score; both or neither of `musicxml` / `musicxml_path`; `musicxml_path` outside the read roots or with a wrong suffix |
 | `SESSION_NOT_FOUND` | session_id is unknown; call `load_score` first. If the idle timeout closed it, the error adds a `hint`: "The session timed out after N minutes idle; call stop_monitoring for the summary, then load_score to start again." |
 | `PROCESSING_FAILED` | Microphone unavailable; no pitch detected; audio hardware error |
 
@@ -311,6 +351,9 @@ Unit tests MUST cover:
   reap, activity resets idle time, `0` disables, env parsing, the `Reaper` loop with an injected
   sleep, summaries dropped after 1 hour, `list_sessions` shape and states. No test waits on real time.
 - `list_capabilities` response schema
+- Score references (`tests/test_score_references.py`): a path gives the same result as inline
+  text (same session for `load_score`), `.mxl` paths, both or neither parameter, paths outside
+  the read roots (absolute, `/etc/passwd`, `..`, symlink) without echoing the file, `describe_score`
 
 Unit tests MUST mock sounddevice (no real audio hardware in CI). `dtaidistance` is pure-Python-
 compatible and deterministic, so alignment unit tests run it directly rather than mocking it —

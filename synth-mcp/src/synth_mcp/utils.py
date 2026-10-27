@@ -5,6 +5,10 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
+# Moved to the core in Wave 2; re-exported so existing imports and tests keep working. It raises
+# PathPolicyError, a ValueError, so callers catching ValueError are unchanged.
+from sheet_music_mcp_core.paths import confine_output_path  # noqa: F401
+
 logger = logging.getLogger(__name__)
 
 # Per-user path; ensure_private_dir() rejects one that another user pre-created.
@@ -79,22 +83,3 @@ def generate_output_path(output_path: str | None) -> str:
     output_dir = ensure_private_dir(SYNTH_OUTPUT_DIR)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return str(output_dir / f"output_{timestamp}.wav")
-
-
-def confine_output_path(output_path: str, suffixes: tuple[str, ...]) -> str:
-    """Return *output_path* resolved inside the output root, or raise ValueError.
-
-    The path is chosen by the model, so it must not escape SHEET_MUSIC_OUTPUT_ROOT
-    (default: the server's working directory), carry another file type, or
-    overwrite an existing file.
-    """
-    root = Path(os.environ.get("SHEET_MUSIC_OUTPUT_ROOT") or Path.cwd()).resolve()
-    candidate = Path(output_path).expanduser()
-    resolved = (candidate if candidate.is_absolute() else root / candidate).resolve()
-    if not resolved.is_relative_to(root):
-        raise ValueError(f"output_path must be inside {root}")
-    if resolved.suffix.lower() not in suffixes:
-        raise ValueError(f"output_path must end with one of {', '.join(suffixes)}")
-    if resolved.exists():
-        raise ValueError(f"output_path already exists: {resolved}")
-    return str(resolved)

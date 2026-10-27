@@ -48,7 +48,8 @@ class TestToolSchemas:
         tool = next(t for t in tools if t.name == "render_to_pdf")
         schema = tool.input_schema
         assert "musicxml" in schema["properties"]
-        assert schema["required"] == ["musicxml"]
+        assert "musicxml_path" in schema["properties"]
+        assert schema["oneOf"] == [{"required": ["musicxml"]}, {"required": ["musicxml_path"]}]
 
     async def test_render_to_image_schema(self):
         tools = await list_tools()
@@ -59,7 +60,8 @@ class TestToolSchemas:
         assert "format" in schema["properties"]
         assert "dpi" in schema["properties"]
         assert "output_path" in schema["properties"]
-        assert schema["required"] == ["musicxml"]
+        assert "musicxml_path" in schema["properties"]
+        assert schema["oneOf"] == [{"required": ["musicxml"]}, {"required": ["musicxml_path"]}]
 
     async def test_list_capabilities_schema(self):
         tools = await list_tools()

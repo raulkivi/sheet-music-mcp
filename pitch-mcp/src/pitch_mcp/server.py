@@ -9,6 +9,13 @@ from mcp.types import TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, SESSION_STATE
 from sheet_music_mcp_core.content import error_content, processing_error_content
 from sheet_music_mcp_core.params import aliased
+from sheet_music_mcp_core.references import (
+    DESCRIBE_SCORE_TOOL,
+    describe_score_tool,
+    exactly_one,
+    score_input_properties,
+)
+from sheet_music_mcp_core.references import load_score as read_score
 from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
@@ -36,7 +43,9 @@ INSTRUCTIONS = (
     "Always call stop_monitoring when done: it closes the microphone. Idle sessions close after "
     "PITCH_SESSION_IDLE_MINUTES (default 10); stop_monitoring still returns their summary, and "
     "list_sessions shows the open ones. analyze_recording scores a recorded 16-bit WAV instead. "
-    "Real-time monitoring needs PortAudio; see health_check."
+    "Real-time monitoring needs PortAudio; see health_check. "
+    "Prefer musicxml_path over inline musicxml and pass on the score paths other tools return; "
+    "describe_score lists the part IDs cheaply."
 )
 
 
@@ -57,10 +66,7 @@ async def list_tools():
                         "type": "string",
                         "description": "Absolute path to a 16-bit PCM WAV file",
                     },
-                    "musicxml": {
-                        "type": "string",
-                        "description": "MusicXML document as a string",
-                    },
+                    **score_input_properties(what="the reference score"),
                     "part": {
                         "type": "string",
                         "description": "Part to compare against: a part ID, name or voice (e.g. 'P1', 'Soprano', 'S')",
@@ -70,8 +76,9 @@ async def list_tools():
                         "description": "(Deprecated: use `part`) Part to compare against.",
                     },
                 },
-                "required": ["audio_path", "musicxml"],
+                "required": ["audio_path"],
                 "anyOf": [{"required": ["part"]}, {"required": ["part_id"]}],
+                **exactly_one(),
             },
         ),
         Tool(
@@ -85,10 +92,7 @@ async def list_tools():
             input_schema={
                 "type": "object",
                 "properties": {
-                    "musicxml": {
-                        "type": "string",
-                        "description": "MusicXML document as a string",
-                    },
+                    **score_input_properties(what="the score to practise"),
                     "part": {
                         "type": "string",
                         "description": "Part to monitor: a part ID, name or voice (e.g. 'P1', 'Soprano', 'S')",
@@ -98,10 +102,12 @@ async def list_tools():
                         "description": "(Deprecated: use `part`) Part to monitor.",
                     },
                 },
-                "required": ["musicxml"],
+                "required": [],
                 "anyOf": [{"required": ["part"]}, {"required": ["part_id"]}],
+                **exactly_one(),
             },
         ),
+        DESCRIBE_SCORE_TOOL,
         Tool(
             name="start_monitoring",
             title="Start listening (microphone)",
@@ -211,20 +217,29 @@ async def list_tools():
     ]
 
 
-async def call_tool(name: str, arguments: dict):
+async def _reference_score(arguments: dict, ctx) -> str:
+    """The score from `musicxml` or `musicxml_path`, checked like inline MusicXML always was.
+
+    Raises ProcessingError: the core's path errors, or INVALID_INPUT for text that is not MusicXML.
+    """
+    musicxml = await read_score(arguments, ctx)
+    ok, err = validate_musicxml(musicxml)
+    if not ok:
+        raise ProcessingError(err, "INVALID_INPUT")
+    return musicxml
+
+
+async def call_tool(name: str, arguments: dict, ctx=None):
     if name == "analyze_recording":
+        # audio_path is not confined to the read roots (Wave 2 covers scores only, W2-3).
         audio_path = arguments.get("audio_path", "")
-        musicxml = arguments.get("musicxml", "")
         ok, err = validate_audio_path(audio_path)
         if not ok:
             code = "FILE_NOT_FOUND" if "not found" in err else "UNSUPPORTED_FORMAT"
             return error_content(err, code)
 
-        ok, err = validate_musicxml(musicxml)
-        if not ok:
-            return error_content(err, "INVALID_INPUT")
-
         try:
+            musicxml = await _reference_score(arguments, ctx)
             part_id = aliased(arguments, "part", "part_id")
         except ProcessingError as e:
             return processing_error_content(e)
@@ -241,12 +256,8 @@ async def call_tool(name: str, arguments: dict):
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "load_score":
-        musicxml = arguments.get("musicxml", "")
-        ok, err = validate_musicxml(musicxml)
-        if not ok:
-            return error_content(err, "INVALID_INPUT")
-
         try:
+            musicxml = await _reference_score(arguments, ctx)
             part_id = aliased(arguments, "part", "part_id")
         except ProcessingError as e:
             return processing_error_content(e)
@@ -261,6 +272,12 @@ async def call_tool(name: str, arguments: dict):
         except Exception as e:
             logger.error("load_score unexpected error: %s", e)
             return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
+
+    elif name == "describe_score":
+        try:
+            return await describe_score_tool(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
 
     elif name == "start_monitoring":
         session_id = arguments.get("session_id", "")
@@ -326,11 +343,13 @@ async def call_tool(name: str, arguments: dict):
         result = {
             "server": "pitch-mcp",
             "version": __version__,
-            "input_formats": ["musicxml", "wav"],
+            "input_formats": ["musicxml", "mxl", "wav"],
+            "input_parameters": ["musicxml", "musicxml_path"],
             "output_formats": ["json"],
             "tools": [
                 "analyze_recording",
                 "load_score",
+                "describe_score",
                 "start_monitoring",
                 "get_current_position",
                 "stop_monitoring",
@@ -378,7 +397,7 @@ def _check_microphone() -> bool:
         return False
 
 
-_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, pass_context=True, logger=logger)
 
 app = Server(
     "pitch-mcp",

@@ -16,8 +16,8 @@ render-mcp is a stateless MCP server that renders MusicXML scores to PDF or PNG/
 ┌──────────────────────────▼────────────────────────────────┐
 │                       server.py                           │
 │                                                           │
-│  list_tools()   → 3 tool definitions                      │
-│  call_tool()    → dispatches to engine                    │
+│  list_tools()   → 5 tool definitions                      │
+│  call_tool()    → load_score(), then dispatches to engine │
 └──────────┬────────────────────────────────────────────────┘
            │
 ┌──────────▼──────────────┐  ┌──────────────────────────────┐
@@ -58,7 +58,12 @@ render-mcp is a stateless MCP server that renders MusicXML scores to PDF or PNG/
 
 MCP protocol layer. Contains no rendering logic.
 
-- Registers three tools: `render_to_pdf`, `render_to_image`, `list_capabilities`
+- Registers five tools: `render_to_pdf`, `render_to_image`, `list_capabilities`, `health_check`
+  and the shared `describe_score` (`sheet_music_mcp_core.references.DESCRIBE_SCORE_TOOL`)
+- Gets the score with `references.load_score(arguments, ctx)`: inline `musicxml` as is, or
+  `musicxml_path` confined to the read roots and read (`.mxl` too). The handlers are wired with
+  `make_handlers(..., pass_context=True)` so `load_score` can ask the client for its roots.
+  Everything after that is unchanged, so a path call and an inline call give the same result
 - Validates all parameters (via `utils.py`) before calling the engine
 - Converts engine results and exceptions to `TextContent` JSON (always `content[0]`)
 - On success appends result blocks for the written file via `sheet_music_mcp_core.content`
@@ -98,6 +103,7 @@ Input validation and path helpers.
 | `validate_image_format(fmt)` | Check fmt ∈ `{"png", "svg"}` |
 | `generate_pdf_path()` | Auto-generate timestamped path in `/tmp/render-mcp/` |
 | `generate_image_path(fmt)` | Auto-generate timestamped path with correct extension |
+| `confine_output_path(path, suffixes)` | Re-export of `sheet_music_mcp_core.paths.confine_output_path` (raises `PathPolicyError`, a `ValueError`) |
 
 ---
 
@@ -106,8 +112,9 @@ Input validation and path helpers.
 ### PDF rendering (Verovio path)
 
 ```
-call_tool("render_to_pdf", {musicxml, output_path})
+call_tool("render_to_pdf", {musicxml | musicxml_path, output_path})
   │
+  ├─ references: load_score (inline text, or the confined file)
   ├─ utils: validate_musicxml, generate_pdf_path
   │
   └─ engine: _render_pdf_verovio(musicxml, output_path)
@@ -256,6 +263,9 @@ MuseScore names output files as `render.png` (single page) or `render-N.png` for
 | Page number out of range | `INVALID_PARAMETER` |
 | Unsupported image format | `INVALID_PARAMETER` |
 | DPI out of range | `INVALID_PARAMETER` |
+| Both or neither of `musicxml` / `musicxml_path` | `INVALID_PARAMETER` |
+| `musicxml_path` outside the read roots, or wrong suffix | `INVALID_PARAMETER` (never echoes file content) |
+| `musicxml_path` missing / too large / not MusicXML | `FILE_NOT_FOUND` / `FILE_TOO_LARGE` / `INVALID_INPUT` |
 | No backend available | `PROCESSING_FAILED` |
 | Verovio rendering error | `PROCESSING_FAILED` |
 | MuseScore subprocess failure | `PROCESSING_FAILED` |
@@ -271,7 +281,7 @@ MuseScore names output files as `render.png` (single page) or `render-N.png` for
 | `pypdf` ≥4.0 | PDF page count reading, multi-page PDF assembly |
 | `Pillow` | PNG dimension reading |
 | `mcp` | MCP protocol SDK |
-| `sheet-music-mcp-core` | Shared error envelope, `ProcessingError` and handler wiring (input validation, error results); see [docs/conventions.md](../../docs/conventions.md#shared-core-library) |
+| `sheet-music-mcp-core` ≥0.2 | Shared error envelope, `ProcessingError`, handler wiring (input validation, error results), score references (`load_score`, `describe_score`) and output path confinement; see [docs/conventions.md](../../docs/conventions.md#shared-core-library) |
 
 **System library:** `libcairo2` must be installed. Standard on Ubuntu desktop; no sudo required.
 
@@ -303,5 +313,6 @@ render-mcp/
     ├── test_server.py
     ├── test_engine.py
     ├── test_utils.py
+    ├── test_score_references.py   ← musicxml_path, describe_score
     └── fixtures/
 ```

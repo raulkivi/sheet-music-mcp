@@ -5,7 +5,8 @@
 Converts between MusicXML and ABC notation. ABC is compact and text-based, making it practical
 for Claude to read and edit scores directly in its context window.
 
-**Status:** Phase 1 complete. 74/74 tests pass including integration tests.
+**Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references) complete. 140 unit tests pass
+(`-m "not integration"`) + 4 integration tests.
 
 ---
 
@@ -31,6 +32,7 @@ musicxml-abc-mcp/
 │   └── utils.py             # Input validation helpers
 ├── tests/
 │   ├── test_server.py       # protocol tests
+│   ├── test_score_references.py  # musicxml_path, return modes, describe_score
 │   ├── test_engine.py       # unit + integration tests
 │   ├── test_utils.py        # unit tests
 │   └── fixtures/
@@ -47,10 +49,12 @@ MXL test fixtures are in `../omr-mcp/test_samples/pdmx_satb_samples/mxl/` — 10
 
 | Tool | Description |
 |------|-------------|
-| `musicxml_to_abc` | MusicXML string → ABC notation (all parts or one specific part) |
-| `abc_to_musicxml` | ABC notation → MusicXML string |
+| `musicxml_to_abc` | MusicXML (`musicxml` text or `musicxml_path`, `.mxl` too) → ABC notation (all parts or one specific part) |
+| `abc_to_musicxml` | ABC notation → MusicXML; `return` `auto` (default) / `path` / `inline` — large scores come back as `musicxml_path` + `score_summary` |
 | `validate_abc` | Validate ABC syntax, return `valid`, `errors`, `warnings` |
 | `list_capabilities` | Server metadata and format support |
+| `health_check` | MusicXML → ABC → MusicXML round-trip self-test |
+| `describe_score` | Shared core tool: parts (`P1`…), key, time, tempo, ranges, measures, duration |
 
 ---
 
@@ -112,6 +116,9 @@ asyncio.run(_run())
   Notes with octave marks: `c'` = C6, `C,` = C3. music21 parses ABC the same way.
 - **Round-trips are not lossless.** Dynamics, complex articulations, and some ornaments have no
   ABC equivalent. Surface these in the `warnings` field of responses.
+- **Score references (Wave 2):** read scores only via `sheet_music_mcp_core.references.load_score`
+  and return `abc_to_musicxml` via `deliver_score`; tests that may write set
+  `SHEET_MUSIC_OUTPUT_ROOT` to `tmp_path`.
 - **`X:` header required** in ABC. music21 adds it automatically on output but may reject input
   that lacks it.
 - **Minimal valid ABC:**

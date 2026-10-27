@@ -55,7 +55,11 @@ Return only the similarity score and summary statistics (no note-level detail) f
 
 ### FR-7: MCP tools
 
-Expose as MCP server with tools: `compare_musicxml`, `compare_musicxml_files`, `quick_similarity`, `list_changes`, `generate_comparison_report`, `export_annotated_musicxml`, `health_check`, `list_capabilities`.
+Expose as MCP server with tools: `compare_musicxml`, `compare_musicxml_files`, `quick_similarity`, `list_changes`, `generate_comparison_report`, `export_annotated_musicxml`, `describe_score`, `health_check`, `list_capabilities`.
+
+`describe_score` is the shared tool from `sheet-music-mcp-core` (UX Wave 2, C18): title, composer,
+key, time, tempo, parts (MusicXML part ID, name, clef, range), measures, lyrics and duration as small
+JSON, from `musicxml` or `musicxml_path`.
 
 ### FR-8: Human-readable comparison report
 
@@ -67,12 +71,23 @@ or "transposed by 3 semitones in measures 17-24" when every pitch change in a ru
 
 ### FR-9: Annotated MusicXML diff export
 
-`export_annotated_musicxml` returns two MusicXML documents — `reference_annotated_musicxml` and
-`target_annotated_musicxml` — with per-note `color` attributes marking the diff operation
+`export_annotated_musicxml` produces two MusicXML documents — the annotated reference and the
+annotated target — with per-note `color` attributes marking the diff operation
 (`PITCH_CHANGE`, `DURATION_CHANGE`, `SUBSTITUTION`, `INSERTION`, `DELETION`; `MATCH` left
-uncolored). Both documents are valid standalone MusicXML, chainable directly into render-mcp's
-`render_to_pdf`/`render_to_image` tools (both accept a raw `musicxml` string) to visualize the
-diff. Structural-only diffs (a whole measure/part missing or extra on one side) are not colored.
+uncolored). Both documents are valid standalone MusicXML. Structural-only diffs (a whole
+measure/part missing or extra on one side) are not colored.
+
+How they are returned depends on `return` (UX Wave 2, C25; `deliver_score` from the core):
+
+| `return` | Result |
+|---|---|
+| `inline` | `reference_annotated_musicxml` and `target_annotated_musicxml` as text, as before Wave 2 |
+| `path` | Both written to `<output root>/scores/annotated-<field>-<timestamp>.musicxml`; the result has `reference_annotated_musicxml_path`, `target_annotated_musicxml_path` and `score_summary` keyed by field (`reference_annotated_musicxml`, `target_annotated_musicxml`), followed by one `ResourceLink` per file |
+| `auto` (default) | `inline` when both documents are at most `SHEET_MUSIC_INLINE_MAX_BYTES` (8192 bytes); otherwise `path` for both |
+
+`similarity_score` and `legend` are always present. Feed the returned paths to render-mcp's
+`render_to_pdf`/`render_to_image` as `musicxml_path` to visualize the diff. Because the tool may
+write files, its annotation preset is `WRITES_FILE`.
 
 ---
 
@@ -86,7 +101,7 @@ diff. Structural-only diffs (a whole measure/part missing or extra on one side) 
 
 All tool errors return `{"error": "human description", "error_code": "SCREAMING_SNAKE"}`.
 
-Standard error codes: `FILE_NOT_FOUND`, `INVALID_INPUT`, `UNSUPPORTED_FORMAT`, `PROCESSING_FAILED`, `INVALID_PARAMETER`.
+Standard error codes: `FILE_NOT_FOUND`, `FILE_TOO_LARGE`, `INVALID_INPUT`, `UNSUPPORTED_FORMAT`, `PROCESSING_FAILED`, `INVALID_PARAMETER`.
 
 ### NFR-3: Performance
 
@@ -114,6 +129,36 @@ The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The s
 
 - MusicXML string (`<score-partwise>` or `<score-timewise>`)
 - MusicXML file path (`.musicxml`, `.xml`, `.mxl`)
+
+### Score inputs (UX Wave 2)
+
+`compare_musicxml`, `quick_similarity`, `list_changes`, `generate_comparison_report` and
+`export_annotated_musicxml` take each score inline or as a path
+([conventions: Score References](../../docs/conventions.md#score-references)):
+
+| Side | Inline | Path |
+|---|---|---|
+| Reference | `reference_xml` | `reference_path` |
+| Target | `target_xml` | `target_path` |
+
+Exactly one of each pair is required (`"allOf": [oneOf reference, oneOf target]`); the sides can
+mix, e.g. `reference_path` with `target_xml`. Both or neither of a pair is `INVALID_PARAMETER`.
+Paths are read by the core's `load_score`: inside the read roots (output root
+`SHEET_MUSIC_OUTPUT_ROOT`, the client's MCP roots, `SHEET_MUSIC_INPUT_ROOTS`), `.musicxml`/`.xml`/
+`.mxl`, at most `SHEET_MUSIC_MAX_SCORE_BYTES`, well-formed MusicXML. A path outside the roots or
+with another suffix is `INVALID_PARAMETER`; a missing file `FILE_NOT_FOUND`; too large
+`FILE_TOO_LARGE`; not MusicXML `INVALID_INPUT` (prefixed with the parameter name). Errors never
+contain file contents. Inline text keeps its `reference_xml: ...` / `target_xml: ...` checks, and
+an inline call returns exactly what it did before Wave 2.
+
+`compare_musicxml_files` keeps its schema (`reference_path` and `target_path`, both required) and
+reads both files through the same policy, then runs the text comparison. Since Wave 2 (plan
+decision W2-2) a file outside the read roots is rejected (`INVALID_PARAMETER`) and a wrong suffix
+is `INVALID_PARAMETER` instead of `UNSUPPORTED_FORMAT`; add other folders with
+`SHEET_MUSIC_INPUT_ROOTS`.
+
+`list_capabilities` reports `input_formats: ["musicxml", "mxl"]` and
+`input_parameters: ["reference_xml", "reference_path", "target_xml", "target_path"]`.
 
 ### Output format
 

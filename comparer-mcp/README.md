@@ -26,14 +26,21 @@ and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if something doesn't work.
 
 | Tool | Description |
 |------|-------------|
-| `compare_musicxml` | Full diff of two MusicXML strings → structured `ComparisonResult` JSON |
-| `compare_musicxml_files` | Full diff of two MusicXML file paths (`.musicxml`, `.xml`, or `.mxl`) → structured `ComparisonResult` JSON |
+| `compare_musicxml` | Full diff of two scores, inline or by path → structured `ComparisonResult` JSON |
+| `compare_musicxml_files` | Full diff of two MusicXML file paths (`.musicxml`, `.xml`, or `.mxl`) inside the allowed folders → structured `ComparisonResult` JSON |
 | `quick_similarity` | Similarity score (0.0–1.0) + summary statistics only, no per-note detail |
 | `list_changes` | Note-level diffs (operation != `MATCH`), optionally filtered by part name and/or measure range |
 | `generate_comparison_report` | Human-readable version comparison report — similarity headline, missing/extra parts and measures, key/time signature changes, note-level differences grouped by measure range (e.g. "transposed by 3 semitones in measures 17-24") |
-| `export_annotated_musicxml` | MusicXML with per-note color annotations marking the diff; returns `reference_annotated_musicxml` + `target_annotated_musicxml`, chainable straight into render-mcp's `render_to_pdf`/`render_to_image` |
+| `export_annotated_musicxml` | MusicXML with per-note color annotations marking the diff. Small results come back inline (`reference_annotated_musicxml` + `target_annotated_musicxml`); large ones are written to files and returned as `*_path` fields plus a `score_summary` (`return`: `auto`/`path`/`inline`). Pass the paths to render-mcp's `render_to_pdf`/`render_to_image` as `musicxml_path` |
+| `describe_score` | Title, key, time, tempo, parts (IDs, names, clefs, ranges), measures and duration of a score, without returning the score |
 | `health_check` | Server status — verifies music21 is importable and runs a self-comparison smoke test |
 | `list_capabilities` | Server metadata per project conventions |
+
+Each score can be passed inline (`reference_xml`, `target_xml`) or as a file path
+(`reference_path`, `target_path`; `.musicxml`, `.xml` or `.mxl`), exactly one of each pair. Paths
+save copying whole scores through the conversation. They must be inside the output folder
+(`SHEET_MUSIC_OUTPUT_ROOT`, default the working directory), one of the client's roots, or a folder
+listed in `SHEET_MUSIC_INPUT_ROOTS`.
 
 ```json
 // Compare two MusicXML strings
@@ -96,6 +103,19 @@ and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if something doesn't work.
 }
 // → {"reference_annotated_musicxml": "...", "target_annotated_musicxml": "...",
 //    "similarity_score": 0.87, "legend": {"PITCH_CHANGE": "#FF8800", ...}}
+// For scores over 8 KB (return: "auto", the default):
+// → {"reference_annotated_musicxml_path": ".../scores/annotated-reference_annotated_musicxml-....musicxml",
+//    "target_annotated_musicxml_path": "...", "similarity_score": 0.87, "legend": {...},
+//    "score_summary": {"reference_annotated_musicxml": {...}, "target_annotated_musicxml": {...}}}
+
+// Paths instead of inline text
+{
+  "tool": "quick_similarity",
+  "arguments": {
+    "reference_path": "scores/reference.musicxml",
+    "target_path": "scores/omr_output.mxl"
+  }
+}
 ```
 
 `compare_musicxml`, `compare_musicxml_files`, `generate_comparison_report`, and
@@ -172,3 +192,4 @@ uv sync
 | Phase 2 — Rich detail (key/time signature diffs, voice-aware alignment, articulations) | **Complete** — 67/67 tests passing (65 unit + 2 integration) |
 | Phase 3 — MCP server & integration (`server.py`, all 6 tools, `install.sh`, `SETUP.md`, client config examples) | **Complete** — 94/94 tests passing (90 unit + 4 integration) |
 | Phase 4 — Advanced features (`options` wiring, `generate_comparison_report`, `export_annotated_musicxml`) | **Complete** — 134/134 tests passing (127 unit + 7 integration) |
+| UX Wave 2 — Score references (`reference_path`/`target_path`, `return` for the annotated export, `describe_score`) | **Complete** — 239 unit tests passing (+7 integration) |

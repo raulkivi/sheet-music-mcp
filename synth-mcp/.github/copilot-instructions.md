@@ -5,7 +5,9 @@
 Synthesizes audio from a MusicXML score. Callers select voice parts (Soprano, Alto, Tenor, Bass,
 or any combination) and an optional tempo factor. Returns a path to a rendered WAV file.
 
-**Status:** Phase 1 complete. 64 unit + 7 integration tests pass.
+**Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references: `musicxml_path`, `describe_score`)
+complete. 158 unit + 8 integration tests (integration needs a soundfont, libfluidsynth and the omr-mcp
+MXL fixtures).
 
 ---
 
@@ -33,6 +35,7 @@ synth-mcp/
 │   ├── test_server.py       # protocol tests
 │   ├── test_engine.py       # unit + integration tests
 │   ├── test_utils.py        # unit tests
+│   ├── test_score_references.py  # musicxml_path, read policy, describe_score
 │   └── fixtures/
 └── docs/
     ├── requirements.md
@@ -47,9 +50,16 @@ MXL test fixtures are in `../omr-mcp/test_samples/pdmx_satb_samples/mxl/` — 10
 
 | Tool | Description |
 |------|-------------|
-| `get_parts` | Parse MusicXML → list of parts with IDs, names, measure counts |
+| `get_parts` | Parse MusicXML and return list of parts with IDs and measure counts |
 | `synthesize` | Render selected parts to WAV with optional tempo scaling |
-| `list_capabilities` | Server metadata, backend, soundfont path status |
+| `describe_score` | Shared core tool: title, key, time, tempo, parts (ID, clef, range), measures, duration — no music21 |
+| `list_capabilities` | Server metadata, backend, soundfont status |
+| `health_check` | Soundfont, FluidSynth and music21 readiness |
+
+`get_parts`, `synthesize` and `describe_score` take the score as `musicxml` (inline text) **or**
+`musicxml_path` (`.musicxml`, `.xml`, `.mxl`), exactly one (`oneOf`). Paths are read with
+`sheet_music_mcp_core.references.load_score` (read roots: `SHEET_MUSIC_OUTPUT_ROOT`, client MCP
+roots, `SHEET_MUSIC_INPUT_ROOTS`); never open a score path yourself.
 
 ---
 
@@ -85,7 +95,7 @@ VIRTUAL_ENV= SYNTH_SOUNDFONT_PATH=/usr/share/sounds/sf2/TimGM6mb.sf2 \
   .venv/bin/pytest tests/ -v -m integration
 
 # Install dependencies
-uv sync
+uv sync --extra dev
 ```
 
 ---
@@ -118,6 +128,14 @@ asyncio.run(_run())
   `fluid_player_join()` to render MIDI → WAV. The `fluidsynth` CLI binary is not needed.
 - **`SYNTH_SOUNDFONT_PATH` must be set for synthesis.** Warn at startup if missing — don't crash.
 - **`tempo_factor` changes MIDI tempo, not audio pitch** — this is correct behaviour.
+- **Score paths go through the core.** `call_tool(name, arguments, ctx=None)` calls
+  `load_score(arguments, ctx)` first, then the unchanged inline validation and engine calls, so a
+  path call gives the same `content[0]` as the inline call. `make_handlers(..., pass_context=True)`
+  supplies `ctx` for the client's roots; direct test calls pass none.
+- **`confine_output_path` lives in the core.** `utils.confine_output_path` is a re-export of
+  `sheet_music_mcp_core.paths.confine_output_path` (raises `PathPolicyError`, also a `ValueError`).
+- **`output_path` accepts `.mid` / `.midi` but always writes WAV** (known gap, not yet fixed).
+- **Install the dev extra:** plain `uv sync` removes pytest; use `uv sync --extra dev`.
 
 ---
 

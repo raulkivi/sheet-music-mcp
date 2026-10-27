@@ -19,9 +19,9 @@ Two selectable OMR backends, via an optional `engine` argument on the recognitio
 
 | Tool | Description |
 |------|-------------|
-| `recognize_sheet` | Convert a single image (file path or base64) to MusicXML string |
-| `recognize_sheet_to_file` | Convert a single image and write MusicXML to a file |
-| `recognize_sheets` | Process multiple pages and merge them into one MusicXML document |
+| `recognize_sheet` | Convert a single image (file path or base64) to MusicXML; large scores come back as a `musicxml_path` plus a `score_summary` (`return`: `auto`, `path` or `inline`) |
+| `recognize_sheet_to_file` | Convert a single image and write MusicXML to a file; returns the path and a `score_summary` |
+| `recognize_sheets` | Process multiple pages and merge them into one MusicXML document (same `return` modes as `recognize_sheet`) |
 | `list_capabilities` | Return server metadata: backend version, input/output formats, available tools |
 | `list_supported_formats` | (Deprecated — use `list_capabilities`) List supported input and output formats |
 | `health_check` | Check that all runtime dependencies are available and return a human-readable status summary; useful on first run |
@@ -76,9 +76,16 @@ No environment variables required.
 // Process multiple pages into one score
 {"tool": "recognize_sheets", "arguments": {"images": ["/path/page1.png", "/path/page2.png"]}}
 
-// Save result directly to file
-{"tool": "recognize_sheet_to_file", "arguments": {"input_path": "/path/scan.png", "output_path": "/tmp/score.musicxml"}}
+// Always get the MusicXML text inline, however large (default "auto": a musicxml_path above 8 KB)
+{"tool": "recognize_sheet", "arguments": {"image": "/path/to/scan.png", "return": "inline"}}
+
+// Save result directly to file (output_path must lie inside SHEET_MUSIC_OUTPUT_ROOT)
+{"tool": "recognize_sheet_to_file", "arguments": {"input_path": "/path/scan.png", "output_path": "score.musicxml"}}
 ```
+
+Large results come back as `{"musicxml_path": ..., "score_summary": {...}, "metadata": ...}`, with
+the file under `<SHEET_MUSIC_OUTPUT_ROOT>/scores/` (default: the server's working directory). Pass
+that path to the other servers' tools as `musicxml_path` instead of copying the score.
 
 ## Testing
 

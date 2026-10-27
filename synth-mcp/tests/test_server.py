@@ -56,7 +56,10 @@ class TestToolSchemas:
         tool = next(t for t in tools if t.name == "get_parts")
         schema = tool.input_schema
         assert "musicxml" in schema["properties"]
-        assert schema["required"] == ["musicxml"]
+        assert "musicxml_path" in schema["properties"]
+        # Wave 2: exactly one of musicxml / musicxml_path (oneOf) replaces required: [musicxml]
+        assert schema["oneOf"] == [{"required": ["musicxml"]}, {"required": ["musicxml_path"]}]
+        assert "required" not in schema
 
     async def test_synthesize_schema(self):
         tools = await list_tools()
@@ -66,7 +69,9 @@ class TestToolSchemas:
         assert "part_ids" in schema["properties"]
         assert "tempo_factor" in schema["properties"]
         assert "output_path" in schema["properties"]
-        assert schema["required"] == ["musicxml"]
+        assert "musicxml_path" in schema["properties"]
+        assert schema["oneOf"] == [{"required": ["musicxml"]}, {"required": ["musicxml_path"]}]
+        assert "required" not in schema
 
     async def test_list_capabilities_schema(self):
         tools = await list_tools()

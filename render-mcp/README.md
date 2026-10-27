@@ -71,6 +71,12 @@ No environment variables required.
 
 DPI range: 72–600. Default: 150. Page numbers are 1-indexed.
 
+Give the score as `musicxml_path` (`.musicxml`, `.xml` or `.mxl`) or inline as `musicxml`, not both.
+A path must lie inside `SHEET_MUSIC_OUTPUT_ROOT` (default: the working directory), one of the
+client's roots, or a folder listed in `SHEET_MUSIC_INPUT_ROOTS`; `output_path` must lie inside
+`SHEET_MUSIC_OUTPUT_ROOT`. `describe_score` returns a score's parts (IDs `P1` …), key, time,
+tempo and length without rendering it.
+
 ## Testing
 
 ```bash

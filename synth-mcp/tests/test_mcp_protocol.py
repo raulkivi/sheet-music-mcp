@@ -33,7 +33,10 @@ def test_calls_a_tool_through_the_protocol():
 
 
 def test_rejects_arguments_that_fail_the_input_schema():
-    tool = next(t for t in asyncio.run(list_tools()) if t.input_schema.get("required"))
+    # A tool with a required parameter, or (Wave 2) a required one of musicxml / musicxml_path.
+    tool = next(
+        t for t in asyncio.run(list_tools()) if t.input_schema.get("required") or t.input_schema.get("oneOf")
+    )
 
     result = _with_client(lambda client: client.call_tool(tool.name, {}))
 

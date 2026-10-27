@@ -5,7 +5,7 @@ import asyncio
 
 import pytest
 from mcp import Client
-from sheet_music_mcp_core.annotations import READ_ONLY
+from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 
 from comparer_mcp.server import app, list_tools
 
@@ -15,13 +15,15 @@ EXPECTED = {
     "quick_similarity": ("Score similarity", READ_ONLY),
     "list_changes": ("List score changes", READ_ONLY),
     "generate_comparison_report": ("Comparison report", READ_ONLY),
-    "export_annotated_musicxml": ("Export color-annotated diff", READ_ONLY),
+    # May write the annotated scores to files (return: auto/path), plan decision W2-5
+    "export_annotated_musicxml": ("Export color-annotated diff", WRITES_FILE),
     "list_capabilities": ("Comparer capabilities", READ_ONLY),
     "health_check": ("Comparer health check", READ_ONLY),
+    "describe_score": ("Describe score", READ_ONLY),
 }
 
 # Phrases the instructions must contain: the routing knowledge the model needs up front.
-INSTRUCTION_PHRASES = ('quick_similarity', 'list_changes')
+INSTRUCTION_PHRASES = ('quick_similarity', 'list_changes', 'reference_path', 'describe_score')
 
 
 def _tools():

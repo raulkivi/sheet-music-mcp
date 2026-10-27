@@ -7,8 +7,9 @@ Reports current score position (measure + beat), pitch accuracy in cents, and sh
 status while a singer sings.
 
 **Status:** Phase A (offline analysis) + Phase B (real-time, audio-driven position tracking)
-complete. 112 unit + 4 integration tests pass (`-m integration`); 2 manual mic tests
-(`-m manual`) require real hardware.
+complete, plus UX Wave 2 (score references: `musicxml_path`, `describe_score`). 235 unit
+(+2 skipped) + 4 integration tests pass (`-m integration`); 2 manual mic tests (`-m manual`)
+require real hardware.
 
 ---
 
@@ -16,7 +17,7 @@ complete. 112 unit + 4 integration tests pass (`-m integration`); 2 manual mic t
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v                 # 112 unit tests (integration/manual skipped by default)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v                 # 235 unit tests (integration/manual skipped by default)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration   # offline analysis against the committed fixture pair
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m manual        # real mic tests — skip in CI
 ```
@@ -45,8 +46,9 @@ Install dependencies: `uv sync`
 
 | Tool | Phase | Description |
 |------|-------|-------------|
-| `analyze_recording` | A | Pre-recorded WAV + MusicXML → per-note accuracy report |
-| `load_score` | B | Load MusicXML into a session, return session_id |
+| `analyze_recording` | A | Pre-recorded WAV + MusicXML (`musicxml` or `musicxml_path`) → per-note accuracy report |
+| `load_score` | B | Load MusicXML (`musicxml` or `musicxml_path`) into a session, return session_id |
+| `describe_score` | W2 | Shared core tool: title, key, tempo, parts with IDs and ranges, without loading a session |
 | `start_monitoring` | B | Open mic stream for a session |
 | `get_current_position` | B | Current measure/beat/pitch/accuracy from active session |
 | `stop_monitoring` | B | Stop stream, return summary, clean up session (`timed_out: true` if the idle timeout closed it) |
@@ -112,6 +114,13 @@ asyncio.run(_run())
   `start_monitoring`, `get_current_position`. Timed-out summaries are kept 1 h for
   `stop_monitoring` (`timed_out: true`). Test with an injected fake clock and `reap(now)`, never
   with real waits; `tests/conftest.py` stops the reaper thread at the end of the run.
+- **Score paths go through the core.** `server._reference_score()` calls
+  `sheet_music_mcp_core.references.load_score()` (read roots: `SHEET_MUSIC_OUTPUT_ROOT`, client
+  MCP roots, `SHEET_MUSIC_INPUT_ROOTS`), then the same `validate_musicxml()` inline text gets.
+  Never open a score path yourself. The core function is imported as `read_score` because
+  `engine.load_score` (the session tool) has the same name. `audio_path` is deliberately not
+  confined (Wave 2 decision W2-3). The schemas carry both `anyOf` (`part` / `part_id`) and
+  `oneOf` (`musicxml` / `musicxml_path`) at the top level.
 - **`analyze_recording` accepts 16-bit PCM WAV only.** Reject MP3/FLAC with `UNSUPPORTED_FORMAT`.
 - **Accuracy thresholds:** on_pitch = ±25 cents; sharp = >+25 cents; flat = <−25 cents.
 

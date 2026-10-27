@@ -48,6 +48,21 @@ The server MUST write the WAV file to the specified output path. If no path is p
 
 The response MUST include the final output path.
 
+### FR-5a — Score references
+
+`get_parts`, `synthesize` and `describe_score` MUST accept the score either inline (`musicxml`) or
+as a file path (`musicxml_path`: `.musicxml`, `.xml` or compressed `.mxl`). Exactly one of the two
+is required. Paths are read through `sheet_music_mcp_core.references.load_score`, which confines
+them to the read roots (output root, the client's MCP roots, `SHEET_MUSIC_INPUT_ROOTS`) and never
+echoes file contents in errors ([conventions: Score References](../../docs/conventions.md#score-references)).
+A path call MUST give the same result as the inline call with the same score.
+
+### FR-5b — Score description
+
+The server MUST expose the shared `describe_score` tool (`sheet_music_mcp_core.references`):
+title, composer, key, time, tempo, parts (ID, name, abbreviation, clef, range), measures, lyrics
+presence and duration, parsed without music21.
+
 ### FR-6 — Capability reporting
 
 The server MUST expose a tool that returns:
@@ -100,8 +115,9 @@ The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The s
 ### IR-2 — Tool: `get_parts`
 
 ```
-Input:
-  musicxml  string  required  MusicXML document as a string
+Input (exactly one of musicxml / musicxml_path, JSON Schema oneOf):
+  musicxml       string  MusicXML document as a string
+  musicxml_path  string  path to a .musicxml, .xml or .mxl file inside the read roots
 
 Output:
   parts  list[object]
@@ -113,13 +129,16 @@ Output:
 ### IR-3 — Tool: `synthesize`
 
 ```
-Input:
-  musicxml      string        required  MusicXML document as a string
+Input (exactly one of musicxml / musicxml_path, JSON Schema oneOf):
+  musicxml      string        MusicXML document as a string
+  musicxml_path string        path to a .musicxml, .xml or .mxl file inside the read roots
   parts         list[string]  optional  parts to include as IDs, names or voices
                                         (e.g. "P1", "Soprano", "S"); default: all parts
   part_ids      list[string]  optional  deprecated alias of `parts` (removed next minor)
   tempo_factor  float         optional  0.25–4.0; default: 1.0
-  output_path   string        optional  path to write WAV; auto-generated if omitted
+  output_path   string        optional  path to write WAV inside SHEET_MUSIC_OUTPUT_ROOT
+                                        (.wav, .mid or .midi; always written as WAV);
+                                        auto-generated in /tmp/synth-mcp-<uid>/ if omitted
 
 Output:
   audio_path        string   path of written WAV file
@@ -133,13 +152,30 @@ Content blocks: `content[0]` is the JSON text above. On success it is followed b
 `resource_link` to the WAV file (`file://` URI of the resolved path, MIME type `audio/wav`;
 [conventions](../../docs/conventions.md#result-content)). Errors return only the error JSON.
 
+### IR-3a — Tool: `describe_score`
+
+The shared tool from `sheet_music_mcp_core.references` (`DESCRIBE_SCORE_TOOL`, title "Describe
+score", `READ_ONLY`). Input: exactly one of `musicxml` / `musicxml_path`. Output:
+
+```
+  title, composer          string | null
+  key, time                string | null   e.g. "D major", "3/4"
+  tempo_bpm                number | null
+  parts                    list[{id, name, abbreviation, clef, range: {low, high} | null}]
+  measures                 integer
+  has_lyrics               boolean
+  duration_quarters        number
+  duration_seconds         number | null
+```
+
 ### IR-4 — Tool: `list_capabilities`
 
 ```
 Output:
   server               string
   version              string
-  input_formats        list[string]   ["musicxml"]
+  input_formats        list[string]   ["musicxml", "mxl"]   (.mxl via musicxml_path only)
+  input_parameters     list[string]   ["musicxml", "musicxml_path"]   (give exactly one)
   output_formats       list[string]   ["wav"]
   tools                list[string]
   backend              string         "fluidsynth"
@@ -154,6 +190,9 @@ Output:
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SYNTH_SOUNDFONT_PATH` | Yes | Absolute path to an SF2 soundfont file |
+| `SHEET_MUSIC_OUTPUT_ROOT` | No | Folder `output_path` must be inside, and the first read root for `musicxml_path` (default: working directory) |
+| `SHEET_MUSIC_INPUT_ROOTS` | No | Extra folders `musicxml_path` may read from (`:`-separated; `;` on Windows) |
+| `SHEET_MUSIC_MAX_SCORE_BYTES` | No | Largest score file read, including an `.mxl` member uncompressed (default 16 MiB) |
 
 If `SYNTH_SOUNDFONT_PATH` is unset or points to a non-existent file, the server MUST start successfully but MUST return a `PROCESSING_FAILED` error with download instructions when `synthesize` is called.
 
@@ -165,8 +204,10 @@ If `SYNTH_SOUNDFONT_PATH` is unset or points to a non-existent file, the server 
 
 | Code | Condition |
 |------|-----------|
-| `INVALID_INPUT` | MusicXML cannot be parsed; no parts found |
-| `INVALID_PARAMETER` | Unknown part ID; tempo_factor out of range |
+| `INVALID_INPUT` | MusicXML cannot be parsed; no parts found; bad `.mxl` |
+| `INVALID_PARAMETER` | Unknown part ID; tempo_factor out of range; both or neither of `musicxml` / `musicxml_path`; path outside the read roots or with another suffix |
+| `FILE_NOT_FOUND` | `musicxml_path` inside the roots does not exist |
+| `FILE_TOO_LARGE` | `musicxml_path` larger than `SHEET_MUSIC_MAX_SCORE_BYTES` |
 | `PROCESSING_FAILED` | FluidSynth not installed; soundfont not found; synthesis error |
 
 ---
@@ -196,6 +237,9 @@ Unit tests MUST cover:
 - Missing soundfont error path
 - `list_capabilities` response schema
 - Output path auto-generation
+- Score references (`tests/test_score_references.py`): a `musicxml_path` call (`.musicxml` and
+  `.mxl`) gives the same result as the inline call; both or neither → `INVALID_PARAMETER`; paths
+  outside the roots → `INVALID_PARAMETER` without file content; `describe_score`
 
 Unit tests MUST mock pyfluidsynth. They MUST NOT synthesize real audio.
 

@@ -16,10 +16,15 @@ synth-mcp is a stateless MCP server that synthesizes WAV audio from MusicXML. It
 ┌──────────────────────────▼────────────────────────────────┐
 │                       server.py                           │
 │                                                           │
-│  list_tools()   → 3 tool definitions                      │
-│  call_tool()    → dispatches to engine                    │
-│  _error()       → error JSON helper                       │
-└──────────┬────────────────────────────────────────────────┘
+│  list_tools()   → 5 tool definitions                      │
+│  call_tool()    → load_score(), then dispatches to engine │
+└──────────┬──────────────────────────────┬─────────────────┘
+           │                              │ references.load_score()
+           │                              │ references.describe_score_tool()
+           │                  ┌───────────▼─────────────────┐
+           │                  │ sheet_music_mcp_core        │
+           │                  │ references → paths, scores  │
+           │                  └─────────────────────────────┘
            │
 ┌──────────▼──────────────┐  ┌──────────────────────────────┐
 │       engine.py         │  │          utils.py            │
@@ -56,7 +61,12 @@ synth-mcp is a stateless MCP server that synthesizes WAV audio from MusicXML. It
 
 MCP protocol layer. Contains no business logic.
 
-- Registers three tools: `get_parts`, `synthesize`, `list_capabilities`
+- Registers five tools: `get_parts`, `synthesize`, `describe_score` (shared, from
+  `sheet_music_mcp_core.references`), `list_capabilities`, `health_check`
+- Takes the score as `musicxml` or `musicxml_path` (`oneOf`). `references.load_score()` returns
+  the inline text as is, or reads a confined path (`.musicxml`, `.xml`, `.mxl`); the handlers then
+  run the same validation and engine calls either way. `make_handlers(..., pass_context=True)`
+  passes the request context so `load_score` can use the client's MCP roots
 - Validates parameters (delegates to `utils.py`) before calling engine
 - Converts engine results and `ProcessingError` exceptions to `TextContent` JSON (always `content[0]`)
 - After a successful `synthesize`, appends a `resource_link` to the written WAV (`file://` URI,
@@ -85,7 +95,8 @@ Input validation and path generation.
 |----------|-------------|
 | `validate_musicxml(xml_str)` | Check non-empty; parse with music21 |
 | `validate_tempo_factor(value)` | Check 0.25 ≤ value ≤ 4.0 |
-| `generate_output_path(path)` | Return caller-supplied path or auto-generate in `/tmp/synth-mcp/` |
+| `generate_output_path(path)` | Return the caller's path confined by `confine_output_path`, or auto-generate in `/tmp/synth-mcp-<uid>/` |
+| `confine_output_path(path, suffixes)` | Re-export of `sheet_music_mcp_core.paths.confine_output_path` (Wave 2) |
 
 ---
 
@@ -94,8 +105,9 @@ Input validation and path generation.
 ### `synthesize` tool
 
 ```
-call_tool("synthesize", {musicxml, parts, tempo_factor, output_path})
+call_tool("synthesize", {musicxml | musicxml_path, parts, tempo_factor, output_path})
   │
+  ├─ references.load_score → MusicXML text (path: confined, size-checked, .mxl unzipped)
   ├─ utils: validate_musicxml
   ├─ utils: validate_tempo_factor (if provided)
   ├─ utils: generate_output_path
@@ -141,8 +153,9 @@ call_tool("synthesize", {musicxml, parts, tempo_factor, output_path})
 ### `get_parts` tool
 
 ```
-call_tool("get_parts", {musicxml})
+call_tool("get_parts", {musicxml | musicxml_path})
   │
+  ├─ references.load_score
   ├─ utils: validate_musicxml
   ├─ engine: parse_parts(musicxml)
   │     ├─ music21.converter.parseData(musicxml)

@@ -32,6 +32,24 @@ The server MUST accept an ABC string and return whether it is syntactically vali
 - Validation MUST NOT require a MusicXML reference
 - Errors MUST include line number where available
 
+### FR-3a — Score references (UX Wave 2)
+
+Scores MAY be passed and returned as file paths instead of inline text
+([conventions: Score References](../../docs/conventions.md#score-references)).
+
+- `musicxml_to_abc` MUST accept exactly one of `musicxml` (text) and `musicxml_path` (a `.musicxml`,
+  `.xml` or `.mxl` file). Both or neither MUST return `INVALID_PARAMETER`.
+- A path MUST be read only inside the read roots (`SHEET_MUSIC_OUTPUT_ROOT`, the client's MCP roots,
+  `SHEET_MUSIC_INPUT_ROOTS`); a path outside them MUST return `INVALID_PARAMETER` without revealing
+  whether the file exists or echoing any of its content.
+- `abc_to_musicxml` MUST take `return: "auto" | "path" | "inline"` (default `auto`). `auto` returns
+  the text when it is at most `SHEET_MUSIC_INLINE_MAX_BYTES` (default 8192) UTF-8 bytes and
+  otherwise writes `<output root>/scores/from-abc-<timestamp>.musicxml`, returning `musicxml_path`
+  and a `score_summary` instead of `musicxml`, plus a resource link to the file. Inline output MUST
+  be byte-identical to the pre-Wave-2 output.
+- The server MUST expose the shared `describe_score` tool (title, key, time, tempo, parts with
+  `P1`… IDs, ranges, measures, duration) taking `musicxml` or `musicxml_path`.
+
 ### FR-4 — Capability reporting
 
 The server MUST expose a tool that returns:
@@ -97,7 +115,8 @@ The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The s
 
 ```
 Input:
-  musicxml   string  required  MusicXML document as a string
+  musicxml       string  one of   MusicXML document as a string
+  musicxml_path  string  one of   path to a .musicxml, .xml or .mxl file (preferred)
   part       string  optional  filter output to this part: ID, name or voice (e.g. "P1", "Soprano", "S")
   part_id    string  optional  deprecated alias of `part` (removed next minor)
 
@@ -111,12 +130,21 @@ Output:
 
 ```
 Input:
-  abc  string  required  ABC notation string
+  abc     string  required  ABC notation string
+  return  string  optional  "auto" (default) | "path" | "inline"
 
-Output:
+Output (inline: "inline", or "auto" with at most 8192 bytes of MusicXML):
   musicxml  string        MusicXML document as a string
   warnings  list[string]
+
+Output (path: "path", or "auto" above the limit):
+  musicxml_path  string        absolute path of <output root>/scores/from-abc-<timestamp>.musicxml
+  warnings       list[string]
+  score_summary  object        {title, parts: [{id, name, range}], measures, key, time, tempo_bpm}
+  content[1]     ResourceLink  the written file (application/vnd.recordare.musicxml+xml)
 ```
+
+The annotation preset is `WRITES_FILE` (it writes in `auto` mode; plan decision W2-5).
 
 ### IR-4 — Tool: `validate_abc`
 
@@ -136,12 +164,28 @@ Output:
 Output:
   server           string
   version          string
-  input_formats    list[string]   ["musicxml", "abc"]
+  input_formats    list[string]   ["musicxml", "mxl", "abc"]
   output_formats   list[string]   ["abc", "musicxml"]
-  tools            list[string]
+  input_parameters list[string]   ["musicxml", "musicxml_path"]
+  tools            list[string]   includes "describe_score"
   backend          string         "music21"
   backend_version  string
   abc_standard     string         "2.1"
+```
+
+### IR-5a — Tool: `describe_score`
+
+The shared tool from `sheet_music_mcp_core.references` (`READ_ONLY`, title "Describe score").
+
+```
+Input:
+  musicxml       string  one of  MusicXML text
+  musicxml_path  string  one of  path to a .musicxml, .xml or .mxl file
+
+Output:
+  title, composer, key, time, tempo_bpm,
+  parts: [{id, name, abbreviation, clef, range: {low, high}}],
+  measures, has_lyrics, duration_quarters, duration_seconds
 ```
 
 ### IR-6 — Error response format
@@ -152,8 +196,10 @@ Output:
 
 | Code | Condition |
 |------|-----------|
-| `INVALID_INPUT` | MusicXML parse error; ABC parse error |
-| `INVALID_PARAMETER` | Requested part not found, or ambiguous (`choices` lists the parts) |
+| `INVALID_INPUT` | MusicXML parse error; ABC parse error; a score file that is not well-formed MusicXML or a bad `.mxl` |
+| `INVALID_PARAMETER` | Requested part not found, or ambiguous (`choices` lists the parts); both or neither of `musicxml` / `musicxml_path`; a score path outside the read roots or with the wrong suffix; unknown `return` mode |
+| `FILE_NOT_FOUND` | `musicxml_path` inside the roots does not exist |
+| `FILE_TOO_LARGE` | `musicxml_path` larger than `SHEET_MUSIC_MAX_SCORE_BYTES` (default 16 MiB) |
 | `PROCESSING_FAILED` | music21 conversion failure |
 
 ---
@@ -180,6 +226,9 @@ Unit tests MUST cover:
 - `validate_abc` with valid and invalid ABC strings
 - `list_capabilities` response schema
 - ABC octave encoding (middle C = `C`)
+- Score references (`tests/test_score_references.py`): path equals inline, `.mxl`, both/neither,
+  paths outside the roots (no content leak), `return` modes of `abc_to_musicxml`, round trip of the
+  written file, `describe_score`
 
 Unit tests MUST mock music21 `converter.parse`.
 

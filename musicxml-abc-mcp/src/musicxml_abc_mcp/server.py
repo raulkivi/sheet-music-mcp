@@ -5,9 +5,18 @@ import logging
 import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import TextContent, Tool, ToolAnnotations
-from sheet_music_mcp_core.annotations import READ_ONLY
+from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from sheet_music_mcp_core.content import error_content, processing_error_content
 from sheet_music_mcp_core.params import aliased
+from sheet_music_mcp_core.references import (
+    DESCRIBE_SCORE_TOOL,
+    RETURN_PROPERTY,
+    deliver_score,
+    describe_score_tool,
+    exactly_one,
+    load_score,
+    score_input_properties,
+)
 from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
@@ -23,8 +32,19 @@ INSTRUCTIONS = (
     "Converts MusicXML to compact ABC notation so you can read or edit a score as text "
     "(musicxml_to_abc, optionally one part) and converts edited ABC back to MusicXML "
     "(abc_to_musicxml). Check edits with validate_abc first. The round trip keeps the notes but "
-    "drops dynamics and complex articulations."
+    "drops dynamics and complex articulations. "
+    "Prefer musicxml_path over inline musicxml text, pass on the musicxml_path that "
+    "abc_to_musicxml returns for large scores, and use describe_score to learn part IDs cheaply."
 )
+
+
+def _musicxml_input_properties() -> dict:
+    """musicxml / musicxml_path, keeping this server's inline description."""
+    properties = score_input_properties("musicxml", "musicxml_path", what="the score")
+    properties["musicxml"]["description"] = (
+        "MusicXML document as a string. Give this or 'musicxml_path', not both."
+    )
+    return properties
 
 
 async def list_tools():
@@ -36,15 +56,13 @@ async def list_tools():
             description=(
                 "Convert a MusicXML document to ABC notation. "
                 "ABC is compact and human-readable — ideal for Claude to read and edit scores directly. "
-                "Optionally filter to a single part."
+                "Optionally filter to a single part. "
+                "Pass the score as musicxml_path (preferred) or as musicxml text."
             ),
             input_schema={
                 "type": "object",
                 "properties": {
-                    "musicxml": {
-                        "type": "string",
-                        "description": "MusicXML document as a string",
-                    },
+                    **_musicxml_input_properties(),
                     "part": {
                         "type": "string",
                         "description": (
@@ -57,17 +75,21 @@ async def list_tools():
                         "description": "(Deprecated: use `part`) Export only this part.",
                     },
                 },
-                "required": ["musicxml"],
+                **exactly_one("musicxml", "musicxml_path"),
             },
         ),
         Tool(
             name="abc_to_musicxml",
             title="ABC to MusicXML",
-            annotations=ToolAnnotations(**READ_ONLY),
+            # Writes the score to a file in 'auto' mode when it is large (Wave 2, W2-5).
+            annotations=ToolAnnotations(**WRITES_FILE),
             description=(
                 "Convert an ABC notation string back to MusicXML. "
                 "Use this after Claude has read or edited an ABC score to produce "
-                "MusicXML for synthesis or rendering."
+                "MusicXML for synthesis or rendering. With return 'auto' (default) a small "
+                "score comes back as musicxml text and a large one as musicxml_path plus a "
+                "short score_summary; 'inline' always returns the text, 'path' always writes "
+                "a file. Pass musicxml_path on to other tools."
             ),
             input_schema={
                 "type": "object",
@@ -76,6 +98,7 @@ async def list_tools():
                         "type": "string",
                         "description": "ABC notation string",
                     },
+                    **RETURN_PROPERTY,
                 },
                 "required": ["abc"],
             },
@@ -126,12 +149,16 @@ async def list_tools():
                 "required": [],
             },
         ),
+        DESCRIBE_SCORE_TOOL,
     ]
 
 
-async def call_tool(name: str, arguments: dict):
+async def call_tool(name: str, arguments: dict, ctx=None):
     if name == "musicxml_to_abc":
-        musicxml = arguments.get("musicxml", "")
+        try:
+            musicxml = await load_score(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
         ok, err = validate_musicxml(musicxml)
         if not ok:
             return error_content(err, "INVALID_INPUT")
@@ -155,7 +182,7 @@ async def call_tool(name: str, arguments: dict):
 
         try:
             result = abc_to_musicxml(abc)
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+            return deliver_score(result, field="musicxml", mode=arguments.get("return"), stem="from-abc")
         except ProcessingError as e:
             return processing_error_content(e)
         except Exception as e:
@@ -185,9 +212,18 @@ async def call_tool(name: str, arguments: dict):
         result = {
             "server": "musicxml-abc-mcp",
             "version": __version__,
-            "input_formats": ["musicxml", "abc"],
+            "input_formats": ["musicxml", "mxl", "abc"],
             "output_formats": ["abc", "musicxml"],
-            "tools": ["musicxml_to_abc", "abc_to_musicxml", "validate_abc", "list_capabilities", "health_check"],
+            # Scores are taken as inline text or as a .musicxml/.xml/.mxl file path.
+            "input_parameters": ["musicxml", "musicxml_path"],
+            "tools": [
+                "musicxml_to_abc",
+                "abc_to_musicxml",
+                "validate_abc",
+                "list_capabilities",
+                "health_check",
+                "describe_score",
+            ],
             "backend": "music21",
             "backend_version": backend_version,
             "abc_standard": "2.1",
@@ -197,6 +233,12 @@ async def call_tool(name: str, arguments: dict):
             ),
         }
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+    elif name == "describe_score":
+        try:
+            return await describe_score_tool(arguments, ctx)
+        except ProcessingError as e:
+            return processing_error_content(e)
 
     elif name == "health_check":
         try:
@@ -209,7 +251,7 @@ async def call_tool(name: str, arguments: dict):
     raise ValueError(f"Unknown tool: {name}")
 
 
-_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, pass_context=True, logger=logger)
 
 app = Server(
     "musicxml-abc-mcp",
@@ -234,7 +276,7 @@ def main():
 
     logger.info(
         "musicxml-abc-mcp ready. Tools: musicxml_to_abc, abc_to_musicxml, "
-        "validate_abc, list_capabilities, health_check"
+        "validate_abc, list_capabilities, health_check, describe_score"
     )
 
     async def _run():

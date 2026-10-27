@@ -5,20 +5,21 @@ import asyncio
 
 import pytest
 from mcp import Client
-from sheet_music_mcp_core.annotations import READ_ONLY
+from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 
 from musicxml_abc_mcp.server import app, list_tools
 
 EXPECTED = {
     "musicxml_to_abc": ("MusicXML to ABC", READ_ONLY),
-    "abc_to_musicxml": ("ABC to MusicXML", READ_ONLY),
+    "abc_to_musicxml": ("ABC to MusicXML", WRITES_FILE),  # writes large scores in auto mode (W2-5)
     "validate_abc": ("Validate ABC", READ_ONLY),
     "list_capabilities": ("ABC capabilities", READ_ONLY),
     "health_check": ("ABC health check", READ_ONLY),
+    "describe_score": ("Describe score", READ_ONLY),
 }
 
 # Phrases the instructions must contain: the routing knowledge the model needs up front.
-INSTRUCTION_PHRASES = ('validate_abc', 'dynamics')
+INSTRUCTION_PHRASES = ('validate_abc', 'dynamics', 'musicxml_path', 'describe_score')
 
 
 def _tools():
