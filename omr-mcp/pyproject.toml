@@ -21,7 +21,7 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "mcp>=2.2.0,<3.0.0",
+    "mcp>=2.3.0,<3.0.0",
     "oemer>=0.1.0",
     # oemer's own packaging leaves onnxruntime-gpu and opencv-python-headless
     # unpinned, so `uv sync` resolves both to whatever is newest. Two
@@ -65,7 +65,7 @@ build-backend = "hatchling.build"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0.0",
+    "pytest>=8.4.0",
     "pytest-asyncio>=0.23.0",
 ]
 

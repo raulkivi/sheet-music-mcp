@@ -18,14 +18,14 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "mcp>=2.2.0,<3.0.0",
+    "mcp>=2.3.0,<3.0.0",
     "jsonschema>=4.20.0",
     "defusedxml>=0.7.1",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0.0",
+    "pytest>=8.4.0",
     "pytest-asyncio>=0.23.0",
 ]
 
