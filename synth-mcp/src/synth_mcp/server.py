@@ -3,10 +3,11 @@ import json
 import logging
 import os
 
-import jsonschema
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
+from mcp.types import TextContent, Tool
+from sheet_music_mcp_core.content import error_content
+from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
 from .engine import ProcessingError, extract_midi, parse_parts, synthesize_midi
@@ -90,26 +91,22 @@ async def list_tools():
     ]
 
 
-def _error(message: str, code: str) -> list[TextContent]:
-    return [TextContent(type="text", text=json.dumps({"error": message, "error_code": code}))]
-
-
 async def call_tool(name: str, arguments: dict):
     if name == "get_parts":
         musicxml = arguments.get("musicxml", "")
 
         ok, err = validate_musicxml(musicxml)
         if not ok:
-            return _error(err, "INVALID_INPUT")
+            return error_content(err, "INVALID_INPUT")
 
         try:
             parts = parse_parts(musicxml)
             return [TextContent(type="text", text=json.dumps({"parts": parts}, indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("get_parts unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "synthesize":
         musicxml = arguments.get("musicxml", "")
@@ -119,35 +116,35 @@ async def call_tool(name: str, arguments: dict):
 
         ok, err = validate_musicxml(musicxml)
         if not ok:
-            return _error(err, "INVALID_INPUT")
+            return error_content(err, "INVALID_INPUT")
 
         ok, err = validate_tempo_factor(tempo_factor)
         if not ok:
-            return _error(err, "INVALID_PARAMETER")
+            return error_content(err, "INVALID_PARAMETER")
 
         if part_ids is not None and not isinstance(part_ids, list):
-            return _error("part_ids must be a list of strings", "INVALID_PARAMETER")
+            return error_content("part_ids must be a list of strings", "INVALID_PARAMETER")
 
         try:
             resolved_output = generate_output_path(output_path)
         except ValueError as e:
-            return _error(str(e), "INVALID_PARAMETER")
+            return error_content(str(e), "INVALID_PARAMETER")
 
         try:
             midi_bytes = extract_midi(musicxml, part_ids, tempo_factor)
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("extract_midi unexpected error: %s", e)
-            return _error(f"MIDI extraction failed: {e}", "PROCESSING_FAILED")
+            return error_content(f"MIDI extraction failed: {e}", "PROCESSING_FAILED")
 
         try:
             duration = synthesize_midi(midi_bytes, resolved_output)
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("synthesize_midi unexpected error: %s", e)
-            return _error(f"Synthesis failed: {e}", "PROCESSING_FAILED")
+            return error_content(f"Synthesis failed: {e}", "PROCESSING_FAILED")
 
         # Resolve the list of included part IDs for the response
         if part_ids is not None:
@@ -271,30 +268,7 @@ async def call_tool(name: str, arguments: dict):
     raise ValueError(f"Unknown tool: {name}")
 
 
-def _error_result(message: str) -> CallToolResult:
-    return CallToolResult(content=[TextContent(type="text", text=message)], is_error=True)
-
-
-async def _on_list_tools(ctx, params) -> ListToolsResult:
-    return ListToolsResult(tools=await list_tools())
-
-
-async def _on_call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
-    # mcp 2.x low-level handlers neither validate input nor catch tool errors;
-    # keep the 1.x decorator behaviour clients rely on.
-    arguments = params.arguments or {}
-    tool = next((t for t in await list_tools() if t.name == params.name), None)
-    if tool is not None:
-        try:
-            jsonschema.validate(instance=arguments, schema=tool.input_schema)
-        except jsonschema.ValidationError as e:
-            return _error_result(f"Input validation error: {e.message}")
-    try:
-        return CallToolResult(content=await call_tool(params.name, arguments))
-    except Exception as e:
-        logger.error("Tool %s failed: %s", params.name, e)
-        return _error_result(str(e))
-
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
 
 app = Server("synth-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
 

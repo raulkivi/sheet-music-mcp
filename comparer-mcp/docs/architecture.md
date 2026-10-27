@@ -456,7 +456,7 @@ result = compare_files("version_a.musicxml", "version_b.musicxml")
 | Package | Purpose | License |
 |---------|---------|---------|
 | `mcp>=2.2.0,<3.0.0` | MCP server framework | MIT |
-| `jsonschema>=4.20.0` | Tool input validation | MIT |
+| `sheet-music-mcp-core>=0.1.0,<0.2.0` | Shared error envelope, `ProcessingError` and handler wiring (input validation, error results); see [docs/conventions.md](../../docs/conventions.md#shared-core-library) | MIT |
 | `music21` | MusicXML parsing, score object model, stream alignment | BSD-3 |
 | `numpy` | Distance matrix in alignment (transitive via music21) | BSD-3 |
 

@@ -228,6 +228,7 @@ Engine errors are raised as `ProcessingError(message, error_code)`. The server l
 | `music21` ≥9.0 | MusicXML parsing, part/note model, MIDI export |
 | `pyfluidsynth` ≥1.3 | Python bindings for libfluidsynth |
 | `mcp` | MCP protocol SDK |
+| `sheet-music-mcp-core` | Shared error envelope, `ProcessingError` and handler wiring (input validation, error results); see [docs/conventions.md](../../docs/conventions.md#shared-core-library) |
 
 **System library:** `libfluidsynth.so.3` (Linux) / `libfluidsynth.dylib` (macOS) must be installed separately. pyfluidsynth loads it via ctypes at import time; if missing, import fails and the server exits.
 

@@ -2,10 +2,11 @@ import asyncio
 import json
 import logging
 
-import jsonschema
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
+from mcp.types import TextContent, Tool
+from sheet_music_mcp_core.content import error_content
+from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
 from .annotator import annotate
@@ -211,10 +212,6 @@ async def list_tools():
     ]
 
 
-def _error(message: str, code: str) -> list[TextContent]:
-    return [TextContent(type="text", text=json.dumps({"error": message, "error_code": code}))]
-
-
 def _filter_changes(result, part, measure_range) -> list[dict]:
     changes = []
     for part_diff in result.part_diffs:
@@ -242,19 +239,19 @@ async def call_tool(name: str, arguments: dict):
 
         ok, err = validate_musicxml(reference_xml)
         if not ok:
-            return _error(f"reference_xml: {err}", "INVALID_INPUT")
+            return error_content(f"reference_xml: {err}", "INVALID_INPUT")
         ok, err = validate_musicxml(target_xml)
         if not ok:
-            return _error(f"target_xml: {err}", "INVALID_INPUT")
+            return error_content(f"target_xml: {err}", "INVALID_INPUT")
 
         try:
             result = compare(reference_xml, target_xml, options)
             return [TextContent(type="text", text=json.dumps(result.to_dict(), indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("compare_musicxml unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "compare_musicxml_files":
         reference_path = arguments.get("reference_path", "")
@@ -262,18 +259,18 @@ async def call_tool(name: str, arguments: dict):
         options = arguments.get("options")
 
         if not reference_path:
-            return _error("reference_path is required.", "INVALID_PARAMETER")
+            return error_content("reference_path is required.", "INVALID_PARAMETER")
         if not target_path:
-            return _error("target_path is required.", "INVALID_PARAMETER")
+            return error_content("target_path is required.", "INVALID_PARAMETER")
 
         try:
             result = compare_files(reference_path, target_path, options)
             return [TextContent(type="text", text=json.dumps(result.to_dict(), indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("compare_musicxml_files unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "quick_similarity":
         reference_xml = arguments.get("reference_xml", "")
@@ -281,10 +278,10 @@ async def call_tool(name: str, arguments: dict):
 
         ok, err = validate_musicxml(reference_xml)
         if not ok:
-            return _error(f"reference_xml: {err}", "INVALID_INPUT")
+            return error_content(f"reference_xml: {err}", "INVALID_INPUT")
         ok, err = validate_musicxml(target_xml)
         if not ok:
-            return _error(f"target_xml: {err}", "INVALID_INPUT")
+            return error_content(f"target_xml: {err}", "INVALID_INPUT")
 
         try:
             result = compare(reference_xml, target_xml)
@@ -294,10 +291,10 @@ async def call_tool(name: str, arguments: dict):
             }
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("quick_similarity unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "list_changes":
         reference_xml = arguments.get("reference_xml", "")
@@ -307,10 +304,10 @@ async def call_tool(name: str, arguments: dict):
 
         ok, err = validate_musicxml(reference_xml)
         if not ok:
-            return _error(f"reference_xml: {err}", "INVALID_INPUT")
+            return error_content(f"reference_xml: {err}", "INVALID_INPUT")
         ok, err = validate_musicxml(target_xml)
         if not ok:
-            return _error(f"target_xml: {err}", "INVALID_INPUT")
+            return error_content(f"target_xml: {err}", "INVALID_INPUT")
 
         if measure_range is not None:
             if (
@@ -319,7 +316,7 @@ async def call_tool(name: str, arguments: dict):
                 or not all(isinstance(n, int) and not isinstance(n, bool) for n in measure_range)
                 or measure_range[0] > measure_range[1]
             ):
-                return _error(
+                return error_content(
                     "measure_range must be a [start, end] pair of integers with start <= end.",
                     "INVALID_PARAMETER",
                 )
@@ -330,10 +327,10 @@ async def call_tool(name: str, arguments: dict):
             payload = {"changes": changes, "count": len(changes)}
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("list_changes unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "generate_comparison_report":
         reference_xml = arguments.get("reference_xml", "")
@@ -342,20 +339,20 @@ async def call_tool(name: str, arguments: dict):
 
         ok, err = validate_musicxml(reference_xml)
         if not ok:
-            return _error(f"reference_xml: {err}", "INVALID_INPUT")
+            return error_content(f"reference_xml: {err}", "INVALID_INPUT")
         ok, err = validate_musicxml(target_xml)
         if not ok:
-            return _error(f"target_xml: {err}", "INVALID_INPUT")
+            return error_content(f"target_xml: {err}", "INVALID_INPUT")
 
         try:
             result = compare(reference_xml, target_xml, options)
             payload = {"report": generate_report(result), "similarity_score": result.similarity_score}
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("generate_comparison_report unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "export_annotated_musicxml":
         reference_xml = arguments.get("reference_xml", "")
@@ -364,19 +361,19 @@ async def call_tool(name: str, arguments: dict):
 
         ok, err = validate_musicxml(reference_xml)
         if not ok:
-            return _error(f"reference_xml: {err}", "INVALID_INPUT")
+            return error_content(f"reference_xml: {err}", "INVALID_INPUT")
         ok, err = validate_musicxml(target_xml)
         if not ok:
-            return _error(f"target_xml: {err}", "INVALID_INPUT")
+            return error_content(f"target_xml: {err}", "INVALID_INPUT")
 
         try:
             payload = annotate(reference_xml, target_xml, options)
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("export_annotated_musicxml unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "list_capabilities":
         backend_version = "unknown"
@@ -412,35 +409,12 @@ async def call_tool(name: str, arguments: dict):
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except Exception as e:
             logger.error("health_check unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     raise ValueError(f"Unknown tool: {name}")
 
 
-def _error_result(message: str) -> CallToolResult:
-    return CallToolResult(content=[TextContent(type="text", text=message)], is_error=True)
-
-
-async def _on_list_tools(ctx, params) -> ListToolsResult:
-    return ListToolsResult(tools=await list_tools())
-
-
-async def _on_call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
-    # mcp 2.x low-level handlers neither validate input nor catch tool errors;
-    # keep the 1.x decorator behaviour clients rely on.
-    arguments = params.arguments or {}
-    tool = next((t for t in await list_tools() if t.name == params.name), None)
-    if tool is not None:
-        try:
-            jsonschema.validate(instance=arguments, schema=tool.input_schema)
-        except jsonschema.ValidationError as e:
-            return _error_result(f"Input validation error: {e.message}")
-    try:
-        return CallToolResult(content=await call_tool(params.name, arguments))
-    except Exception as e:
-        logger.error("Tool %s failed: %s", params.name, e)
-        return _error_result(str(e))
-
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
 
 app = Server("comparer-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
 

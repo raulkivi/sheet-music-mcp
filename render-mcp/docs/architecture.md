@@ -268,6 +268,7 @@ MuseScore names output files as `render.png` (single page) or `render-N.png` for
 | `pypdf` ≥4.0 | PDF page count reading, multi-page PDF assembly |
 | `Pillow` | PNG dimension reading |
 | `mcp` | MCP protocol SDK |
+| `sheet-music-mcp-core` | Shared error envelope, `ProcessingError` and handler wiring (input validation, error results); see [docs/conventions.md](../../docs/conventions.md#shared-core-library) |
 
 **System library:** `libcairo2` must be installed. Standard on Ubuntu desktop; no sudo required.
 

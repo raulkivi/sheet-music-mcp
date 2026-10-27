@@ -25,15 +25,9 @@ import logging
 from fractions import Fraction
 from typing import Optional
 
+from sheet_music_mcp_core.errors import ProcessingError  # re-exported for server.py
+
 logger = logging.getLogger(__name__)
-
-
-class ProcessingError(Exception):
-    """Raised when a conversion step fails in an expected, reportable way."""
-
-    def __init__(self, message: str, error_code: str = "PROCESSING_FAILED"):
-        super().__init__(message)
-        self.error_code = error_code
 
 
 # ---------------------------------------------------------------------------

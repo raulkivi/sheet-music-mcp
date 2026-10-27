@@ -269,6 +269,7 @@ C2 D2 E2 F2 | G2 A2 B2 c2 | ...
 | `music21` ≥9.0 | MusicXML parsing, ABC parsing, MusicXML export |
 | `fractions.Fraction` | Duration arithmetic (stdlib) |
 | `mcp` | MCP protocol SDK |
+| `sheet-music-mcp-core` | Shared error envelope, `ProcessingError` and handler wiring (input validation, error results); see [docs/conventions.md](../../docs/conventions.md#shared-core-library) |
 
 No system libraries required. Pure Python.
 

@@ -93,7 +93,9 @@ resolved in that server's `uv.lock`. **Latest stable** = current PyPI release as
 argument (`app.request_context` is gone). The 2.x low-level handlers also dropped two things the
 1.x decorator did, so each server's `_on_call_tool` adapter restores them:
 
-- validates arguments against the tool's `input_schema` (`jsonschema`, now a direct dependency);
+- validates arguments against the tool's `input_schema` (`jsonschema`, now a direct dependency;
+  since Wave 1 this adapter is `make_handlers` in `sheet-music-mcp-core`, which carries the
+  `jsonschema` dependency instead of each server);
 - returns tool exceptions, including unknown tool names, as `isError` results instead of a
   JSON-RPC internal error.
 

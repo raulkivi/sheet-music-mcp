@@ -17,6 +17,8 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
+from sheet_music_mcp_core.errors import ProcessingError  # re-exported for server.py
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -25,14 +27,6 @@ logger = logging.getLogger(__name__)
 
 # MuseScore command names to try, in order of preference
 _MUSESCORE_CMDS = ("mscore4", "musescore4", "musescore")
-
-
-class ProcessingError(Exception):
-    """Raised when a rendering step fails in an expected, reportable way."""
-
-    def __init__(self, message: str, error_code: str = "PROCESSING_FAILED"):
-        super().__init__(message)
-        self.error_code = error_code
 
 
 def _find_musescore_cmd() -> Optional[str]:

@@ -21,7 +21,7 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "jsonschema>=4.20.0",
+    "sheet-music-mcp-core>=0.1.0,<0.2.0",
     "mcp>=2.2.0,<3.0.0",
     "music21>=9.0.0",
 ]
@@ -49,3 +49,6 @@ asyncio_mode = "auto"
 markers = [
     "integration: marks tests as slow integration tests that require real backends (run with '-m integration')",
 ]
+
+[tool.uv.sources]
+sheet-music-mcp-core = { path = "../sheet-music-mcp-core", editable = true }

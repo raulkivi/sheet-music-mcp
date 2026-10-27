@@ -273,6 +273,7 @@ All errors are returned as JSON text content rather than raising MCP protocol er
 | `Pillow` | Image validation and info extraction |
 | `defusedxml` | Safe XML parsing (prevents XXE attacks) |
 | `mcp` | MCP protocol SDK |
+| `sheet-music-mcp-core` | Shared error envelope, `ProcessingError` and handler wiring (input validation, error results); see [docs/conventions.md](../../docs/conventions.md#shared-core-library) |
 
 No system libraries are required for the default (`oemer`) path. ONNX Runtime is bundled with the
 oemer pip package. `engine="audiveris"` is not a Python dependency — it's a self-contained binary

@@ -3,10 +3,11 @@ import json
 import logging
 import os
 
-import jsonschema
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
+from mcp.types import TextContent, Tool
+from sheet_music_mcp_core.content import error_content
+from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
 from .engine import (
@@ -154,10 +155,6 @@ async def list_tools():
     ]
 
 
-def _error(message: str, code: str) -> list[TextContent]:
-    return [TextContent(type="text", text=json.dumps({"error": message, "error_code": code}))]
-
-
 async def call_tool(name: str, arguments: dict):
     if name == "analyze_recording":
         audio_path = arguments.get("audio_path", "")
@@ -167,23 +164,23 @@ async def call_tool(name: str, arguments: dict):
         ok, err = validate_audio_path(audio_path)
         if not ok:
             code = "FILE_NOT_FOUND" if "not found" in err else "UNSUPPORTED_FORMAT"
-            return _error(err, code)
+            return error_content(err, code)
 
         ok, err = validate_musicxml(musicxml)
         if not ok:
-            return _error(err, "INVALID_INPUT")
+            return error_content(err, "INVALID_INPUT")
 
         if not part_id:
-            return _error("part_id is required.", "INVALID_INPUT")
+            return error_content("part_id is required.", "INVALID_INPUT")
 
         try:
             result = analyze_recording(audio_path, musicxml, part_id)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("analyze_recording unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "load_score":
         musicxml = arguments.get("musicxml", "")
@@ -191,19 +188,19 @@ async def call_tool(name: str, arguments: dict):
 
         ok, err = validate_musicxml(musicxml)
         if not ok:
-            return _error(err, "INVALID_INPUT")
+            return error_content(err, "INVALID_INPUT")
 
         if not part_id:
-            return _error("part_id is required.", "INVALID_INPUT")
+            return error_content("part_id is required.", "INVALID_INPUT")
 
         try:
             result = load_score(musicxml, part_id)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("load_score unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "start_monitoring":
         session_id = arguments.get("session_id", "")
@@ -211,48 +208,48 @@ async def call_tool(name: str, arguments: dict):
 
         ok, err = validate_session_id(session_id)
         if not ok:
-            return _error(err, "INVALID_INPUT")
+            return error_content(err, "INVALID_INPUT")
 
         try:
             result = start_monitoring(session_id, tempo_bpm)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("start_monitoring unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "get_current_position":
         session_id = arguments.get("session_id", "")
 
         ok, err = validate_session_id(session_id)
         if not ok:
-            return _error(err, "INVALID_INPUT")
+            return error_content(err, "INVALID_INPUT")
 
         try:
             result = get_position(session_id)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("get_current_position unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "stop_monitoring":
         session_id = arguments.get("session_id", "")
 
         ok, err = validate_session_id(session_id)
         if not ok:
-            return _error(err, "INVALID_INPUT")
+            return error_content(err, "INVALID_INPUT")
 
         try:
             result = stop_monitoring(session_id)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except ProcessingError as e:
-            return _error(str(e), e.error_code)
+            return error_content(str(e), e.error_code)
         except Exception as e:
             logger.error("stop_monitoring unexpected error: %s", e)
-            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "list_capabilities":
         # Check aubio availability
@@ -316,30 +313,7 @@ def _check_microphone() -> bool:
         return False
 
 
-def _error_result(message: str) -> CallToolResult:
-    return CallToolResult(content=[TextContent(type="text", text=message)], is_error=True)
-
-
-async def _on_list_tools(ctx, params) -> ListToolsResult:
-    return ListToolsResult(tools=await list_tools())
-
-
-async def _on_call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
-    # mcp 2.x low-level handlers neither validate input nor catch tool errors;
-    # keep the 1.x decorator behaviour clients rely on.
-    arguments = params.arguments or {}
-    tool = next((t for t in await list_tools() if t.name == params.name), None)
-    if tool is not None:
-        try:
-            jsonschema.validate(instance=arguments, schema=tool.input_schema)
-        except jsonschema.ValidationError as e:
-            return _error_result(f"Input validation error: {e.message}")
-    try:
-        return CallToolResult(content=await call_tool(params.name, arguments))
-    except Exception as e:
-        logger.error("Tool %s failed: %s", params.name, e)
-        return _error_result(str(e))
-
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, logger=logger)
 
 app = Server("pitch-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
 

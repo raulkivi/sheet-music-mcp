@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Optional
 
 from music21 import converter
+from sheet_music_mcp_core.errors import ProcessingError  # re-exported for server.py
 
 from comparer_mcp.measure_comparator import (
     compare_key_signatures,
@@ -43,14 +44,6 @@ _PARTIAL_MATCH_OPS = {"PITCH_CHANGE", "DURATION_CHANGE"}
 
 _STRUCTURE_WEIGHT = 0.3
 _NOTE_WEIGHT = 0.7
-
-
-class ProcessingError(Exception):
-    """Raised when a comparison step fails in an expected, reportable way."""
-
-    def __init__(self, message: str, error_code: str = "PROCESSING_FAILED"):
-        super().__init__(message)
-        self.error_code = error_code
 
 
 # Input formats (docs/requirements.md "Interfaces"): .musicxml, .xml, or

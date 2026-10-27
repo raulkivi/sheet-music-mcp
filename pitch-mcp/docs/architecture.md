@@ -447,6 +447,7 @@ ScoreSession:
 | `numpy` ≥1.24 | Audio buffers, DSP arithmetic |
 | `scipy` ≥1.10 | WAV file reading (crepe backend) |
 | `mcp` | MCP protocol SDK |
+| `sheet-music-mcp-core` | Shared error envelope, `ProcessingError` and handler wiring (input validation, error results); see [docs/conventions.md](../../docs/conventions.md#shared-core-library) |
 
 `crepe` (optional): CNN pitch detection. Manual install only. Requires TensorFlow.
 

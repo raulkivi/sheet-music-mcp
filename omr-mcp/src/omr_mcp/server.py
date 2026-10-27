@@ -1,7 +1,8 @@
-import jsonschema
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
+from mcp.types import TextContent, Tool
+from sheet_music_mcp_core.content import error_content
+from sheet_music_mcp_core.wiring import make_handlers
 import asyncio
 import json
 import logging
@@ -174,8 +175,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
                 # Decode base64 to temporary file
                 success, path_or_error = decode_base64_image(image)
                 if not success:
-                    error_result = {"error": path_or_error, "error_code": "INVALID_INPUT"}
-                    return [TextContent(type="text", text=json.dumps(error_result))]
+                    return error_content(path_or_error, "INVALID_INPUT")
                 image_path = path_or_error
             else:
                 image_path = image
@@ -186,8 +186,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except Exception as e:
             logger.error(f"Error processing image: {str(e)}")
-            error_result = {"error": f"Failed to process image: {str(e)}", "error_code": "PROCESSING_FAILED"}
-            return [TextContent(type="text", text=json.dumps(error_result))]
+            return error_content(f"Failed to process image: {str(e)}", "PROCESSING_FAILED")
 
     elif name == "recognize_sheet_to_file":
         input_path = arguments["input_path"]
@@ -208,15 +207,13 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except Exception as e:
             logger.error(f"Error processing image: {str(e)}")
-            error_result = {"error": f"Failed to process image: {str(e)}", "error_code": "PROCESSING_FAILED"}
-            return [TextContent(type="text", text=json.dumps(error_result))]
+            return error_content(f"Failed to process image: {str(e)}", "PROCESSING_FAILED")
     
     elif name == "recognize_sheets":
         images = arguments.get("images", [])
         engine = arguments.get("engine", "oemer")
         if not isinstance(images, list):
-            error_result = {"error": "'images' must be a list", "error_code": "INVALID_PARAMETER"}
-            return [TextContent(type="text", text=json.dumps(error_result))]
+            return error_content("'images' must be a list", "INVALID_PARAMETER")
 
         logger.info(f"Processing {len(images)} sheet music page(s) (engine: {engine})")
 
@@ -235,8 +232,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
                 resolved_paths.append(img)
 
         if resolution_error:
-            error_result = {"error": resolution_error, "error_code": "INVALID_INPUT"}
-            return [TextContent(type="text", text=json.dumps(error_result))]
+            return error_content(resolution_error, "INVALID_INPUT")
 
         try:
             result = await _run_with_progress(
@@ -249,8 +245,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except Exception as e:
             logger.error(f"Error processing images: {str(e)}")
-            error_result = {"error": f"Failed to process images: {str(e)}", "error_code": "PROCESSING_FAILED"}
-            return [TextContent(type="text", text=json.dumps(error_result))]
+            return error_content(f"Failed to process images: {str(e)}", "PROCESSING_FAILED")
 
     elif name in ("list_capabilities", "list_supported_formats"):
         try:
@@ -317,30 +312,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
 
     raise ValueError(f"Unknown tool: {name}")
 
-def _error_result(message: str) -> CallToolResult:
-    return CallToolResult(content=[TextContent(type="text", text=message)], is_error=True)
-
-
-async def _on_list_tools(ctx, params) -> ListToolsResult:
-    return ListToolsResult(tools=await list_tools())
-
-
-async def _on_call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
-    # mcp 2.x low-level handlers neither validate input nor catch tool errors;
-    # keep the 1.x decorator behaviour clients rely on.
-    arguments = params.arguments or {}
-    tool = next((t for t in await list_tools() if t.name == params.name), None)
-    if tool is not None:
-        try:
-            jsonschema.validate(instance=arguments, schema=tool.input_schema)
-        except jsonschema.ValidationError as e:
-            return _error_result(f"Input validation error: {e.message}")
-    try:
-        return CallToolResult(content=await call_tool(params.name, arguments, ctx))
-    except Exception as e:
-        logger.error("Tool %s failed: %s", params.name, e)
-        return _error_result(str(e))
-
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, pass_context=True, logger=logger)
 
 app = Server("omr-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
 
