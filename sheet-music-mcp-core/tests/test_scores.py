@@ -451,3 +451,50 @@ class TestScoreSummary:
             "time": "3/4",
             "tempo_bpm": 96,
         }
+
+
+class TestHostileNumbers:
+    """Numbers in a score are untrusted text. Exponent notation, non-finite values and absurdly
+    long digit runs are ignored like any other non-numeric text, so a crafted file can neither
+    stall describe_score (``Fraction("1e999999999")`` builds a billion-digit integer) nor crash it
+    with OverflowError."""
+
+    @staticmethod
+    def _with_duration(value):
+        return single_part(attributes(divisions=2) + note("C", 4, duration=value) + note("D", 4, duration=2))
+
+    @pytest.mark.parametrize("value", ["1e3", "1e999999999", "1E2", "inf", "nan", "9" * 400])
+    def test_duration_is_ignored_like_text(self, value):
+        assert describe_score(self._with_duration(value)) == describe_score(self._with_duration("x"))
+
+    @pytest.mark.parametrize("value", ["1e3", "1e999999999", "inf", "9" * 400])
+    def test_divisions_is_ignored_like_text(self, value):
+        def score(divisions):
+            return single_part(attributes(divisions=divisions) + note("C", 4, duration=2))
+
+        assert describe_score(score(value)) == describe_score(score("x"))
+
+    @pytest.mark.parametrize("value", ["1e999", "inf", "-inf", "nan", "9" * 400])
+    def test_transpose_chromatic_is_ignored_like_text(self, value):
+        def score(chromatic):
+            return single_part(attributes(transpose=(-1, chromatic)) + note("C", 4))
+
+        assert describe_score(score(value)) == describe_score(score("x"))
+
+    @pytest.mark.parametrize("value", ["1e999", "9" * 400])
+    def test_transpose_octave_change_is_ignored_like_text(self, value):
+        def score(octaves):
+            return single_part(
+                "<attributes><divisions>2</divisions><transpose><diatonic>0</diatonic>"
+                f"<chromatic>0</chromatic><octave-change>{octaves}</octave-change></transpose>"
+                "</attributes>" + note("C", 4)
+            )
+
+        assert describe_score(score(value)) == describe_score(score("x"))
+
+    @pytest.mark.parametrize("value", ["9" * 400, "1e999", "0"])
+    def test_tempo_never_crashes(self, value):
+        result = describe_score(single_part(tempo(value) + attributes() + note("C", 4)))
+
+        assert result["tempo_bpm"] is None or 0 < result["tempo_bpm"] < 1e10
+        assert result["duration_seconds"] is None or result["duration_seconds"] >= 0

@@ -341,6 +341,13 @@ class TestDeliverScore:
         assert "musicxml_path" in json.loads(content[0].text)
         assert len(content) == 2
 
+    def test_written_score_is_private_to_the_user(self, root):
+        # Like the 0700 scores folder: other local users cannot read the score, whatever the umask.
+        content = deliver_score(self._payload(), field="musicxml", musicxml=SATB, mode="path", stem="x")
+
+        written = Path(json.loads(content[0].text)["musicxml_path"])
+        assert written.stat().st_mode & 0o777 == 0o600
+
     def test_inline_mode_never_writes(self, root, monkeypatch):
         monkeypatch.setenv("SHEET_MUSIC_INLINE_MAX_BYTES", "10")
 

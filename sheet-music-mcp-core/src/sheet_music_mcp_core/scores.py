@@ -52,7 +52,12 @@ _BEAT_UNITS = {
     "maxima": 32, "long": 16, "breve": 8, "whole": 4, "half": 2, "quarter": 1, "eighth": 0.5,
     "16th": 0.25, "32nd": 0.125, "64th": 0.0625, "128th": 0.03125, "256th": 0.015625,
 }
-_NUMBER = re.compile(r"\d+(?:\.\d+)?")
+# Numbers in a score are untrusted text: accept only short plain decimals, never exponents,
+# "inf"/"nan" or long digit runs, so Fraction() and float() stay cheap and finite.
+_NUMBER = re.compile(r"(?<!\d)\d{1,9}(?:\.\d{1,9})?(?!\d)")
+_DECIMAL = re.compile(r"\d{1,9}(?:\.\d{1,9})?")
+_SIGNED_DECIMAL = re.compile(r"[+-]?\d{1,6}(?:\.\d{1,9})?")
+_INTEGER = re.compile(r"[+-]?\d{1,6}")
 
 
 class ScoreFormatError(ProcessingError):
@@ -436,25 +441,19 @@ def _text(element: Element | None) -> str | None:
 
 
 def _int(text: str | None) -> int | None:
-    try:
-        return int(text) if text is not None else None
-    except ValueError:
-        return None
+    return int(text) if text is not None and _INTEGER.fullmatch(text) else None
 
 
 def _signed(text: str | None) -> float | None:
-    try:
-        return float(text) if text is not None else None
-    except ValueError:
-        return None
+    return float(text) if text is not None and _SIGNED_DECIMAL.fullmatch(text) else None
 
 
 def _fraction(text: str | None) -> Fraction | None:
-    try:
-        value = Fraction(text) if text is not None else None
-    except (ValueError, ZeroDivisionError):
+    """A positive plain decimal ("2", "0.5") as a Fraction; None for anything else."""
+    if text is None or not _DECIMAL.fullmatch(text):
         return None
-    return value if value is not None and value > 0 else None
+    value = Fraction(text)
+    return value if value > 0 else None
 
 
 def _number(text: str | None) -> float | None:

@@ -234,14 +234,16 @@ def deliver_score(
 
 
 def _write_score(text: str, stem: str) -> Path:
-    """Write ``text`` to a new file, never replacing one that appeared in the meantime."""
+    """Write ``text`` to a new file readable only by this user (0600, like the 0700 folder),
+    never replacing one that appeared in the meantime."""
     while True:
         path = new_output_path(stem, ".musicxml")
         try:
-            with path.open("x", encoding="utf-8", newline="") as file:
-                file.write(text)
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         except FileExistsError:
             continue
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as file:
+            file.write(text)
         return path
 
 
