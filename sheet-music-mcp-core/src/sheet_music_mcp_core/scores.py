@@ -156,7 +156,7 @@ def _decode(data: bytes) -> str:
     else:
         encoding = "utf-8"
     try:
-        return data.decode(encoding).removeprefix("﻿")
+        return data.decode(encoding).removeprefix("\ufeff")
     except LookupError:
         raise ScoreFormatError("The score declares an unknown text encoding") from None
     except UnicodeDecodeError:
@@ -187,7 +187,7 @@ def parse_score(text: str | bytes) -> Element:
         text = _decode(text)
     # Parse UTF-8 bytes without the encoding declaration: a str keeping a declaration such as
     # UTF-16 can fail to parse on some Python versions.
-    data = _TEXT_DECLARATION.sub(r"\1", text.removeprefix("﻿"), count=1).encode("utf-8")
+    data = _TEXT_DECLARATION.sub(r"\1", text.removeprefix("\ufeff"), count=1).encode("utf-8")
     try:
         root = SafeET.fromstring(data)
     except DefusedXmlException:

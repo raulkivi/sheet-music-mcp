@@ -204,7 +204,7 @@ class TestParseScore:
         assert parse_score(SATB.encode("utf-16")).tag == "score-partwise"
 
     def test_string_with_an_encoding_declaration_and_bom(self):
-        text = "﻿" + SATB.replace('encoding="UTF-8"', 'encoding="UTF-16"')
+        text = "\ufeff" + SATB.replace('encoding="UTF-8"', 'encoding="UTF-16"')
 
         assert parse_score(text).tag == "score-partwise"
 
