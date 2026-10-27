@@ -14,11 +14,12 @@ ABC is ideal for LLM editing because it is concise enough to fit in a context wi
 
 | Tool | Description |
 |------|-------------|
-| `musicxml_to_abc` | Convert MusicXML to ABC notation; optionally filter to a single part |
-| `abc_to_musicxml` | Convert ABC notation back to MusicXML |
+| `musicxml_to_abc` | Convert MusicXML (`musicxml` text or `musicxml_path`) to ABC notation; optionally filter to a single part |
+| `abc_to_musicxml` | Convert ABC notation back to MusicXML; large scores are written to a file (`return`: `auto` / `path` / `inline`) |
 | `validate_abc` | Parse an ABC string and return errors or warnings |
 | `list_capabilities` | Return server metadata: backend version, ABC standard |
 | `health_check` | Run a MusicXML → ABC → MusicXML round-trip smoke test and report status |
+| `describe_score` | Summarize a score cheaply: parts (IDs `P1`…), key, time, tempo, ranges, measures |
 
 ## Installation
 
@@ -40,12 +41,17 @@ work, check [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 uv run musicxml-abc-mcp
 ```
 
-No environment variables required.
+No environment variables required. Optional: `SHEET_MUSIC_OUTPUT_ROOT` (where large scores are
+written and paths are read; default the working directory), `SHEET_MUSIC_INPUT_ROOTS` (extra
+folders to read scores from) and `SHEET_MUSIC_INLINE_MAX_BYTES` (default 8192). See
+[Score References](../docs/conventions.md#score-references).
 
 ## Usage examples
 
-All tools take and return strings directly (no file paths) — the MCP client is responsible for
-reading/writing files if needed.
+Scores can be passed as text (`musicxml`) or as a file path (`musicxml_path`: `.musicxml`, `.xml`
+or `.mxl` inside the allowed folders). `abc_to_musicxml` returns small scores as text and writes
+large ones to `<output root>/scores/`, returning `musicxml_path` plus a short `score_summary`;
+pass `"return": "inline"` to always get the text.
 
 ```json
 // Convert full score to ABC

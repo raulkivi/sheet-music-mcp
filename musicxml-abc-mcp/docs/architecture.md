@@ -17,8 +17,9 @@ musicxml-abc-mcp is a stateless MCP server that converts between MusicXML and AB
 ┌──────────────────────────▼────────────────────────────────┐
 │                       server.py                           │
 │                                                           │
-│  list_tools()   → 4 tool definitions                      │
+│  list_tools()   → 6 tool definitions                      │
 │  call_tool()    → dispatches to engine                    │
+│  load_score / deliver_score / describe_score (core)       │
 └──────────┬────────────────────────────────────────────────┘
            │
 ┌──────────▼──────────────────────────────────────────────┐
@@ -53,9 +54,15 @@ musicxml-abc-mcp is a stateless MCP server that converts between MusicXML and AB
 
 MCP protocol layer. Contains no conversion logic.
 
-- Registers four tools: `musicxml_to_abc`, `abc_to_musicxml`, `validate_abc`, `list_capabilities`
-- Validates parameters (via `utils.py`) before calling engine
+- Registers six tools: `musicxml_to_abc`, `abc_to_musicxml`, `validate_abc`, `list_capabilities`,
+  `health_check` and the shared `describe_score`
+- Reads the score with `sheet_music_mcp_core.references.load_score` (`musicxml` text or a confined
+  `musicxml_path`, `.mxl` included), then validates parameters (via `utils.py`) before calling engine
+- Returns `abc_to_musicxml` results with `deliver_score` (`return` = `auto` / `path` / `inline`):
+  large scores go to `<output root>/scores/from-abc-<timestamp>.musicxml`
 - Converts engine results and `ProcessingError` exceptions to `TextContent` JSON
+- Wires the handlers with `make_handlers(..., pass_context=True)`, so `load_score` can ask the
+  client for its MCP roots
 - Entry point via `mcp.server.stdio.stdio_server()`
 
 ### `engine.py`
@@ -99,8 +106,10 @@ Minimal input validation.
 ### MusicXML → ABC
 
 ```
-call_tool("musicxml_to_abc", {musicxml, part: "Soprano"})   (part_id: deprecated alias)
+call_tool("musicxml_to_abc", {musicxml | musicxml_path, part: "Soprano"})   (part_id: deprecated alias)
   │
+  ├─ core: load_score   inline text as is, or the path confined to the read roots and read
+  │                     (.mxl unzipped); INVALID_PARAMETER / FILE_NOT_FOUND / FILE_TOO_LARGE / INVALID_INPUT
   ├─ utils: validate_musicxml
   │
   └─ engine: musicxml_to_abc(musicxml, part_id="Soprano")
@@ -123,9 +132,9 @@ call_tool("musicxml_to_abc", {musicxml, part: "Soprano"})   (part_id: deprecated
 ### ABC → MusicXML
 
 ```
-call_tool("abc_to_musicxml", {abc})
+call_tool("abc_to_musicxml", {abc, return: "auto"})
   │
-  └─ engine: abc_to_musicxml(abc_str)
+  ├─ engine: abc_to_musicxml(abc_str)
         │
         ├─ stream = music21.converter.parseData(abc_str, format="abc")
         │
@@ -136,6 +145,11 @@ call_tool("abc_to_musicxml", {abc})
         │
         ├─ musicxml_str = music21.converter.toData(score, fmt="musicxml")
         └─ return {musicxml: str, warnings: []}
+  │
+  └─ core: deliver_score(result, field="musicxml", mode=return, stem="from-abc")
+        ├─ inline (or auto ≤ SHEET_MUSIC_INLINE_MAX_BYTES, 8192): json.dumps(result, indent=2)
+        └─ path (or auto above it): write <output root>/scores/from-abc-<ts>.musicxml,
+              content[0] = {musicxml_path, warnings, score_summary}, content[1] = ResourceLink
 ```
 
 ---
@@ -259,6 +273,8 @@ C2 D2 E2 F2 | G2 A2 B2 c2 | ...
 | MusicXML parse failure | `INVALID_INPUT` |
 | ABC parse failure | `INVALID_INPUT` |
 | Requested part name not found | `INVALID_PARAMETER` |
+| Both or neither of `musicxml` / `musicxml_path`; path outside the read roots | `INVALID_PARAMETER` |
+| Score file missing / too large | `FILE_NOT_FOUND` / `FILE_TOO_LARGE` |
 | music21 conversion failure | `PROCESSING_FAILED` |
 
 ---
@@ -270,7 +286,7 @@ C2 D2 E2 F2 | G2 A2 B2 c2 | ...
 | `music21` ≥9.0 | MusicXML parsing, ABC parsing, MusicXML export |
 | `fractions.Fraction` | Duration arithmetic (stdlib) |
 | `mcp` | MCP protocol SDK |
-| `sheet-music-mcp-core` | Shared error envelope, `ProcessingError` and handler wiring (input validation, error results); see [docs/conventions.md](../../docs/conventions.md#shared-core-library) |
+| `sheet-music-mcp-core` | Shared error envelope, `ProcessingError`, handler wiring (input validation, error results) and score references (`load_score`, `deliver_score`, `describe_score`; 0.2.x); see [docs/conventions.md](../../docs/conventions.md#shared-core-library) |
 
 No system libraries required. Pure Python.
 
@@ -302,6 +318,7 @@ musicxml-abc-mcp/
 │       └── utils.py      ← Minimal input validation
 └── tests/
     ├── test_server.py
+    ├── test_score_references.py  ← musicxml_path, return modes, describe_score
     ├── test_engine.py
     ├── test_utils.py
     └── fixtures/

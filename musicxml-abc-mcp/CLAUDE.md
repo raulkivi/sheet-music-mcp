@@ -5,7 +5,8 @@
 Converts between MusicXML and ABC notation. ABC is compact and text-based — Claude can read and
 edit it directly in its context window, which is impractical with verbose MusicXML.
 
-**Status:** Phase 1 complete. 74/74 tests pass including integration.
+**Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references) complete. 140 unit tests pass
+(`-m "not integration"`) + 4 integration.
 
 ---
 
@@ -13,7 +14,7 @@ edit it directly in its context window, which is impractical with verbose MusicX
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v               # 71 unit + integration tests
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v               # 140 unit tests (integration deselected)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration # round-trip conversion tests
 ```
 
@@ -39,10 +40,12 @@ Install dependencies: `uv sync --extra dev` (note: `--extra dev`, not `--group d
 
 | Tool | Description |
 |------|-------------|
-| `musicxml_to_abc` | MusicXML string → ABC notation (all parts or one specific part) |
-| `abc_to_musicxml` | ABC notation → MusicXML string |
+| `musicxml_to_abc` | MusicXML (`musicxml` text or `musicxml_path`, `.mxl` too) → ABC notation (all parts or one specific part) |
+| `abc_to_musicxml` | ABC notation → MusicXML; `return` `auto` (default) / `path` / `inline` — large scores come back as `musicxml_path` + `score_summary` (`WRITES_FILE`) |
 | `validate_abc` | Check ABC syntax, return errors/warnings |
 | `list_capabilities` | Server metadata and format support |
+| `health_check` | MusicXML → ABC → MusicXML round-trip self-test |
+| `describe_score` | Shared core tool: title, key, time, tempo, parts (`P1`…), ranges, measures, duration |
 
 ---
 
@@ -92,6 +95,12 @@ asyncio.run(_run())
   ABC → MusicXML → ABC round-trips drift by an octave.
 - **Round-trips are not lossless.** Dynamics, complex articulations, and some ornaments have no
   ABC equivalent. Surface these in the `warnings` field.
+- **Score references (Wave 2).** Read scores with `sheet_music_mcp_core.references.load_score`,
+  never open a path yourself; return `abc_to_musicxml` through `deliver_score` so inline output
+  stays byte-identical. Paths are confined to `SHEET_MUSIC_OUTPUT_ROOT` (default: working
+  directory), the client's roots and `SHEET_MUSIC_INPUT_ROOTS`; files are written under
+  `<output root>/scores/`. Tests must set `SHEET_MUSIC_OUTPUT_ROOT` to `tmp_path` before a call
+  that may write (any ABC giving over 8 KB of MusicXML in `auto` mode).
 - **`X:` header required.** music21's ABC parser requires the tune-number header. It adds it
   automatically on output but may fail to parse input that lacks it.
 

@@ -36,7 +36,7 @@ MINIMAL_ABC = "X:1\nT:Test\nM:4/4\nL:1/8\nK:C\nCDEF GABC|]"
 
 
 class TestListTools:
-    async def test_returns_five_tools(self):
+    async def test_returns_six_tools(self):
         tools = await list_tools()
         names = {t.name for t in tools}
         assert names == {
@@ -45,6 +45,7 @@ class TestListTools:
             "validate_abc",
             "list_capabilities",
             "health_check",
+            "describe_score",
         }
 
     async def test_musicxml_to_abc_schema(self):
@@ -52,7 +53,8 @@ class TestListTools:
         tool = next(t for t in tools if t.name == "musicxml_to_abc")
         schema = tool.input_schema
         assert "musicxml" in schema["properties"]
-        assert "musicxml" in schema["required"]
+        # musicxml or musicxml_path, exactly one (Wave 2 score references)
+        assert {"required": ["musicxml"]} in schema["oneOf"]
         # part_id is optional
         assert "part_id" in schema["properties"]
         assert "part_id" not in schema.get("required", [])
@@ -93,6 +95,7 @@ class TestCallToolListCapabilities:
             "validate_abc",
             "list_capabilities",
             "health_check",
+            "describe_score",
         }
         assert payload["backend"] == "music21"
         assert "backend_version" in payload
