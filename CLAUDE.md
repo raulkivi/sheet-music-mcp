@@ -52,7 +52,7 @@ before writing any code.
 | render-mcp | ✅ Phase 1 + UX complete; MCP Apps spike 0c (Score Viewer, app-only `render_page_svg`) awaiting manual host checks | 234 unit + 12 integration |
 | musicxml-abc-mcp | ✅ Phase 1 + UX complete; MCP Apps ABC Workbench server side done (`structuredContent`, output schemas, app-only `get_abc`), page not built yet | 214 unit + 4 integration |
 | pitch-mcp | ✅ Phase A+B + UX complete (audio-driven position tracking, DTW via dtaidistance); MCP Apps Practice Coach server side done (`structuredContent`, app-only `get_score_for_session`, browser-mic mode: `start_monitoring` `source: "pushed"` + app-only `push_audio_chunk`), page not built yet | 408 unit (+6 skipped) + 4 integration |
-| comparer-mcp | ✅ Phase 4 (Advanced features) complete — all originally-scoped phases done; MCP Apps Diff Viewer server side done (`structuredContent`, output schemas), page not built yet | 314 unit + 7 integration |
+| comparer-mcp | ✅ Phase 4 (Advanced features) complete — all originally-scoped phases done; MCP Apps Diff Viewer server side done (`structuredContent`, output schemas), page not built yet | 341 unit + 7 integration |
 
 | sheet-music-mcp-core | ✅ 0.3.1 shared library: Wave 1 helpers, score references (`paths`, `scores`, `references`), measure ranges (`measures`), MCP Apps UI resources and app-only tool visibility (`ui`, `wiring`), opaque artifact handles read in chunks (`artifacts`), UI resource permissions/CSP, the `ExpiringTable` (`expiring`) and the standard health report with the Setup Doctor resource (`health`). Not yet on PyPI — publish before the next server release | 658 unit |
 

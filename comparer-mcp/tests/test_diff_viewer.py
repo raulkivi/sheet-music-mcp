@@ -51,7 +51,8 @@ class TestToolLinking:
         assert (await _tools())[name].meta is None
 
     async def test_other_tools_are_not_linked(self, packaged_ui):
-        others = [t for n, t in (await _tools()).items() if n not in LINKED]
+        # health_check links the Setup Doctor, not the viewer (tests/test_health_mapping.py).
+        others = [t for n, t in (await _tools()).items() if n not in LINKED and n != "health_check"]
 
         assert others
         assert all(t.meta is None for t in others)
@@ -80,7 +81,8 @@ class TestResources:
         result = _with_client(lambda c: c.list_resources())
 
         assert [(r.uri, r.name, r.mime_type) for r in result.resources] == [
-            (VIEWER_URI, "Diff Viewer", UI_MIME)
+            (VIEWER_URI, "Diff Viewer", UI_MIME),
+            ("ui://comparer/setup-doctor", "Setup Doctor", UI_MIME),
         ]
 
     def test_lists_nothing_without_a_ui_build(self):
