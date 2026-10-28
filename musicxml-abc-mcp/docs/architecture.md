@@ -54,8 +54,8 @@ musicxml-abc-mcp is a stateless MCP server that converts between MusicXML and AB
 
 MCP protocol layer. Contains no conversion logic.
 
-- Registers six tools: `musicxml_to_abc`, `abc_to_musicxml`, `validate_abc`, `list_capabilities`,
-  `health_check` and the shared `describe_score`
+- Registers seven tools (the seventh, `get_abc`, is app-only and hidden from clients without MCP Apps):  `musicxml_to_abc`, `abc_to_musicxml`, `validate_abc`, `list_capabilities`,
+  `health_check`, the shared `describe_score` and `get_abc`
 - Reads the score with `sheet_music_mcp_core.references.load_score` (`musicxml` text or a confined
   `musicxml_path`, `.mxl` included), then validates parameters (via `utils.py`) before calling engine
 - Returns `abc_to_musicxml` results with `deliver_score` (`return` = `auto` / `path` / `inline`):
@@ -64,6 +64,19 @@ MCP protocol layer. Contains no conversion logic.
 - Wires the handlers with `make_handlers(..., pass_context=True)`, so `load_score` can ask the
   client for its MCP roots
 - Entry point via `mcp.server.stdio.stdio_server()`
+
+### `presenter.py`
+
+Turns engine results into `(content, structured_content)` for the ABC Workbench tools. `content`
+is what the tools always returned; `structured_content` adds `abc_id` to the export, and for
+`abc_to_musicxml` only `{warnings, delivery, musicxml_bytes}` (never the score). Output schemas
+live here. No engine logic.
+
+### `abc_store.py`
+
+`AbcStore` keeps recent `musicxml_to_abc` results behind random `abc_id`s (bounded, TTL, thread
+safe, no MCP imports). The app-only `get_abc` reads from it, so the workbench gets the "original"
+side by id and never needs a path. `server.py` holds the module-level instance, replaced in tests.
 
 ### `engine.py`
 
@@ -325,12 +338,17 @@ musicxml-abc-mcp/
 │   └── musicxml_abc_mcp/
 │       ├── __init__.py
 │       ├── server.py     ← MCP layer (tool registration, dispatch)
+│       ├── presenter.py  ← structuredContent + output schemas (ABC Workbench)
+│       ├── abc_store.py  ← abc_id handles to musicxml_to_abc results
 │       ├── engine.py     ← Conversion logic + custom ABC serializer
 │       └── utils.py      ← Minimal input validation
 └── tests/
     ├── test_server.py
     ├── test_score_references.py  ← musicxml_path, return modes, describe_score
     ├── test_measures.py  ← measures ranges (Wave 3): cut bars, carried K:/M:/Q:, errors
+    ├── test_abc_workbench.py  ← ui:// resource, linking, structuredContent, get_abc
+    ├── test_abc_store.py
+    ├── test_content_golden.py  ← content byte-identical (golden/abc_content.json)
     ├── test_engine.py
     ├── test_utils.py
     └── fixtures/

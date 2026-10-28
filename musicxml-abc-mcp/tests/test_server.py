@@ -36,7 +36,7 @@ MINIMAL_ABC = "X:1\nT:Test\nM:4/4\nL:1/8\nK:C\nCDEF GABC|]"
 
 
 class TestListTools:
-    async def test_returns_six_tools(self):
+    async def test_returns_all_tools(self):
         tools = await list_tools()
         names = {t.name for t in tools}
         assert names == {
@@ -46,6 +46,7 @@ class TestListTools:
             "list_capabilities",
             "health_check",
             "describe_score",
+            "get_abc",
         }
 
     async def test_musicxml_to_abc_schema(self):
@@ -96,6 +97,7 @@ class TestCallToolListCapabilities:
             "list_capabilities",
             "health_check",
             "describe_score",
+            "get_abc",
         }
         assert payload["backend"] == "music21"
         assert "backend_version" in payload

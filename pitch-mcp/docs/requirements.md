@@ -34,6 +34,19 @@ The server MUST open the system microphone and begin pitch detection for the giv
 
 If no microphone is available or access is denied, the server MUST return a clear error.
 
+With `source: "pushed"` the server MUST NOT open its microphone; the session instead analyses the
+audio the Practice Coach pushes from the browser (FR-12).
+
+### FR-12 — Browser microphone (MCP Apps option B, decision D2 Phase 3)
+
+A pushed session MUST accept chunks of 16-bit little-endian mono PCM (base64) at any stated rate
+from 8 000 to 48 000 Hz, resample them to the tracker's 22 050 Hz and feed the same pitch tracker
+as the server microphone. Each push MUST return the position snapshot that chunk leads to (FR-4
+shape). The server MUST refuse, with `INVALID_PARAMETER` and the limit in the `hint`, a chunk over
+1.25 s of audio at its stated rate and more than 25 pushes per second per session. Pushed audio
+MUST NOT be written anywhere, and MUST be dropped once analysed (only the ~93 ms analysis window is
+held, and it is cleared when the take stops). A push counts as session activity (FR-7).
+
 ### FR-4 — Real-time position polling
 
 While monitoring is active, the server MUST return the current score position and pitch accuracy in response to poll requests.
@@ -249,11 +262,43 @@ Output: load_score's fields plus start_monitoring's
 Input:
   session_id  string   required
   tempo_bpm   integer  optional  override score tempo; default: score tempo
+  source      string   optional  "server_mic" (default) | "pushed"
 
 Output:
   status      string  "started"
   session_id  string
+  source      string  "pushed"   only for a pushed session; the server-mic output is unchanged
 ```
+
+An unknown `source` is `INVALID_PARAMETER` (with `choices`). Errors set `isError: true`; so do
+`stop_monitoring` and `list_sessions` errors (content unchanged).
+
+### IR-4a — Tool: `push_audio_chunk` (app-only)
+
+```
+Input (additionalProperties: false):
+  session_id   string   required
+  pcm_b64      string   required  16-bit little-endian mono PCM, base64 (empty = just poll)
+  sample_rate  integer  required  8000..48000
+
+Output: structuredContent = the get_current_position snapshot (POSITION_OUTPUT_SCHEMA);
+        content = one line, e.g. "Measure 1, beat 1: A3 expected, on pitch (+0 cents)."
+```
+
+`_meta.ui.visibility: ["app"]`, hidden from clients without MCP Apps. Errors (`isError: true`):
+
+| Case | Code |
+|---|---|
+| Unknown, stopped or timed-out session | `SESSION_NOT_FOUND` |
+| Session on the server microphone, or loaded but not started | `INVALID_PARAMETER` (hint: start with `source: "pushed"`) |
+| `sample_rate` outside 8000..48000 | `INVALID_PARAMETER` (hint names the range) |
+| Chunk over `int(sample_rate * 1.25) * 2` bytes | `INVALID_PARAMETER` (hint names the byte limit) |
+| More than 25 pushes in one second for the session | `INVALID_PARAMETER` (hint names the limit) |
+| Not base64, or an odd byte count | `INVALID_INPUT` |
+| Empty `session_id` | `INVALID_INPUT` |
+
+A refused push feeds nothing. The Practice Coach resource does not yet declare
+`_meta.ui.permissions.microphone`: the shared `UiResource` cannot express resource permissions yet.
 
 ### IR-5 — Tool: `get_current_position`
 
@@ -320,8 +365,8 @@ analyze_recording: the result `content` already carries, every note included
 
 `load_score`, `start_practice` and `analyze_recording` link `ui://pitch/practice-coach`
 (`_meta.ui.resourceUri`) only while `src/pitch_mcp/ui/assets/practice-coach.html` is packaged;
-otherwise they carry no `_meta.ui` and the resource is not listed (AC-P1, AC-P2). Server-microphone
-only (decision D2): the app never captures audio.
+otherwise they carry no `_meta.ui` and the resource is not listed (AC-P1, AC-P2). The app can
+either poll a server-microphone session or capture in the browser and push audio (IR-4a, option B).
 
 **`get_score_for_session`** (app-only, `_meta.ui.visibility: ["app"]`, listed only to clients that
 support MCP Apps; `tools/call` still finds it). Input `{session_id}` and nothing else (no paths,
@@ -416,6 +461,8 @@ folders, `os.pathsep`-separated) and `SHEET_MUSIC_MAX_SCORE_BYTES` (default 16 M
 - `aubio` is excluded: no Python 3.13 wheel
 - `crepe` is excluded from default install: build failure in uv due to missing `pkg_resources`
 - Audio callback MUST NOT perform I/O, locking, or heavy computation — keep it minimal
+- `ScoreSession` depends on the `AudioSource` protocol (`start(sink)`, `stop()`, `close()`), never on
+  sounddevice directly; `SoundDeviceSource` and `PushedChunkSource` implement it
 
 ---
 
@@ -449,6 +496,14 @@ Unit tests MUST cover:
   shapes against their schemas, `get_score_for_session` (app-only, no paths, unknown session), errors
   as `isError` without `structuredContent`, `content` identical to the pre-Apps golden file
 - Highlights (`tests/test_highlights.py`): runs, splitting, ranking, text, frame-level history
+- Audio sources (`tests/test_audio_source.py`): an injected source feeds the session, stop then
+  close, the module default factory, a failing source leaves the session loaded,
+  `SoundDeviceSource` stream settings and worker hand-off, `PitchFrames` hop framing and YIN
+  accuracy (within 3 cents, E2 to A5)
+- Browser microphone (`tests/test_pushed_audio.py`): AC-P4 (1 s of 220 Hz in 100 ms chunks on an A3
+  is `on_pitch`), other rates, silence, sharp and flat, size / rate / sample-rate refusals,
+  malformed PCM, session errors, activity, no file I/O, the tool's schema, visibility and protocol
+  round trip
 
 Unit tests MUST mock sounddevice (no real audio hardware in CI). `dtaidistance` is pure-Python-
 compatible and deterministic, so alignment unit tests run it directly rather than mocking it —

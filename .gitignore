@@ -46,6 +46,7 @@ pitch-mcp/src/pitch_mcp/ui/assets/*.html
 comparer-mcp/src/comparer_mcp/ui/assets/*.html
 omr-mcp/src/omr_mcp/ui/assets/*.html
 synth-mcp/src/synth_mcp/ui/assets/*.html
+musicxml-abc-mcp/src/musicxml_abc_mcp/ui/assets/*.html
 
 # Snyk Security Extension - AI Rules (auto-generated)
 .github/instructions/snyk_rules.instructions.md

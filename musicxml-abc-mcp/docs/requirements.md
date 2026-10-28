@@ -203,6 +203,36 @@ Output:
   measures, has_lyrics, duration_quarters, duration_seconds
 ```
 
+### IR-5b — MCP Apps: ABC Workbench (`structuredContent`)
+
+`musicxml_to_abc`, `abc_to_musicxml` and `validate_abc` declare an `output_schema` and return
+`structuredContent` next to the unchanged `content` (`tests/test_content_golden.py` pins `content`).
+Errors keep the `{error, error_code}` content, set `isError: true` and carry no `structuredContent`.
+Shapes (`presenter.py`):
+
+```
+musicxml_to_abc (ABC_OUTPUT_SCHEMA):
+  abc_id, abc, parts_included[], warnings[]
+  abc_id is new on every call, even for identical input (AC-A2); it is not in `content`.
+abc_to_musicxml (CONVERSION_OUTPUT_SCHEMA):
+  warnings[], delivery "inline"|"path", musicxml_bytes
+  The score itself is never in structuredContent (proposal 6.3 rule 4): the model gets it in
+  `content`, as before.
+validate_abc (VALIDATION_OUTPUT_SCHEMA): the result `content` already carries
+  valid, errors[], warnings[]
+```
+
+`musicxml_to_abc` and `abc_to_musicxml` link `ui://abc/workbench` (`_meta.ui.resourceUri`) only while
+`src/musicxml_abc_mcp/ui/assets/abc-workbench.html` is packaged; otherwise they carry no `_meta.ui`
+and the resource is not listed. `validate_abc` stays model-visible and is the call the app debounces.
+
+**`get_abc`** (app-only, `_meta.ui.visibility: ["app"]`, listed only to clients that support MCP
+Apps; `tools/call` still finds it). Input `{abc_id?}` and nothing else (no paths,
+`additionalProperties: false`); omitted `abc_id` means the latest export. Output is
+`ABC_OUTPUT_SCHEMA`. Ids live in an in-process `AbcStore` (32 entries, 1 h TTL, oldest evicted,
+lost on restart); an unknown, expired or non-string id, or an empty store, is `INVALID_PARAMETER`
+with a hint, and the id is not echoed. `content` is a one-line note, not the ABC.
+
 ### IR-6 — Error response format
 
 ```json
@@ -244,6 +274,12 @@ Unit tests MUST cover:
 - Score references (`tests/test_score_references.py`): path equals inline, `.mxl`, both/neither,
   paths outside the roots (no content leak), `return` modes of `abc_to_musicxml`, round trip of the
   written file, `describe_score`
+
+- ABC Workbench (`tests/test_abc_workbench.py`, `tests/test_abc_store.py`,
+  `tests/test_content_golden.py`): tool linking with and without a UI build, resource list/read,
+  output schemas, no score in `structuredContent`, fresh `abc_id` per call, app-only `get_abc`
+  visibility per client kind, no paths accepted, error envelope without `structuredContent`,
+  store TTL and bound
 
 Unit tests MUST mock music21 `converter.parse`.
 

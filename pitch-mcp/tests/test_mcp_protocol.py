@@ -18,8 +18,9 @@ def _with_client(call):
 
 
 def test_lists_the_same_tools_as_list_tools():
-    # The app-only score fetch is hidden from clients that do not support MCP Apps.
-    expected = {tool.name for tool in asyncio.run(list_tools()) if tool.name != "get_score_for_session"}
+    # The app-only tools are hidden from clients that do not support MCP Apps.
+    app_only = {"get_score_for_session", "push_audio_chunk"}
+    expected = {tool.name for tool in asyncio.run(list_tools()) if tool.name not in app_only}
 
     result = _with_client(lambda client: client.list_tools())
 

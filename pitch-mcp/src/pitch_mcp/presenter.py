@@ -97,6 +97,18 @@ def present_position(position: dict) -> tuple[list, dict]:
     return _json_text(position), dict(position)
 
 
+def present_pushed_position(position: dict) -> tuple[list, dict]:
+    """``(content, structured_content)`` for ``push_audio_chunk``: the same snapshot as
+    ``present_position``, but one short line of text, since an app makes about ten pushes a
+    second and the audio must never be echoed into a model's context."""
+    where = f"Measure {position['measure']}, beat {position['beat']:g}: {position['expected_note']} expected"
+    if position["status"] == "no_signal":
+        text = f"{where}, no signal."
+    else:
+        text = f"{where}, {position['status'].replace('_', ' ')} ({position['accuracy_cents']:+d} cents)."
+    return [TextContent(type="text", text=text)], dict(position)
+
+
 def present_analysis(analysis: dict) -> tuple[list, dict]:
     """``(content, structured_content)`` for an offline analysis, every note included."""
     return _json_text(analysis), dict(analysis)
