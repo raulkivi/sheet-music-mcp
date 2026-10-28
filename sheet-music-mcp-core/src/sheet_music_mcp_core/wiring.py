@@ -1,4 +1,5 @@
-"""Handler wiring for ``Server(name, on_list_tools=..., on_call_tool=...)``.
+"""Handler wiring for ``Server(name, on_list_tools=..., on_call_tool=..., on_list_resources=...,
+on_read_resource=...)``.
 
 mcp 2.x low-level handlers neither validate input nor catch tool errors; these handlers keep the
 1.x decorator behaviour clients rely on.
@@ -7,15 +8,28 @@ mcp 2.x low-level handlers neither validate input nor catch tool errors; these h
 from __future__ import annotations
 
 import logging
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Protocol
 
 import jsonschema
 from jsonschema.exceptions import best_match
 from jsonschema.validators import validator_for
-from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, Tool
+from mcp import MCPError
+from mcp.types import (
+    INTERNAL_ERROR,
+    INVALID_PARAMS,
+    CallToolRequestParams,
+    CallToolResult,
+    ListResourcesResult,
+    ListToolsResult,
+    ReadResourceRequestParams,
+    ReadResourceResult,
+    Resource,
+    Tool,
+)
 
 from .content import error_content, processing_error_content
-from .errors import ProcessingError
+from .errors import ProcessingError, error_payload
+from .ui import client_supports_ui, is_app_only
 
 _logger = logging.getLogger(__name__)
 
@@ -23,6 +37,14 @@ _ALTERNATIVES = ("anyOf", "oneOf")
 
 ListTools = Callable[[], Awaitable[list[Tool]]]
 CallTool = Callable[..., Awaitable["list | CallToolResult"]]
+
+
+class ResourceProvider(Protocol):
+    """What the resource handlers serve; ``ui.UiRegistry`` is one."""
+
+    def list_resources(self) -> list[Resource]: ...
+
+    def read(self, uri: str) -> ReadResourceResult: ...
 
 
 def make_handlers(
@@ -42,11 +64,17 @@ def make_handlers(
     With ``pass_context=True`` it is called as ``call_tool(name, arguments, ctx)``, for tools that
     need the request context (progress notifications). Failures are logged to ``logger``, the
     server's own logger (docs/conventions.md: logger name = package name).
+
+    App-only tools (``ui.is_app_only``) are listed only for clients that support MCP Apps, so
+    other clients' models never see them (proposal §6.5); ``tools/call`` still finds them.
     """
     log = logger or _logger
 
     async def on_list_tools(ctx, params) -> ListToolsResult:
-        return ListToolsResult(tools=await list_tools())
+        tools = await list_tools()
+        if not client_supports_ui(ctx):
+            tools = [tool for tool in tools if not is_app_only(tool)]
+        return ListToolsResult(tools=tools)
 
     async def on_call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
         arguments = params.arguments or {}
@@ -73,6 +101,40 @@ def make_handlers(
         return CallToolResult(content=result)
 
     return on_list_tools, on_call_tool
+
+
+def make_resource_handlers(provider: ResourceProvider, *, logger: logging.Logger | None = None):
+    """Return ``(on_list_resources, on_read_resource)`` for ``Server(...)``.
+
+    A failed read reaches the client as a JSON-RPC error whose ``data`` is the
+    ``{error, error_code}`` envelope plus the ``uri``: RESOURCE_NOT_FOUND as INVALID_PARAMS
+    (-32602, as the spec asks), anything else as INTERNAL_ERROR. Failures are logged to ``logger``.
+    """
+    log = logger or _logger
+
+    async def on_list_resources(ctx, params) -> ListResourcesResult:
+        return ListResourcesResult(resources=provider.list_resources())
+
+    async def on_read_resource(ctx, params: ReadResourceRequestParams) -> ReadResourceResult:
+        uri = str(params.uri)
+        try:
+            return provider.read(uri)
+        except Exception as e:
+            log.error("Resource %s failed: %s", uri, e)
+            # The SDK forwards only an MCPError's message; any other exception becomes an
+            # opaque "Internal server error".
+            raise _resource_error(e, uri) from e
+
+    return on_list_resources, on_read_resource
+
+
+def _resource_error(error: Exception, uri: str) -> MCPError:
+    if isinstance(error, ProcessingError):
+        payload = error.to_payload()
+    else:
+        payload = error_payload(str(error), "PROCESSING_FAILED")
+    code = INVALID_PARAMS if payload["error_code"] == "RESOURCE_NOT_FOUND" else INTERNAL_ERROR
+    return MCPError(code, str(error), data={**payload, "uri": uri})
 
 
 def _describe(error: jsonschema.ValidationError) -> str:

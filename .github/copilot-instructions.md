@@ -47,6 +47,7 @@ sheet-music-mcp/
 ├── musicxml-abc-mcp/           # MusicXML ↔ ABC            ✅ Phase 1 COMPLETE
 ├── pitch-mcp/                  # Mic audio → score pos/accuracy  ✅ Phase A+B COMPLETE
 ├── comparer-mcp/               # Two MusicXML → structured diff  ✅ Phase 4 COMPLETE
+├── ui/                         # MCP Apps UI workspace (TypeScript): kit + Score Viewer, built into render-mcp
 └── sheet-music-mcp-core/       # Shared library (errors, parts, annotations, wiring, score paths) — not a server
 ```
 

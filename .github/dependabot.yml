@@ -29,6 +29,20 @@ updates:
       - dependency-name: opencv-python-headless
         update-types: ['version-update:semver-major']
 
+  - package-ecosystem: npm
+    directory: /ui
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      security:
+        applies-to: security-updates
+        patterns: ['*']
+      dependencies:
+        applies-to: version-updates
+        patterns: ['*']
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

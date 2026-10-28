@@ -5,12 +5,14 @@ import asyncio
 import json
 import logging
 
-from mcp import Client
+from mcp import Client, MCPError
+from mcp.client import advertise
 from mcp.server import Server
-from mcp.types import CallToolResult, TextContent, Tool
+from mcp.types import INTERNAL_ERROR, INVALID_PARAMS, CallToolResult, TextContent, Tool
 
 from sheet_music_mcp_core.errors import ProcessingError
-from sheet_music_mcp_core.wiring import make_handlers
+from sheet_music_mcp_core.ui import UI_EXTENSION, UI_MIME, InMemoryAssetSource, UiRegistry, UiResource
+from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 
 ECHO = Tool(
     name="echo",
@@ -289,3 +291,159 @@ def test_raw_all_of_errors_are_the_inner_one_of_errors():
     assert [_describe(e) for e in errors] == [
         "one of these parameters is required: 'target_xml', 'target_path'"
     ]
+
+
+# --- Resource handlers (MCP Apps UI resources) ------------------------------------------------
+
+HTML = "<!doctype html><title>viewer</title>"
+VIEWER = UiResource("ui://test/viewer", "viewer.html", "Score Viewer")
+PLAYER = UiResource("ui://test/player", "player.html", "Practice Player")
+
+
+def _resource_server(registry=None, **kwargs):
+    registry = registry or UiRegistry([VIEWER, PLAYER], InMemoryAssetSource({"viewer.html": HTML}))
+    on_list_resources, on_read_resource = make_resource_handlers(registry, **kwargs)
+    return Server("test", on_list_resources=on_list_resources, on_read_resource=on_read_resource)
+
+
+def _read_error(server, uri):
+    """The MCPError a read raises, caught inside the session (outside it arrives as a TaskGroup error)."""
+
+    async def read(client):
+        try:
+            await client.read_resource(uri)
+        except MCPError as e:
+            return e
+        raise AssertionError("read_resource did not raise")
+
+    return _with_client(server, read)
+
+
+def test_lists_only_packaged_ui_resources():
+    result = _with_client(_resource_server(), lambda c: c.list_resources())
+
+    assert [(r.uri, r.mime_type) for r in result.resources] == [("ui://test/viewer", UI_MIME)]
+
+
+def test_reads_a_ui_resource():
+    result = _with_client(_resource_server(), lambda c: c.read_resource("ui://test/viewer"))
+
+    [contents] = result.contents
+    assert (contents.mime_type, contents.text) == (UI_MIME, HTML)
+
+
+def test_missing_asset_is_an_internal_error_naming_the_build_step():
+    error = _read_error(_resource_server(), "ui://test/player")
+
+    assert error.code == INTERNAL_ERROR
+    assert "npm run build" in error.message
+    assert error.data["error_code"] == "UI_ASSET_MISSING"
+    assert "npm run build" in error.data["hint"]
+    assert error.data["uri"] == "ui://test/player"
+
+
+def test_unknown_resource_is_invalid_params():
+    # The 2026-07-28 spec (and the SDK's MCPServer) report an unknown resource as -32602.
+    error = _read_error(_resource_server(), "ui://test/nope")
+
+    assert error.code == INVALID_PARAMS
+    assert error.data == {
+        "error": "Unknown resource: ui://test/nope",
+        "error_code": "RESOURCE_NOT_FOUND",
+        "uri": "ui://test/nope",
+    }
+
+
+def test_unexpected_registry_failure_keeps_its_message():
+    class Broken:
+        def list_resources(self):
+            return []
+
+        def read(self, uri):
+            raise OSError("disk gone")
+
+    error = _read_error(_resource_server(Broken()), "ui://test/viewer")
+
+    # Unwired, the SDK would send only an opaque "Internal server error".
+    assert (error.code, error.message) == (INTERNAL_ERROR, "disk gone")
+    assert error.data["error_code"] == "PROCESSING_FAILED"
+
+
+def test_logs_resource_failures_under_the_given_logger(caplog):
+    caplog.set_level(logging.ERROR)
+
+    _read_error(_resource_server(logger=logging.getLogger("render_mcp.server")), "ui://test/player")
+
+    [record] = [r for r in caplog.records if "failed" in r.getMessage()]
+    assert record.name == "render_mcp.server"
+    assert "ui://test/player" in record.getMessage()
+
+
+def test_logs_resource_failures_under_the_core_logger_by_default(caplog):
+    caplog.set_level(logging.ERROR)
+
+    _read_error(_resource_server(), "ui://test/nope")
+
+    [record] = [r for r in caplog.records if "failed" in r.getMessage()]
+    assert record.name == "sheet_music_mcp_core.wiring"
+
+
+# --- App-only tools (proposal §6.5) -------------------------------------------------------------
+
+PAGE_SVG = Tool(
+    name="page_svg",
+    description="Called by the viewer only",
+    input_schema={"type": "object", "properties": {"page": {"type": "integer"}}, "required": ["page"]},
+    meta=VIEWER.tool_meta(app_only=True),
+)
+SHARED = Tool(
+    name="shared",
+    description="Model and app",
+    input_schema={"type": "object"},
+    meta={"ui": {"resourceUri": VIEWER.uri, "visibility": ["model", "app"]}},
+)
+UI_CLIENT = {"extensions": [advertise(UI_EXTENSION, {"mimeTypes": [UI_MIME]})]}
+
+
+def _app_server():
+    async def list_tools():
+        return [ECHO, PAGE_SVG, SHARED]
+
+    async def call_tool(name, arguments):
+        return [TextContent(type="text", text=f"{name} {arguments}")]
+
+    on_list_tools, on_call_tool = make_handlers(list_tools, call_tool)
+    return Server("test", on_list_tools=on_list_tools, on_call_tool=on_call_tool)
+
+
+def _with(server, call, **client_kwargs):
+    async def _go():
+        async with Client(server, **client_kwargs) as client:
+            return await call(client)
+
+    return asyncio.run(_go())
+
+
+def test_app_only_tools_are_hidden_from_clients_without_ui():
+    result = _with(_app_server(), lambda c: c.list_tools())
+
+    assert [t.name for t in result.tools] == ["echo", "shared"]
+
+
+def test_app_only_tools_are_listed_for_ui_clients():
+    result = _with(_app_server(), lambda c: c.list_tools(), **UI_CLIENT)
+
+    assert [t.name for t in result.tools] == ["echo", "page_svg", "shared"]
+    tool = next(t for t in result.tools if t.name == "page_svg")
+    assert tool.meta["ui"]["visibility"] == ["app"]
+
+
+def test_a_hidden_app_only_tool_is_still_validated_and_called():
+    # Hiding is a listing concern; tools/call still finds the tool and checks its schema.
+    rejected = _with(_app_server(), lambda c: c.call_tool("page_svg", {"page": "one"}))
+    called = _with(_app_server(), lambda c: c.call_tool("page_svg", {"page": 2}))
+
+    assert rejected.is_error
+    assert json.loads(rejected.content[0].text)["error_code"] == "INVALID_PARAMETER"
+    assert not called.is_error
+    assert called.content[0].text == "page_svg {'page': 2}"

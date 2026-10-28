@@ -1,9 +1,12 @@
 # MCP Apps Phase 0 spike: Score Viewer on render-mcp
 
-**Status:** Plan, awaiting approval. No code has been written.
+**Status:** Steps 1–9 and the code side of 12 done on `mcp-apps/phase0` (core 0.3.1 UI module and
+app-only visibility, render-mcp linking and `render_page_svg`, `ui/` kit and Score Viewer with both
+render paths, wheel packaging), plus CI (step 10) and measurements (11). Findings and the provisional
+recommendation: [mcp-apps-phase0-findings.md](mcp-apps-phase0-findings.md). Open: manual host checks (§6).
 **Date:** 2026-10-27
 **Parent:** [mcp-apps-ux-proposal.md](mcp-apps-ux-proposal.md) (roadmap phase 0; decisions D1–D7)
-**Server:** `render-mcp` only. The other five servers are untouched.
+**Server:** `render-mcp` only, plus the shared `ui` module in `sheet-music-mcp-core` (0.3.1). The other five servers are untouched.
 
 ---
 
@@ -57,40 +60,71 @@ Prove the whole MCP Apps path once, on the smallest useful app, before building 
 
 ## 3. Design (SOLID)
 
-### 3.1 Python (render-mcp)
+### 3.1 Python (shared core + render-mcp)
+
+**Decision (2026-10-28):** the UI resource plumbing lives in the shared core,
+`sheet_music_mcp_core.ui` (core 0.3.1), so all six servers reuse it. render-mcp only registers its
+resource and links its tools.
 
 ```
-src/render_mcp/
+sheet-music-mcp-core/src/sheet_music_mcp_core/
+  ui.py              # DONE UiResource, UiRegistry, AssetSource protocol   [S, O, D]
+  wiring.py          # DONE make_resource_handlers(registry) -> (on_list_resources, on_read_resource)
+
+render-mcp/src/render_mcp/
   engine.py          # unchanged; no mcp import
   presenter.py       # NEW  engine result -> (content, structured_content)   [S]
-  ui/
-    __init__.py      # NEW  UiResource, UiRegistry, AssetSource protocol   [S, O, D]
-    assets/          # NEW  score-viewer.html, built by CI, gitignored (D1)
-  server.py          # wiring: on_list_resources, on_read_resource, Tool(meta=...)
+  ui/assets/         # NEW  score-viewer.html, built by CI, gitignored (D1)
+  server.py          # registers the resource; Tool(meta=...); Server(..., on_list_resources=...,
+                     #   on_read_resource=...) from make_resource_handlers
 ```
 
+render-mcp's whole UI setup:
+
 ```python
-UI_MIME = "text/html;profile=mcp-app"
+from sheet_music_mcp_core.ui import PackageAssetSource, UiRegistry, UiResource
+from sheet_music_mcp_core.wiring import make_resource_handlers
+
+SCORE_VIEWER = UiResource("ui://render/score-viewer", "score-viewer.html", "Score Viewer", "...")
+registry = UiRegistry([SCORE_VIEWER], PackageAssetSource("render_mcp"))  # reads render_mcp/ui/assets/
+_on_list_resources, _on_read_resource = make_resource_handlers(registry, logger=logger)
+```
+
+The core API (`sheet_music_mcp_core.ui`):
+
+```python
+UI_MIME = "text/html;profile=mcp-app"        # = mcp.server.apps.APP_MIME_TYPE
+UI_EXTENSION = "io.modelcontextprotocol/ui"  # = mcp.server.apps.EXTENSION_ID
 
 class AssetSource(Protocol):                 # D: the registry never touches the filesystem
     def read(self, name: str) -> str | None: ...        # None = not packaged
 
 class PackageAssetSource:                    # production: importlib.resources
+    def __init__(self, package: str, directory: str = "ui/assets"): ...
 class InMemoryAssetSource:                   # tests: {"score-viewer.html": "<!doctype html>..."}
+    def __init__(self, mapping: dict[str, str]): ...
 
 @dataclass(frozen=True)
 class UiResource:                            # S: describes one resource
     uri: str
     asset: str
     name: str
+    description: str | None = None
     def tool_meta(self) -> dict: ...         # {"ui": {"resourceUri": uri}}
 
 class UiRegistry:                            # O: new apps are registered, not coded in
-    def __init__(self, resources, source: AssetSource): ...
+    def __init__(self, resources, source: AssetSource): ...       # duplicate URI -> ValueError
     def meta_for(self, resource: UiResource) -> dict | None: ...  # None when asset missing
     def list_resources(self) -> list[Resource]: ...               # only packaged assets
-    def read(self, uri: str) -> ReadResourceResult: ...           # raises UiAssetMissing
+    def read(self, uri: str) -> ReadResourceResult: ...           # raises UiAssetMissing / UiResourceNotFound
+
+def client_supports_ui(ctx) -> bool: ...     # delegates to mcp.server.apps.client_supports_apps
 ```
+
+`make_resource_handlers` turns a failed read into an `MCPError` whose `data` is the
+`{error, error_code}` envelope plus `uri`: `RESOURCE_NOT_FOUND` as `-32602`, `UI_ASSET_MISSING`
+(and anything unexpected) as `-32603`. Without it the SDK would send only an opaque
+"Internal server error".
 
 - **S:** `presenter.py` builds both result shapes, so `server.py` only wires and `engine.py` only
   renders.
@@ -108,10 +142,44 @@ resource to exist), and `resources/read` returns an error naming the fix:
 **`structuredContent`**
 
 - `render_to_pdf`: `{"pdf_path", "page_count", "backend"}`, the same data as `content`.
-- `render_to_image`: `{"image_path", "format", "page", "width_px", "height_px"}`.
+- `render_to_image`: `{"image_path", "format", "page", "width_px", "height_px"}`. As built it is
+  the same data as the JSON text, so it also holds `total_pages` and `backend`; `width_px` and
+  `height_px` are PNG only.
 
 The Score Viewer renders from the MusicXML in `tool-input`, so it does not need file bytes. The
 paths are there for the D6 fallback, which shows where the file was saved.
+
+### 3.1a Finding: the default CSP refuses WebAssembly; build both render paths
+
+**Finding (phase 0b, 2026-10-28).** The ext-apps spec's default CSP for a resource without
+`_meta.ui.csp` (`default-src 'none'; script-src 'self' 'unsafe-inline'; …`) has no
+`'wasm-unsafe-eval'`, and `McpUiResourceCsp` only lets a server declare domains
+(`connectDomains`, `resourceDomains`, …), so there is no way to ask for it. The `verovio` npm
+package ships only a WASM build. In a host that enforces the spec default, client-side Verovio
+cannot start (`WebAssembly.CompileError`). What Claude Desktop and VS Code enforce is unknown
+until the manual checks.
+
+**Decision (2026-10-28): build both paths**, so one manual run is conclusive:
+
+1. **WASM first** (option A): `ScoreView`, unchanged.
+2. **Server-side SVG fallback** (option B): render-mcp's app-only tool
+   `render_page_svg {musicxml, page, width_px, zoom} → structuredContent {svg, page, page_count}`.
+   It is hidden from `tools/list` for clients without MCP Apps (core `make_handlers`, proposal
+   §6.5), takes inline MusicXML only (proposal §7), uses the viewer's layout (`page_layout()`
+   mirrors `paging.ts` `layoutFor()`, both checked against `layout-cases.json`) and keeps the last
+   score parsed by content hash so paging does not re-parse.
+3. Only if both fail does the viewer show "could not start the notation engine".
+
+The kit's `ScoreRenderer` interface has two implementations (`ScoreView`, `ServerScoreRenderer`);
+`openScore()` takes the first that starts and loads. The viewer names the active engine under the
+score (`#engine`, `data-engine="wasm"|"server"`), which the manual checklist records.
+
+**Related: tempo note glyphs.** Verovio draws tempo-mark notes with its SMuFL text font. No
+`smuflTextFont` mode works under the default CSP: `embedded` is a `data:` font (no `font-src`),
+`linked` imports from verovio.org, `none` needs the font installed. Both paths keep `embedded`;
+the glyph shows only in hosts that allow `data:` fonts. An SVG shown through
+`<img src="data:image/svg+xml,…">` does render it (checked in Chromium), at the cost of the SVG
+DOM; left for the findings report.
 
 ### 3.2 TypeScript (`ui/`)
 
@@ -149,9 +217,9 @@ refactor. One commit per step, with the tests and the code together.
 
 | Step | Tests first (red) | Then implement (green) |
 |---|---|---|
-| **1. SDK characterisation** | `test_mcp_apps_sdk.py`: an in-memory `Client` with an `extensions` entry for `io.modelcontextprotocol/ui` is seen by the server. A `Tool(meta=...)` is serialised as `_meta` on the wire. `TextResourceContents(mime_type=...)` keeps the profile parameter. | Nothing, or small helpers. This step pins down SDK behaviour that later steps rely on. If one of these assumptions fails, stop and revise the plan. |
-| **2. UiRegistry** | `test_ui.py`: `meta_for` returns `{"ui":{"resourceUri":...}}` when the asset exists and `None` when it is missing. `list_resources` omits missing assets. `read` returns `UI_MIME` and the HTML. `read` on a missing asset raises `UiAssetMissing` whose message names `npm run build`. `read` on an unknown URI raises. | `ui/__init__.py` with `UiResource`, `UiRegistry`, `InMemoryAssetSource`, `PackageAssetSource`. |
-| **3. Resource wiring** | `test_mcp_protocol.py` (extended): `client.list_resources()` contains the viewer when packaged. `client.read_resource(uri)` returns the MIME type and HTML. A missing asset gives an error result, not a crash. | `_on_list_resources` and `_on_read_resource` in `server.py`, passed to `Server(...)`. |
+| **1. SDK characterisation** (done, in core) | `sheet-music-mcp-core/tests/test_mcp_apps_sdk.py`: an in-memory `Client` with an `extensions` entry for `io.modelcontextprotocol/ui` is seen by the server. A `Tool(meta=...)` is serialised as `_meta` on the wire. `TextResourceContents(mime_type=...)` keeps the profile parameter. | Nothing, or small helpers. This step pins down SDK behaviour that later steps rely on. If one of these assumptions fails, stop and revise the plan. |
+| **2. UiRegistry** (done, in core) | `sheet-music-mcp-core/tests/test_ui.py`: `meta_for` returns `{"ui":{"resourceUri":...}}` when the asset exists and `None` when it is missing. `list_resources` omits missing assets. `read` returns `UI_MIME` and the HTML. `read` on a missing asset raises `UiAssetMissing` whose message names `npm run build`. `read` on an unknown URI raises. | `sheet_music_mcp_core/ui.py` with `UiResource`, `UiRegistry`, `InMemoryAssetSource`, `PackageAssetSource`. |
+| **3. Resource wiring** | `test_mcp_protocol.py` (extended): `client.list_resources()` contains the viewer when packaged. `client.read_resource(uri)` returns the MIME type and HTML. A missing asset gives an error result, not a crash. (The generic handler behaviour is already tested in core `tests/test_wiring.py`.) | `make_resource_handlers(registry, logger=logger)` from the core in `server.py`, passed to `Server(...)`. |
 | **4. Tool linking and structured output** | `test_server.py` (extended): both render tools carry `meta` exactly when the asset exists. A golden test asserts `content` is unchanged for the existing fixtures. `structured_content` validates against `output_schema`. Validation errors still return the `{error, error_code}` content with no `structured_content`. | `presenter.py`. `output_schema` and `meta` on the two `Tool`s. `call_tool` returns `CallToolResult` parts through the presenter. |
 | **5. UI workspace scaffold** | Vitest: `paging.test.ts` covers `clampPage` (1..n, NaN to 1), `zoomSteps`, and `fitWidthScale(containerWidth, pageWidth)`. `theme.test.ts` maps the host `theme` and `styles.variables` to CSS variables, with a fallback when absent. | `ui/` workspace, TS config, Vitest, `paging.ts`, `theme.ts`. |
 | **6. HostBridge** | Vitest: `FakeBridge` replays tool-input and then tool-result in order. `ExtAppsBridge` contract tests run against a mocked `App` and forward `callTool`, `sendMessage`, `updateModelContext` and `notifySize`. | `HostBridge`, `FakeBridge`, `ExtAppsBridge`. |
@@ -170,8 +238,9 @@ Steps 1–4 (Python) and 5–8 (TypeScript) are independent and can run in paral
 
 | Layer | File | New tests (approx.) | Default run? |
 |---|---|---|---|
-| Python unit | `render-mcp/tests/test_mcp_apps_sdk.py` | 3 | yes |
-| Python unit | `render-mcp/tests/test_ui.py` | 7 | yes |
+| Python unit (done) | `sheet-music-mcp-core/tests/test_mcp_apps_sdk.py` | 8 | yes |
+| Python unit (done) | `sheet-music-mcp-core/tests/test_ui.py` | 18 | yes |
+| Python unit (done) | `sheet-music-mcp-core/tests/test_wiring.py` (extended) | 7 | yes |
 | Python unit | `render-mcp/tests/test_mcp_protocol.py` (extended) | 3 | yes |
 | Python unit | `render-mcp/tests/test_server.py` (extended) | 6 | yes |
 | Python integration | `render-mcp/tests/test_packaging.py` | 2 | no (`-m integration`, run by `ui.yml`) |
@@ -206,7 +275,11 @@ The findings report recommends one of the following:
   starts.
 - **Go with option B (server-side SVG):** the hosts reject or struggle with the inlined WASM. The
   plan for Phase 1 changes to app-only `render_page_svg` tools, and the proposal's §6.2 is
-  updated.
+  updated. render-mcp's `render_page_svg` already exists (§3.1a); the other servers would need
+  their own or a route through the model. The manual checks read the active engine off the
+  viewer's `#engine` line.
+- **Go with both:** some hosts allow WASM and others do not. Keep the WASM-first viewer with the
+  server fallback as built, and decide per app whether a server-side tool is worth adding.
 - **Pause:** a target host lacks MCP Apps features we rely on (resource reads, tool calls from
   the app, display modes). Record the gap and re-check host releases before continuing.
 
@@ -221,6 +294,9 @@ The findings report recommends one of the following:
 | Verovio WASM does not load in Node for Vitest. | Move the `ScoreView` tests to Playwright component tests (step 7 note). |
 | Node in the release path adds supply-chain surface. | Committed lockfile, `npm ci`, SHA-pinned actions, Dependabot, and the unicode guard on `ui/`. The built HTML is checked for off-origin references (AC-R1). |
 | The asset is not packaged because hatch skips gitignored files. | `artifacts` setting plus the step 9 wheel test. |
+| **Hosts enforce the spec's default CSP, which refuses WebAssembly** (found in phase 0b; a server cannot request `'wasm-unsafe-eval'`). | Both render paths (§3.1a): WASM first, app-only `render_page_svg` second. The manual checks record which one each host uses. |
+| The server fallback costs a round trip per page and zoom, and re-sends the inline score each call. | One parsed score cached by hash on the server; the viewer skips page turns superseded while waiting and reuses the page it already has for downloads. Measure in step 11. |
+| Tempo-mark note glyphs vanish under the default CSP (Verovio's `data:` text font). | Documented (§3.1a); `<img>` rendering is a known workaround to weigh in the findings. |
 
 ---
 

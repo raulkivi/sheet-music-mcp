@@ -18,7 +18,7 @@ Six independent MCP servers for choir practice. Each server lives in its own dir
 | comparer-mcp | `comparer-mcp/` | Two MusicXML → structured diff | Score comparison |
 
 Shared code (errors, part selection, deprecated parameter names, tool annotations, result content,
-handler wiring, score paths, `describe_score` and measure ranges) lives in the library [`sheet-music-mcp-core/`](sheet-music-mcp-core/), which every
+handler wiring, score paths, `describe_score`, measure ranges and MCP Apps UI resources) lives in the library [`sheet-music-mcp-core/`](sheet-music-mcp-core/), which every
 server depends on. It is not an MCP server; its tests run from its own directory like a server's.
 
 See [README.md](README.md) for the full vision and data flow.
@@ -49,12 +49,12 @@ before writing any code.
 |--------|--------|-------|
 | omr-mcp | ⚠️ Phase 1-4 complete; default (oemer) engine loses SATB voice structure — fixed via opt-in `engine="audiveris"`, not yet the default (see omr-mcp/docs/HANDOVER.md) | 164 unit (+48 skipped) + 41 integration |
 | synth-mcp | ✅ Phase 1 + UX complete | 306 unit + 10 integration |
-| render-mcp | ✅ Phase 1 + UX complete | 169 unit + 9 integration |
+| render-mcp | ✅ Phase 1 + UX complete; MCP Apps spike 0c (Score Viewer, app-only `render_page_svg`) awaiting manual host checks | 234 unit + 12 integration |
 | musicxml-abc-mcp | ✅ Phase 1 + UX complete | 161 unit + 4 integration |
 | pitch-mcp | ✅ Phase A+B + UX complete (audio-driven position tracking, DTW via dtaidistance) | 293 unit (+2 skipped) + 4 integration |
 | comparer-mcp | ✅ Phase 4 (Advanced features) complete — all originally-scoped phases done | 279 unit + 7 integration |
 
-| sheet-music-mcp-core | ✅ 0.3.0 shared library: Wave 1 helpers, score references (`paths`, `scores`, `references`) and measure ranges (`measures`). Not yet on PyPI — publish before the next server release | 407 unit |
+| sheet-music-mcp-core | ✅ 0.3.1 shared library: Wave 1 helpers, score references (`paths`, `scores`, `references`), measure ranges (`measures`) and MCP Apps UI resources and app-only tool visibility (`ui`, `wiring`). Not yet on PyPI — publish before the next server release | 455 unit |
 
 Unit counts are the default `pytest` run (`-m "not integration"`). UX Wave 1 (all servers): tool titles
 and annotations, server instructions, part selection by ID/name/voice, inline PNG and file links,

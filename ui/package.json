@@ -1,0 +1,29 @@
+{
+  "name": "sheet-music-mcp-ui",
+  "private": true,
+  "type": "module",
+  "description": "MCP Apps UI workspace: shared kit and single-file app pages for the sheet-music MCP servers.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "vite build && node scripts/check-html.mjs dist/score-viewer.html",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "copy-assets": "node scripts/copy-assets.mjs",
+    "measure": "node scripts/measure.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.19.1",
+    "typescript": "6.0.3",
+    "vite": "8.3.4",
+    "vite-plugin-singlefile": "2.3.3",
+    "vitest": "5.0.3"
+  }
+}
