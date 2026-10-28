@@ -9,6 +9,8 @@ No MCP SDK imports here.
 
 from __future__ import annotations  # SessionRegistry.list shadows the builtin in its class body
 
+import base64
+import binascii
 import logging
 import os
 import queue
@@ -305,8 +307,173 @@ class SoundDeviceSource:
             self._queue = queue.Queue()  # drop blocks nobody analysed
 
 
-# The source a session opens when none is injected. Tests replace it with a fake.
+# Pushed audio (proposal §7, memory exhaustion): a chunk holds at most about a second of audio
+# at its stated rate, with margin for a late flush, and a session takes a bounded number of pushes
+# per second. The Practice Coach sends ~100 ms chunks, about 10 per second.
+MIN_PUSH_SAMPLE_RATE = 8000
+MAX_PUSH_SAMPLE_RATE = 48000
+MAX_CHUNK_SECONDS = 1.25
+MAX_PUSHES_PER_SECOND = 25
+_PCM_BYTES_PER_SAMPLE = 2  # 16-bit little-endian mono
+
+
+def max_chunk_bytes(sample_rate: int) -> int:
+    """The largest PCM chunk, in bytes, a push at ``sample_rate`` may carry."""
+    return int(sample_rate * MAX_CHUNK_SECONDS) * _PCM_BYTES_PER_SAMPLE
+
+
+class _LinearResampler:
+    """Streaming linear interpolation to ``target_rate``, continuous across chunk edges.
+
+    Keeps only the last input sample and the fractional read position between calls. Linear
+    interpolation keeps the time base exact, which is all pitch tracking needs; its slight
+    high-frequency roll-off does not move a sung fundamental.
+    """
+
+    def __init__(self, target_rate: int):
+        self._target_rate = target_rate
+        self._rate: Optional[int] = None
+        self._last: Optional[float] = None
+        self._phase = 0.0
+
+    def __call__(self, samples: np.ndarray, rate: int) -> np.ndarray:
+        if rate != self._rate:
+            # A new rate restarts the stream rather than mixing two time bases.
+            self._rate, self._last, self._phase = rate, None, 0.0
+        if rate == self._target_rate or len(samples) == 0:
+            return samples
+        x = samples if self._last is None else np.concatenate([[self._last], samples]).astype(np.float32)
+        step = rate / self._target_rate  # input samples per output sample
+        positions = np.arange(self._phase, len(x) - 1, step)
+        resampled = np.interp(positions, np.arange(len(x)), x).astype(np.float32)
+        next_position = positions[-1] + step if len(positions) else self._phase
+        # The last input sample becomes index 0 of the next call.
+        self._phase = next_position - (len(x) - 1)
+        self._last = float(x[-1])
+        return resampled
+
+
+class PushedChunkSource:
+    """Audio the Practice Coach captured in the browser and pushed (Practice Coach option B).
+
+    ``push`` decodes a base64 chunk of 16-bit little-endian mono PCM, resamples it to
+    ``TRACKER_SAMPLE_RATE`` and hands it to the sink on the caller's thread, so the position the
+    push returns already reflects that chunk, and no queue can grow behind a slow analysis.
+    Nothing is written to disk and no audio is kept once the sink has it (proposal §7,
+    microphone privacy).
+    """
+
+    def __init__(
+        self,
+        clock: Callable[[], float] = time.monotonic,
+        max_pushes_per_second: int = MAX_PUSHES_PER_SECOND,
+    ):
+        self._clock = clock
+        self._max_pushes = max_pushes_per_second
+        self._recent: list[float] = []  # times of the pushes in the last second
+        self._sink: Optional[AudioSink] = None
+        self._resampler = _LinearResampler(TRACKER_SAMPLE_RATE)
+        self._lock = threading.Lock()
+
+    def start(self, sink: AudioSink) -> None:
+        with self._lock:
+            self._sink = sink
+
+    def stop(self) -> None:
+        with self._lock:
+            self._sink = None
+
+    def close(self) -> None:
+        with self._lock:
+            self._sink = None
+            self._resampler = _LinearResampler(TRACKER_SAMPLE_RATE)
+            self._recent = []
+
+    def push(self, pcm_b64: str, sample_rate: int) -> None:
+        """Feed one chunk; raises ProcessingError (INVALID_PARAMETER, INVALID_INPUT) and feeds
+        nothing when the chunk breaks a limit or is not 16-bit PCM in base64."""
+        with self._lock:
+            if self._sink is None:
+                raise ProcessingError(
+                    "This session is no longer listening for pushed audio.",
+                    "INVALID_PARAMETER",
+                    hint="Call start_monitoring with source 'pushed' to listen again.",
+                )
+            _check_sample_rate(sample_rate)
+            # Checked before decoding, so an oversized chunk costs nothing.
+            limit = max_chunk_bytes(sample_rate)
+            if len(pcm_b64) > 4 * -(-limit // 3):
+                raise _chunk_too_large(len(pcm_b64) * 3 // 4, sample_rate)
+            self._admit_push()
+            pcm = _decode_pcm(pcm_b64)
+            if len(pcm) > limit:
+                raise _chunk_too_large(len(pcm), sample_rate)
+            samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
+            resampled = self._resampler(samples, sample_rate)
+            if len(resampled):
+                self._sink(resampled)
+
+    def _admit_push(self) -> None:
+        """Count a push against the per-second budget, or refuse it (it is then not counted)."""
+        now = self._clock()
+        self._recent = [t for t in self._recent if now - t < 1.0]
+        if len(self._recent) >= self._max_pushes:
+            raise ProcessingError(
+                "Too many audio pushes for this session.",
+                "INVALID_PARAMETER",
+                hint=(
+                    f"At most {self._max_pushes} pushes per second per session; "
+                    "send about 100 ms of audio per push."
+                ),
+            )
+        self._recent.append(now)
+
+
+def _check_sample_rate(sample_rate) -> None:
+    if (
+        isinstance(sample_rate, bool)
+        or not isinstance(sample_rate, int)
+        or not MIN_PUSH_SAMPLE_RATE <= sample_rate <= MAX_PUSH_SAMPLE_RATE
+    ):
+        raise ProcessingError(
+            f"sample_rate {sample_rate!r} is not supported.",
+            "INVALID_PARAMETER",
+            hint=(
+                f"Push whole-number rates from {MIN_PUSH_SAMPLE_RATE} to {MAX_PUSH_SAMPLE_RATE} Hz "
+                "(16000 is usual)."
+            ),
+        )
+
+
+def _chunk_too_large(size: int, sample_rate: int) -> ProcessingError:
+    limit = max_chunk_bytes(sample_rate)
+    return ProcessingError(
+        f"Audio chunk of about {size} bytes is too large.",
+        "INVALID_PARAMETER",
+        hint=(
+            f"At {sample_rate} Hz a chunk may hold at most {limit} bytes "
+            f"({MAX_CHUNK_SECONDS} s of 16-bit mono PCM); send about 100 ms per push."
+        ),
+    )
+
+
+def _decode_pcm(pcm_b64: str) -> bytes:
+    try:
+        pcm = base64.b64decode(pcm_b64, validate=True)
+    except (binascii.Error, ValueError) as e:
+        raise ProcessingError(f"pcm_b64 is not valid base64: {e}", "INVALID_INPUT")
+    if len(pcm) % _PCM_BYTES_PER_SAMPLE:
+        raise ProcessingError(
+            f"pcm_b64 holds {len(pcm)} bytes, not whole 16-bit samples.", "INVALID_INPUT"
+        )
+    return pcm
+
+
+# The sources a session opens: the default when none is injected, and the one start_monitoring
+# opens for source "pushed". Tests replace them with fakes or a fake clock.
 server_mic_source: Callable[[], AudioSource] = SoundDeviceSource
+pushed_source: Callable[[], PushedChunkSource] = PushedChunkSource
+AUDIO_SOURCES = ("server_mic", "pushed")
 
 
 # ---------------------------------------------------------------------------
@@ -808,12 +975,50 @@ def load_score(musicxml_str: str, part_id: str, measures: Optional[Sequence[int]
     }
 
 
-def start_monitoring(session_id: str, tempo_bpm: Optional[int] = None) -> dict:
-    """Start microphone monitoring for a session."""
+def start_monitoring(session_id: str, tempo_bpm: Optional[int] = None, source: str = "server_mic") -> dict:
+    """Start monitoring a session from the server microphone, or from audio the app pushes.
+
+    ``source="pushed"`` opens a PushedChunkSource fed by ``push_audio_chunk``; its result also
+    names the source. The server-mic result is unchanged.
+    """
+    if source not in AUDIO_SOURCES:
+        raise ProcessingError(
+            f"Unknown audio source {source!r}.",
+            "INVALID_PARAMETER",
+            hint=(
+                "source is 'server_mic' (this machine's microphone) or 'pushed' "
+                "(the Practice Coach sends the browser's audio)."
+            ),
+            choices=list(AUDIO_SOURCES),
+        )
     session = _active_session(session_id)
-    session.start(tempo_bpm=tempo_bpm)
+    if source == "pushed":
+        session.start(tempo_bpm=tempo_bpm, source=pushed_source())
+    else:
+        session.start(tempo_bpm=tempo_bpm)  # the session's default: the server microphone
     _registry.touch(session_id)
-    return {"status": "started", "session_id": session_id}
+    result = {"status": "started", "session_id": session_id}
+    return {**result, "source": "pushed"} if source == "pushed" else result
+
+
+def push_audio_chunk(session_id: str, pcm_b64: str, sample_rate: int) -> dict:
+    """Feed one chunk of browser audio to a pushed session; return the position it leads to.
+
+    Counts as activity. Raises SESSION_NOT_FOUND for a closed session, INVALID_PARAMETER for a
+    session not listening for pushed audio or a chunk over the limits, INVALID_INPUT for PCM
+    that does not decode.
+    """
+    session = _active_session(session_id)
+    source = session.audio_source
+    if not isinstance(source, PushedChunkSource):
+        state = "listens to the server microphone" if source is not None else "is not listening yet"
+        raise ProcessingError(
+            f"Session '{session_id}' {state}; it takes no pushed audio.",
+            "INVALID_PARAMETER",
+            hint="Call start_monitoring with source 'pushed' before pushing audio.",
+        )
+    source.push(pcm_b64, sample_rate)
+    return session.get_position()
 
 
 def start_practice(
