@@ -14,7 +14,7 @@ def test_mcp_free_modules_do_not_import_mcp_or_music21():
         "import sheet_music_mcp_core.errors, sheet_music_mcp_core.parts\n"
         "import sheet_music_mcp_core.params, sheet_music_mcp_core.annotations\n"
         "import sheet_music_mcp_core.paths, sheet_music_mcp_core.scores\n"
-        "import sheet_music_mcp_core.measures\n"
+        "import sheet_music_mcp_core.measures, sheet_music_mcp_core.artifacts\n"
         "print(sorted(m for m in sys.modules if m.split('.')[0] in ('mcp', 'music21')))\n"
     )
 
