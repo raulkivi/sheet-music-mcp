@@ -76,6 +76,8 @@ PRACTICE_COACH = UiResource(
     "practice-coach.html",
     "Practice Coach",
     "Follows the singer through the score with live pitch feedback, and shows a recording's accuracy.",
+    # The coach captures the singer's browser microphone and pushes it (push_audio_chunk).
+    permissions={"microphone": {}},
 )
 
 # Reads the HTML packaged under pitch_mcp/ui/assets/; tests replace ui_registry with in-memory

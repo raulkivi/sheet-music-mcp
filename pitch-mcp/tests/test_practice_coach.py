@@ -75,6 +75,16 @@ class TestResources:
             (COACH_URI, "Practice Coach", UI_MIME)
         ]
 
+    def test_listing_asks_for_the_microphone(self, packaged_ui):
+        [resource] = _with_client(lambda c: c.list_resources()).resources
+
+        assert resource.meta["ui"]["permissions"] == {"microphone": {}}
+
+    def test_reading_asks_for_the_microphone(self, packaged_ui):
+        [contents] = _with_client(lambda c: c.read_resource(COACH_URI)).contents
+
+        assert contents.meta["ui"]["permissions"] == {"microphone": {}}
+
     def test_lists_nothing_without_a_ui_build(self):
         assert _with_client(lambda c: c.list_resources()).resources == []
 
