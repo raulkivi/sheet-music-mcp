@@ -7,7 +7,8 @@ or any combination) and an optional tempo factor. Returns a WAV file path.
 
 **Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references: `musicxml_path`, `describe_score`)
 + UX Wave 3 (practice tracks: `measures`, `repeat`, count-in/metronome, `timbre`, part gains and
-presets; new `starting_pitches` tool) complete. 306 unit + 10 integration tests (integration needs
+presets; new `starting_pitches` tool) complete. MCP Apps Practice Player server side done
+(`structuredContent`, app-only `read_audio_chunk` and `get_score_xml`; page not built yet). 380 unit + 10 integration tests (integration needs
 a soundfont, libfluidsynth and, for most, the omr-mcp MXL fixtures).
 
 ---
@@ -16,7 +17,7 @@ a soundfont, libfluidsynth and, for most, the omr-mcp MXL fixtures).
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v                          # 306 unit tests (fast)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v                          # 380 unit tests (fast)
 
 # Integration tests require a soundfont
 VIRTUAL_ENV= SYNTH_SOUNDFONT_PATH=/usr/share/sounds/sf2/TimGM6mb.sf2 \
@@ -37,6 +38,8 @@ Install dependencies: `uv sync --extra dev`
 | `src/synth_mcp/engine.py` | music21 + pyfluidsynth pipeline (no MCP imports) |
 | `src/synth_mcp/practice.py` | Practice-track steps: gains, repeat, clicks, timbre, MIDI post-processing (no MCP imports) |
 | `src/synth_mcp/clip.py` | `starting_pitches`: text, clip MIDI, render + downmix to mono 16 kHz (no MCP imports) |
+| `src/synth_mcp/presenter.py` | `structuredContent` + output schemas for the Practice Player tools |
+| `src/synth_mcp/scorebook.py` | MusicXML of each synthesized track, kept in step with the artifact store (no MCP imports) |
 | `src/synth_mcp/utils.py` | MusicXML validation, tempo validation, path helpers |
 | `docs/HANDOVER.md` | Status, remaining work, definition of done |
 | `docs/PLAN.md` | Architecture decisions and rationale |
@@ -53,6 +56,8 @@ Install dependencies: `uv sync --extra dev`
 | `synthesize` | Render selected parts to WAV with optional tempo scaling and practice options: `measures`, `repeat`, `count_in_bars`, `metronome`, `timbre`, `part_gains` / `preset` / `focus_part` |
 | `starting_pitches` | Each part's first note as text (`"S: D5, A: A4, …"`) plus a short piano WAV (inline when ≤ 200 KB); text only, not an error, without a soundfont |
 | `describe_score` | Shared core tool: title, key, time, tempo, parts (ID, clef, range), measures, duration — no music21 |
+| `read_audio_chunk` | App-only: a base64 slice of a synthesized WAV by `audio_id` (`offset`, `length` ≤ 1 MiB; no paths) |
+| `get_score_xml` | App-only: the MusicXML an `audio_id` was made from (no paths) |
 | `list_capabilities` | Server metadata, backend, soundfont status |
 | `health_check` | Soundfont, FluidSynth and music21 readiness |
 
@@ -139,6 +144,14 @@ asyncio.run(_run())
 - **Integration tests resolve the soundfont at import** (`SOUNDFONT` in
   `test_starting_pitches.py`): the autouse `output_root` fixture deletes `SYNTH_SOUNDFONT_PATH`
   before each test, so reading the variable inside a test gets nothing.
+- **Practice Player (MCP Apps).** `synthesize` stores the finished WAV in the module-level
+  `artifact_store` (`FileArtifactStore`, kind `audio/wav`) and returns `audio_id` in
+  `structuredContent`; a stored file must not be rewritten. The store only takes files inside the
+  output root, so the default output is now `<output root>/audio/output-<timestamp>.wav`
+  (was `/tmp/synth-mcp-<uid>/`). `ScoreBook` (`score_book`) holds the MusicXML per id and asks the
+  store on every `get`, so it expires with the WAV; tests swap both with `tests/conftest.py:use_store`.
+  Fakes of `synthesize_midi` must write a WAV (`tests/midi_helpers.py:fake_render`). Errors of
+  the structured tools are `isError` results without `structuredContent`.
 - **Running tests:** `VIRTUAL_ENV=` prefix prevents uv from picking up the wrong venv.
 
 ---

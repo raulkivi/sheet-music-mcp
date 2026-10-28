@@ -15,6 +15,8 @@ from sheet_music_mcp_core.parts import PartSelectionError
 from synth_mcp.engine import extract_midi, parse_parts, resolve_part_ids
 from synth_mcp.server import call_tool
 
+from .midi_helpers import fake_render
+
 
 def _score(parts):
     """MusicXML with one whole note per part: parts = [(xml_id, name, step), ...]."""
@@ -115,7 +117,7 @@ class TestServerParameters:
     @pytest.mark.parametrize("argument", ["parts", "part_ids"])
     async def test_parts_included_reports_resolved_ids(self, argument, monkeypatch, tmp_path):
         monkeypatch.setenv("SHEET_MUSIC_OUTPUT_ROOT", str(tmp_path))
-        monkeypatch.setattr("synth_mcp.server.synthesize_midi", lambda midi, path: 4.0)
+        monkeypatch.setattr("synth_mcp.server.synthesize_midi", fake_render)
 
         result = await call_tool("synthesize", {"musicxml": SATB, argument: ["Alto", "B"]})
 

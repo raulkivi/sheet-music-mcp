@@ -1,0 +1,108 @@
+{
+  "get_parts": [
+    {
+      "text": "{\n  \"parts\": [\n    {\n      \"id\": \"P1\",\n      \"name\": \"Soprano\",\n      \"measure_count\": 1\n    },\n    {\n      \"id\": \"P2\",\n      \"name\": \"Alto\",\n      \"measure_count\": 1\n    }\n  ]\n}",
+      "type": "text"
+    }
+  ],
+  "get_parts_bad_xml": [
+    {
+      "text": "{\"error\": \"Not a MusicXML score: root element is <nope>, expected <score-partwise> or <score-timewise>\", \"error_code\": \"INVALID_INPUT\"}",
+      "type": "text"
+    }
+  ],
+  "get_parts_from_path": [
+    {
+      "text": "{\n  \"parts\": [\n    {\n      \"id\": \"P1\",\n      \"name\": \"Soprano\",\n      \"measure_count\": 1\n    },\n    {\n      \"id\": \"P2\",\n      \"name\": \"Alto\",\n      \"measure_count\": 1\n    }\n  ]\n}",
+      "type": "text"
+    }
+  ],
+  "synthesize": [
+    {
+      "text": "{\n  \"audio_path\": \"<TMP>/a.wav\",\n  \"format\": \"wav\",\n  \"duration_seconds\": 4.0,\n  \"parts_included\": [\n    \"P1\",\n    \"P2\"\n  ],\n  \"tempo_factor\": 1.0\n}",
+      "type": "text"
+    },
+    {
+      "mimeType": "audio/wav",
+      "name": "a.wav",
+      "size": 1644,
+      "type": "resource_link",
+      "uri": "file://<TMP>/a.wav"
+    }
+  ],
+  "synthesize_bad_gain_part": [
+    {
+      "text": "{\"error\": \"Part 'Viola' not found.\", \"error_code\": \"INVALID_PARAMETER\", \"hint\": \"Pass one of the listed part names or IDs.\", \"choices\": [\"Soprano (P1)\", \"Alto (P2)\", \"Tenor (P3)\", \"Bass (P4)\"]}",
+      "type": "text"
+    }
+  ],
+  "synthesize_bad_measures": [
+    {
+      "text": "{\"error\": \"Measures 9\\u201312 are outside this score.\", \"error_code\": \"INVALID_PARAMETER\", \"hint\": \"This score has measures 1\\u20134.\"}",
+      "type": "text"
+    }
+  ],
+  "synthesize_bad_part": [
+    {
+      "text": "{\"error\": \"Part 'Tuba' not found.\", \"error_code\": \"INVALID_PARAMETER\", \"hint\": \"Pass one of the listed part names or IDs.\", \"choices\": [\"Soprano (P1)\", \"Alto (P2)\"]}",
+      "type": "text"
+    }
+  ],
+  "synthesize_bad_tempo": [
+    {
+      "text": "{\"error\": \"tempo_factor must be between 0.25 and 4.0, got 9. Values below 1.0 slow the tempo; values above 1.0 speed it up.\", \"error_code\": \"INVALID_PARAMETER\"}",
+      "type": "text"
+    }
+  ],
+  "synthesize_bad_xml": [
+    {
+      "text": "{\"error\": \"Not a MusicXML score: root element is <nope>, expected <score-partwise> or <score-timewise>\", \"error_code\": \"INVALID_INPUT\"}",
+      "type": "text"
+    }
+  ],
+  "synthesize_from_path": [
+    {
+      "text": "{\n  \"audio_path\": \"<TMP>/c.wav\",\n  \"format\": \"wav\",\n  \"duration_seconds\": 4.0,\n  \"parts_included\": [\n    \"P1\",\n    \"P2\"\n  ],\n  \"tempo_factor\": 1.0\n}",
+      "type": "text"
+    },
+    {
+      "mimeType": "audio/wav",
+      "name": "c.wav",
+      "size": 1644,
+      "type": "resource_link",
+      "uri": "file://<TMP>/c.wav"
+    }
+  ],
+  "synthesize_outside_root": [
+    {
+      "text": "{\"error\": \"output_path must be inside <TMP>\", \"error_code\": \"INVALID_PARAMETER\"}",
+      "type": "text"
+    }
+  ],
+  "synthesize_parts_tempo": [
+    {
+      "text": "{\n  \"audio_path\": \"<TMP>/b.wav\",\n  \"format\": \"wav\",\n  \"duration_seconds\": 4.0,\n  \"parts_included\": [\n    \"P2\"\n  ],\n  \"tempo_factor\": 0.75\n}",
+      "type": "text"
+    },
+    {
+      "mimeType": "audio/wav",
+      "name": "b.wav",
+      "size": 1644,
+      "type": "resource_link",
+      "uri": "file://<TMP>/b.wav"
+    }
+  ],
+  "synthesize_practice": [
+    {
+      "text": "{\n  \"audio_path\": \"<TMP>/d.wav\",\n  \"format\": \"wav\",\n  \"duration_seconds\": 4.0,\n  \"parts_included\": [\n    \"P1\",\n    \"P2\",\n    \"P3\",\n    \"P4\"\n  ],\n  \"tempo_factor\": 1.0,\n  \"measures\": [\n    2,\n    3\n  ],\n  \"repeat\": 2,\n  \"count_in_bars\": 1,\n  \"timbre\": \"choir\",\n  \"part_gains\": {\n    \"P4\": 0.5\n  },\n  \"preset\": \"learning\",\n  \"focus_part\": \"Alto\"\n}",
+      "type": "text"
+    },
+    {
+      "mimeType": "audio/wav",
+      "name": "d.wav",
+      "size": 1644,
+      "type": "resource_link",
+      "uri": "file://<TMP>/d.wav"
+    }
+  ]
+}

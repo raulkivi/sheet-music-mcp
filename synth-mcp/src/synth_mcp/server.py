@@ -2,13 +2,15 @@ import asyncio
 import json
 import logging
 import os
+from pathlib import Path
 
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import TextContent, Tool, ToolAnnotations
+from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
+from sheet_music_mcp_core.artifacts import MAX_CHUNK_BYTES, FileArtifactStore, chunk_payload
 from sheet_music_mcp_core.content import audio_block, error_content, file_link, processing_error_content
-from sheet_music_mcp_core.measures import MEASURES_PROPERTY
+from sheet_music_mcp_core.measures import MEASURES_PROPERTY, select_measures
 from sheet_music_mcp_core.params import aliased
 from sheet_music_mcp_core.references import (
     DESCRIBE_SCORE_TOOL,
@@ -17,12 +19,32 @@ from sheet_music_mcp_core.references import (
     load_score,
     score_input_properties,
 )
-from sheet_music_mcp_core.wiring import make_handlers
+from sheet_music_mcp_core.ui import PackageAssetSource, UiRegistry, UiResource
+from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 
 from . import __version__
 from .clip import clip_midi, clip_seconds, pitches_text, render_clip, starting_pitches
-from .engine import ProcessingError, extract_midi, parse_parts, resolve_part_ids, synthesize_midi
+from .engine import (
+    ProcessingError,
+    describe_mix,
+    extract_midi,
+    parse_parts,
+    resolve_part_ids,
+    synthesize_midi,
+    wav_format,
+)
+from .presenter import (
+    CHUNK_OUTPUT_SCHEMA,
+    PARTS_OUTPUT_SCHEMA,
+    SCORE_OUTPUT_SCHEMA,
+    SYNTH_OUTPUT_SCHEMA,
+    present_chunk,
+    present_parts,
+    present_score,
+    present_track,
+)
 from .practice import MAX_COUNT_IN_BARS, MAX_GAIN, MAX_REPEAT, PRESETS, TIMBRES
+from .scorebook import ScoreBook
 from .utils import confine_output_path, generate_output_path, validate_musicxml, validate_tempo_factor
 
 logging.basicConfig(level=logging.INFO)
@@ -41,6 +63,23 @@ INSTRUCTIONS = (
     "repeat, count_in_bars, metronome, timbre and preset ('learning' / 'karaoke' with "
     "focus_part) or part_gains; starting_pitches gives each part's first note as text and audio."
 )
+
+PRACTICE_PLAYER = UiResource(
+    "ui://synth/practice-player",
+    "practice-player.html",
+    "Practice Player",
+    "Plays a rendered practice track with a mixer for each voice part, over the score.",
+)
+
+# Reads the HTML packaged under synth_mcp/ui/assets/; tests replace ui_registry with in-memory
+# assets. Without a UI build the player is hidden and the tools carry no _meta.ui link.
+DEFAULT_UI_REGISTRY = UiRegistry([PRACTICE_PLAYER], PackageAssetSource("synth_mcp"))
+ui_registry = DEFAULT_UI_REGISTRY
+
+# One store per process: the WAVs synthesize wrote, read back in chunks by the app (the iframe
+# cannot open audio_path). The score book keeps each track's MusicXML in step with it.
+artifact_store = FileArtifactStore()
+score_book = ScoreBook(lambda: artifact_store)
 
 # synthesize's practice options, passed to extract_midi only when the caller gave them.
 PRACTICE_PARAMETERS = (
@@ -128,6 +167,7 @@ async def list_tools():
                 "properties": _score_input(),
                 **exactly_one("musicxml", "musicxml_path"),
             },
+            output_schema=PARTS_OUTPUT_SCHEMA,
         ),
         Tool(
             name="synthesize",
@@ -169,6 +209,8 @@ async def list_tools():
                 },
                 **exactly_one("musicxml", "musicxml_path"),
             },
+            output_schema=SYNTH_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(PRACTICE_PLAYER),
         ),
         Tool(
             name="starting_pitches",
@@ -229,112 +271,241 @@ async def list_tools():
             },
         ),
         DESCRIBE_SCORE_TOOL,
+        Tool(
+            name="read_audio_chunk",
+            title="Read audio chunk",
+            annotations=ToolAnnotations(**READ_ONLY),
+            description=(
+                "For the Practice Player app only: a base64 slice of a synthesized WAV, by the "
+                "audio_id synthesize returned. Takes an id, never a path."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "audio_id": {"type": "string", "description": "audio_id from synthesize"},
+                    "offset": {"type": "integer", "minimum": 0, "description": "First byte to read"},
+                    "length": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": MAX_CHUNK_BYTES,
+                        "description": "Bytes to read (at most 1 MiB)",
+                    },
+                },
+                "required": ["audio_id", "offset", "length"],
+                "additionalProperties": False,
+            },
+            output_schema=CHUNK_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(PRACTICE_PLAYER, app_only=True),
+        ),
+        Tool(
+            name="get_score_xml",
+            title="Score of a synthesized track",
+            annotations=ToolAnnotations(**READ_ONLY),
+            description=(
+                "For the Practice Player app only: the MusicXML a synthesized track was made "
+                "from, so the app can draw it. Takes an audio_id, never a path."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "audio_id": {"type": "string", "description": "audio_id from synthesize"},
+                },
+                "required": ["audio_id"],
+                "additionalProperties": False,
+            },
+            output_schema=SCORE_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(PRACTICE_PLAYER, app_only=True),
+        ),
     ]
 
 
-async def call_tool(name: str, arguments: dict, ctx=None):
-    if name == "get_parts":
+def _error(content: list) -> CallToolResult:
+    # isError, so clients skip output_schema validation of the absent structured content.
+    return CallToolResult(content=content, is_error=True)
+
+
+def _result(presented: tuple[list, dict]) -> CallToolResult:
+    content, structured = presented
+    return CallToolResult(content=content, structured_content=structured)
+
+
+async def _get_parts(arguments: dict, ctx) -> CallToolResult:
+    try:
+        musicxml = await load_score(arguments, ctx)
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+
+    ok, err = validate_musicxml(musicxml)
+    if not ok:
+        return _error(error_content(err, "INVALID_INPUT"))
+
+    try:
+        return _result(present_parts({"parts": parse_parts(musicxml)}))
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("get_parts unexpected error: %s", e)
+        return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
+
+
+async def _synthesize(arguments: dict, ctx) -> CallToolResult:
+    try:
+        musicxml = await load_score(arguments, ctx)
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    tempo_factor = arguments.get("tempo_factor", 1.0)
+    output_path = arguments.get("output_path")
+
+    ok, err = validate_musicxml(musicxml)
+    if not ok:
+        return _error(error_content(err, "INVALID_INPUT"))
+
+    ok, err = validate_tempo_factor(tempo_factor)
+    if not ok:
+        return _error(error_content(err, "INVALID_PARAMETER"))
+
+    try:
+        requested = aliased(arguments, "parts", "part_ids")  # None → all parts
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    if requested is not None and not isinstance(requested, list):
+        return _error(error_content("parts must be a list of strings", "INVALID_PARAMETER"))
+
+    part_ids = None
+    if requested is not None:
         try:
-            musicxml = await load_score(arguments, ctx)
+            part_ids = resolve_part_ids(musicxml, requested)
         except ProcessingError as e:
-            return processing_error_content(e)
+            return _error(processing_error_content(e))
 
-        ok, err = validate_musicxml(musicxml)
-        if not ok:
-            return error_content(err, "INVALID_INPUT")
+    try:
+        resolved_output = generate_output_path(output_path)
+    except ValueError as e:
+        return _error(error_content(str(e), "INVALID_PARAMETER"))
 
+    # Only the options the caller gave: every default reproduces the plain track.
+    practice = {key: arguments[key] for key in PRACTICE_PARAMETERS if key in arguments}
+
+    try:
+        midi_bytes = extract_midi(musicxml, part_ids, tempo_factor, **practice)
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("extract_midi unexpected error: %s", e)
+        return _error(error_content(f"MIDI extraction failed: {e}", "PROCESSING_FAILED"))
+
+    try:
+        duration = synthesize_midi(midi_bytes, resolved_output)
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("synthesize_midi unexpected error: %s", e)
+        return _error(error_content(f"Synthesis failed: {e}", "PROCESSING_FAILED"))
+
+    # Resolve the list of included part IDs for the response
+    if part_ids is not None:
+        parts_included = part_ids
+    else:
         try:
-            parts = parse_parts(musicxml)
-            return [TextContent(type="text", text=json.dumps({"parts": parts}, indent=2))]
-        except ProcessingError as e:
-            return processing_error_content(e)
-        except Exception as e:
-            logger.error("get_parts unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            parts_included = [p["id"] for p in parse_parts(musicxml)]
+        except Exception:
+            parts_included = []
 
-    elif name == "synthesize":
-        try:
-            musicxml = await load_score(arguments, ctx)
-        except ProcessingError as e:
-            return processing_error_content(e)
-        tempo_factor = arguments.get("tempo_factor", 1.0)
-        output_path = arguments.get("output_path")
-
-        ok, err = validate_musicxml(musicxml)
-        if not ok:
-            return error_content(err, "INVALID_INPUT")
-
-        ok, err = validate_tempo_factor(tempo_factor)
-        if not ok:
-            return error_content(err, "INVALID_PARAMETER")
-
-        try:
-            requested = aliased(arguments, "parts", "part_ids")  # None → all parts
-        except ProcessingError as e:
-            return processing_error_content(e)
-        if requested is not None and not isinstance(requested, list):
-            return error_content("parts must be a list of strings", "INVALID_PARAMETER")
-
-        part_ids = None
-        if requested is not None:
-            try:
-                part_ids = resolve_part_ids(musicxml, requested)
-            except ProcessingError as e:
-                return processing_error_content(e)
-
-        try:
-            resolved_output = generate_output_path(output_path)
-        except ValueError as e:
-            return error_content(str(e), "INVALID_PARAMETER")
-
-        # Only the options the caller gave: every default reproduces the plain track.
-        practice = {key: arguments[key] for key in PRACTICE_PARAMETERS if key in arguments}
-
-        try:
-            midi_bytes = extract_midi(musicxml, part_ids, tempo_factor, **practice)
-        except ProcessingError as e:
-            return processing_error_content(e)
-        except Exception as e:
-            logger.error("extract_midi unexpected error: %s", e)
-            return error_content(f"MIDI extraction failed: {e}", "PROCESSING_FAILED")
-
-        try:
-            duration = synthesize_midi(midi_bytes, resolved_output)
-        except ProcessingError as e:
-            return processing_error_content(e)
-        except Exception as e:
-            logger.error("synthesize_midi unexpected error: %s", e)
-            return error_content(f"Synthesis failed: {e}", "PROCESSING_FAILED")
-
-        # Resolve the list of included part IDs for the response
-        if part_ids is not None:
-            parts_included = part_ids
-        else:
-            try:
-                parts_included = [p["id"] for p in parse_parts(musicxml)]
-            except Exception:
-                parts_included = []
-
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "audio_path": resolved_output,
-                        "format": "wav",
-                        "duration_seconds": round(duration, 2),
-                        "parts_included": parts_included,
-                        "tempo_factor": tempo_factor,
-                        **practice,
-                    },
-                    indent=2,
-                ),
+    content = [
+        TextContent(
+            type="text",
+            text=json.dumps(
+                {
+                    "audio_path": resolved_output,
+                    "format": "wav",
+                    "duration_seconds": round(duration, 2),
+                    "parts_included": parts_included,
+                    "tempo_factor": tempo_factor,
+                    **practice,
+                },
+                indent=2,
             ),
-            # docs/conventions.md, Result Content: link the written file after the JSON.
-            *([file_link(resolved_output, "audio/wav")] if os.path.isfile(resolved_output) else []),
-        ]
+        ),
+        # docs/conventions.md, Result Content: link the written file after the JSON.
+        *([file_link(resolved_output, "audio/wav")] if os.path.isfile(resolved_output) else []),
+    ]
 
-    elif name == "starting_pitches":
+    # The WAV is complete and is not written again, so it can be stored for the app to read.
+    try:
+        audio_id = artifact_store.put(Path(resolved_output), "audio/wav")
+        mix = describe_mix(
+            musicxml,
+            part_ids,
+            part_gains=practice.get("part_gains"),
+            preset=practice.get("preset"),
+            focus_part=practice.get("focus_part"),
+        )
+        # The cut score, like the audio: the app draws the bars that are played.
+        score_book.remember(audio_id, select_measures(musicxml, practice.get("measures")))
+        byte_length = artifact_store.info(audio_id).byte_length
+        wav = wav_format(resolved_output)
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("synthesize result unexpected error: %s", e)
+        return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
+
+    return _result(
+        present_track(
+            content,
+            audio_id=audio_id,
+            duration=duration,
+            wav_format=wav,
+            byte_length=byte_length,
+            parts=mix,
+            tempo_factor=tempo_factor,
+        )
+    )
+
+
+async def _read_audio_chunk(arguments: dict, ctx) -> CallToolResult:
+    try:
+        chunk = chunk_payload(
+            artifact_store, arguments.get("audio_id"), arguments.get("offset"), arguments.get("length")
+        )
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("read_audio_chunk unexpected error: %s", e)
+        return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
+    return _result(present_chunk(chunk))
+
+
+async def _get_score_xml(arguments: dict, ctx) -> CallToolResult:
+    audio_id = arguments.get("audio_id")
+    try:
+        return _result(present_score({"audio_id": audio_id, "musicxml": score_book.get(audio_id)}))
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+
+
+_RESULT_TOOLS = {
+    "get_parts": _get_parts,
+    "synthesize": _synthesize,
+    "read_audio_chunk": _read_audio_chunk,
+    "get_score_xml": _get_score_xml,
+}
+
+
+async def call_tool(name: str, arguments: dict, ctx=None) -> list:
+    """The tool's content blocks: what every client sees, structured content aside."""
+    return (await call_tool_result(name, arguments, ctx)).content
+
+
+async def call_tool_result(name: str, arguments: dict, ctx=None) -> CallToolResult:
+    """The full result the server sends, ``structuredContent`` included."""
+    if name in _RESULT_TOOLS:
+        return await _RESULT_TOOLS[name](arguments, ctx)
+    return CallToolResult(content=await _plain_tool(name, arguments, ctx))
+
+
+async def _plain_tool(name: str, arguments: dict, ctx):
+    if name == "starting_pitches":
         return await _starting_pitches(arguments, ctx)
 
     elif name == "list_capabilities":
@@ -505,13 +676,26 @@ async def _starting_pitches(arguments: dict, ctx):
 
 
 # pass_context: load_score asks the client for its MCP roots (the allowed read folders).
-_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, pass_context=True, logger=logger)
+class _CurrentUiRegistry:
+    """Serves whichever registry ``ui_registry`` holds at request time, so tests can swap it."""
+
+    def list_resources(self):
+        return ui_registry.list_resources()
+
+    def read(self, uri: str):
+        return ui_registry.read(uri)
+
+
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool_result, pass_context=True, logger=logger)
+_on_list_resources, _on_read_resource = make_resource_handlers(_CurrentUiRegistry(), logger=logger)
 
 app = Server(
     "synth-mcp",
     instructions=INSTRUCTIONS,
     on_list_tools=_on_list_tools,
     on_call_tool=_on_call_tool,
+    on_list_resources=_on_list_resources,
+    on_read_resource=_on_read_resource,
 )
 
 

@@ -16,6 +16,8 @@ EXPECTED = {
     "health_check": ("Synth health check", READ_ONLY),
     "describe_score": ("Describe score", READ_ONLY),
     "starting_pitches": ("Play starting pitches", WRITES_FILE),
+    "read_audio_chunk": ("Read audio chunk", READ_ONLY),
+    "get_score_xml": ("Score of a synthesized track", READ_ONLY),
 }
 
 # Phrases the instructions must contain: the routing knowledge the model needs up front.

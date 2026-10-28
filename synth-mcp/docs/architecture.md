@@ -119,6 +119,35 @@ No MCP imports; each step is a no-op at its default.
 | `render_clip(midi_bytes, output_path, *, seconds)` | `synthesize_midi` into a temp WAV, then `downmix_wav(..., max_seconds=seconds + RELEASE_SECONDS)` to the target (new `audio/starting-pitches-<timestamp>.wav` only after rendering worked) |
 | `downmix_wav(source, target, *, max_seconds)` | numpy: average channels, 63-tap windowed-sinc low-pass, linear resample to 16 kHz, cut at `max_seconds` with the last `RELEASE_SECONDS` (0.25 s) faded out, 16-bit mono via stdlib `wave`. FluidSynth renders about 2.6 s of release tail after the chord, which would push a 4-part clip to 275 KB |
 
+### `presenter.py`
+
+Turns results into `(content, structured_content)` for `get_parts`, `synthesize` and the two app-only
+tools, and holds their output schemas. `content` of `get_parts`/`synthesize` is what the tools always
+returned. No engine logic.
+
+### `scorebook.py`
+
+`ScoreBook`: MusicXML per `audio_id` for `get_score_xml`. It is kept in step with the artifact store by
+construction: `get()` calls `store.info(id)` first (same TTL, same unknown-id error), `remember()` drops
+entries the store has dropped and never holds more than the store's cap (64). It takes the store through a
+getter, so tests can swap the store. No MCP imports.
+
+### Practice Player flow
+
+```
+synthesize ──► synthesize_midi ──► WAV file ──► artifact_store.put ──► audio_id
+          └──► describe_mix (engine) ──► parts[{id,name,included,gain}]
+          └──► score_book.remember(audio_id, cut MusicXML)
+app: read_audio_chunk(audio_id, offset, length) ──► chunk_payload(store) ──► base64 slice
+app: get_score_xml(audio_id) ──► score_book.get ──► MusicXML
+```
+
+`server.py` registers `PRACTICE_PLAYER` (`ui://synth/practice-player`) in a `UiRegistry` over
+`PackageAssetSource("synth_mcp")`; `meta_for()` drops the link while the HTML is not packaged.
+`call_tool_result()` returns `CallToolResult` for the four structured tools (`_RESULT_TOOLS`);
+`call_tool()` keeps returning the content blocks. `engine.describe_mix()` resolves part selection and
+gains with the same functions as `extract_midi`, so the mixer shows what was rendered.
+
 ### `utils.py`
 
 Input validation and path generation.
@@ -127,7 +156,7 @@ Input validation and path generation.
 |----------|-------------|
 | `validate_musicxml(xml_str)` | Check non-empty; parse with music21 |
 | `validate_tempo_factor(value)` | Check 0.25 ≤ value ≤ 4.0 |
-| `generate_output_path(path)` | Return the caller's path confined by `confine_output_path`, or auto-generate in `/tmp/synth-mcp-<uid>/` |
+| `generate_output_path(path)` | Return the caller's path confined by `confine_output_path`, or a new `audio/output-<timestamp>.wav` in the output root (`paths.new_output_path`) |
 | `confine_output_path(path, suffixes)` | Re-export of `sheet_music_mcp_core.paths.confine_output_path` (Wave 2) |
 
 ---
@@ -338,13 +367,15 @@ Engine errors are raised as `ProcessingError(message, error_code)`. The server l
 
 ## Output Files
 
-Auto-generated WAV paths use a timestamp:
+Auto-generated WAV paths use a timestamp, inside the output root (`SHEET_MUSIC_OUTPUT_ROOT`, default the
+working directory), because the artifact store only accepts files there:
 
 ```
-/tmp/synth-mcp/output_YYYYMMDD_HHMMSS_ffffff.wav
+<output root>/audio/output-YYYYmmdd-HHMMSS-ffffff.wav
 ```
 
-The directory is created if it does not exist.
+The folder is created (mode 0700) if needed; an existing name gets a counter, so a stored WAV is never
+overwritten.
 
 ---
 
@@ -360,12 +391,16 @@ synth-mcp/
 │       ├── engine.py     ← Business logic (music21, pyfluidsynth)
 │       ├── practice.py   ← Practice-track steps (gains, repeat, clicks, timbre)
 │       ├── clip.py       ← starting_pitches (text, clip MIDI, downmix)
+│       ├── presenter.py  ← content + structuredContent, output schemas
+│       ├── scorebook.py  ← MusicXML per audio_id, in step with the artifact store
+│       ├── ui/assets/    ← practice-player.html, built by ui/ (gitignored, packaged)
 │       └── utils.py      ← Validation, path generation
 └── tests/
     ├── test_server.py
     ├── test_engine.py
     ├── test_utils.py
     ├── test_practice_midi.py, test_practice_server.py, test_starting_pitches.py
+    ├── test_practice_player.py, test_scorebook.py, test_content_golden.py (+ golden/)
     ├── midi_helpers.py   ← MIDI bytes → events for assertions
     └── fixtures/         ← satb_4bars, six_eight, pickup_sound_tempo (.musicxml)
 ```
