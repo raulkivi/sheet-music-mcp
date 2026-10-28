@@ -96,9 +96,13 @@ class TestToolLinking:
         assert _tools()[name].meta is None
 
     def test_scripted_and_other_tools_stay_unlinked(self, packaged_ui):
-        others = [t for n, t in _tools().items() if n not in LINKED and not is_app_only(t)]
+        # health_check is excluded: it links to the Setup Doctor, not the review app.
+        others = [
+            t for n, t in _tools().items()
+            if n not in (*LINKED, "health_check") and not is_app_only(t)
+        ]
 
-        assert {t.name for t in others} >= {"recognize_sheet_to_file", "list_capabilities", "health_check"}
+        assert {t.name for t in others} >= {"recognize_sheet_to_file", "list_capabilities"}
         assert all(t.meta is None for t in others)
 
     @pytest.mark.parametrize("name", LINKED)
@@ -157,7 +161,7 @@ class TestResources:
 
         listed, read = self._with_client(call)
 
-        assert [r.uri for r in listed.resources] == [REVIEW_URI]
+        assert [r.uri for r in listed.resources] == [REVIEW_URI, "ui://omr/setup-doctor"]
         assert listed.resources[0].mime_type == UI_MIME
         assert read.contents[0].text == REVIEW_HTML
 
