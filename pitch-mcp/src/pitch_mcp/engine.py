@@ -174,19 +174,22 @@ def _yin_pitch(buf: np.ndarray, sr: int) -> tuple[float, float]:
     tau_est = 0
     for tau in range(2, half):
         if cmnd[tau] < threshold:
-            # Parabolic interpolation
+            # Interpolating from the dip's first sample, not its minimum, read about 40 cents
+            # flat on every note; walk down to the minimum first (YIN step 4).
+            while tau + 1 < half and cmnd[tau + 1] < cmnd[tau]:
+                tau += 1
+            tau_est = tau
             if tau + 1 < half:
-                better = tau + (cmnd[tau + 1] - cmnd[tau - 1]) / (
-                    2 * (2 * cmnd[tau] - cmnd[tau - 1] - cmnd[tau + 1]) + 1e-10
-                )
-                tau_est = better
-            else:
-                tau_est = tau
+                # Parabolic interpolation through the minimum and its neighbours
+                left, centre, right = cmnd[tau - 1], cmnd[tau], cmnd[tau + 1]
+                curvature = left - 2 * centre + right
+                if curvature > 0:
+                    tau_est = tau + (left - right) / (2 * curvature)
             break
     if tau_est < 2:
         return 0.0, 0.0
     freq = sr / tau_est
-    confidence = 1.0 - cmnd[int(tau_est)]
+    confidence = 1.0 - cmnd[min(half - 1, int(round(tau_est)))]
     return float(freq), max(0.0, float(confidence))
 
 

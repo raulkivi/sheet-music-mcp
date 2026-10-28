@@ -74,8 +74,8 @@ class TestInjectedSource:
         position = session.get_position()
 
         assert session.is_monitoring
-        assert position["expected_note"] == "C4"
-        assert position["sung_pitch_hz"] is not None
+        assert (position["expected_note"], position["status"]) == ("C4", "on_pitch")
+        assert abs(position["sung_pitch_hz"] - note_name_to_hz("C4")) < 2
 
     def test_stop_stops_then_closes_the_source(self):
         session, source = _session(), RecordingSource()
@@ -204,10 +204,14 @@ class TestPitchFrames:
         [(_, _, elapsed)] = frames.feed(np.zeros(1, dtype=np.float32))
         assert elapsed == pytest.approx(3 * HOP_SIZE / TRACKER_SAMPLE_RATE)
 
-    def test_a_tone_gives_its_frequency(self):
-        freq, confidence, _ = PitchFrames().feed(tone("A3", 0.2))[-1]
+    @pytest.mark.parametrize("name", ["E2", "C3", "A3", "C4", "A4", "C5", "A5"])
+    def test_a_tone_gives_its_frequency_within_a_few_cents(self, name):
+        """The live YIN once interpolated from the first dip below threshold, not its minimum,
+        and read every note about 40 cents flat (so a perfect A3 counted as flat)."""
+        freq, confidence, _ = PitchFrames().feed(tone(name, 0.2))[-1]
 
-        assert freq == pytest.approx(220.0, rel=0.05)
+        cents = 1200 * np.log2(freq / note_name_to_hz(name))
+        assert abs(cents) < 3
         assert confidence > 0.3
 
     def test_silence_gives_no_pitch(self):
