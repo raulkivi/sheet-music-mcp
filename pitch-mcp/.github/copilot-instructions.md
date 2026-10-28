@@ -9,8 +9,9 @@ status while a singer sings. This is the most complex server in the project — 
 **Status:** Phase A (offline analysis) + Phase B (real-time, audio-driven position tracking)
 complete, plus UX Wave 2 (score references: `musicxml_path`, `describe_score`) and UX Wave 3
 (`measures` ranges, `start_practice`, `highlights`) and the MCP Apps Practice Coach server side
-(`structuredContent`, `ui://pitch/practice-coach`, app-only `get_score_for_session`; the page itself
-is not built yet, so tools carry no `_meta.ui`). 331 unit
+(`structuredContent`, `ui://pitch/practice-coach`, app-only `get_score_for_session`) with its
+browser-microphone mode (`start_monitoring` `source: "pushed"`, app-only `push_audio_chunk`, the
+`AudioSource` refactor); the page itself is not built yet, so tools carry no `_meta.ui`. 406 unit
 (+6 skipped) + 4 integration tests pass (`-m integration`); 2 manual mic tests (`-m manual`)
 require real hardware.
 
@@ -71,11 +72,12 @@ MXL test fixtures are in `../omr-mcp/test_samples/pdmx_satb_samples/mxl/` — 10
 | `load_score` | B | Load MusicXML (`musicxml` or `musicxml_path`, optional `measures`) into session, return session_id |
 | `start_practice` | W3 | `load_score` + `start_monitoring` in one call (`part`, `tempo_bpm`, `measures`); no orphan session if the mic fails |
 | `describe_score` | W2 | Shared core tool: title, key, tempo, parts with IDs and ranges |
-| `start_monitoring` | B | Open mic stream for a session |
+| `start_monitoring` | B | Open mic stream for a session; `source: "pushed"` takes browser audio instead (option B) |
 | `get_current_position` | B | Current measure/beat/pitch/accuracy from active session |
 | `stop_monitoring` | B | Stop stream, return summary (with `highlights`), clean up session |
 | `list_sessions` | B | Open sessions: part, state (`loaded`/`monitoring`), idle seconds |
 | `get_score_for_session` | Apps | App-only (`visibility: ["app"]`): the session's MusicXML for the Practice Coach; `session_id` only |
+| `push_audio_chunk` | Apps | App-only: `{session_id, pcm_b64, sample_rate}` (16-bit LE mono PCM) for a pushed session → position snapshot |
 | `list_capabilities` | — | Server metadata, pitch backend and version |
 | `health_check` | — | Runtime dependency status |
 

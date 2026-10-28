@@ -21,7 +21,7 @@ The server is stateful in Phase B: sessions live in a module-level `SessionRegis
 ┌──────────────────────────▼────────────────────────────────┐
 │                       server.py                           │
 │                                                           │
-│  list_tools()         → 8 tool definitions               │
+│  list_tools()         → 12 tool definitions              │
 │  call_tool()          → dispatches to engine             │
 │  _active_backend()    → reads PITCH_BACKEND env var      │
 │  _check_microphone()  → queries sounddevice devices      │
@@ -34,9 +34,13 @@ The server is stateful in Phase B: sessions live in a module-level `SessionRegis
      │  analyze_recording()                          │
      │                                               │
      │  ── Phase B (real-time) ───────────────────── │
+     │  AudioSource: SoundDeviceSource (server mic)   │
+     │               PushedChunkSource (browser mic)  │
+     │  PitchFrames (rolling YIN, one frame per hop)  │
      │  ScoreSession                                  │
-     │    start() / get_position() / stop()           │
-     │  load_score() / start_monitoring()             │
+     │    start(source) / get_position() / stop()     │
+     │  load_score() / start_monitoring(source)       │
+     │  push_audio_chunk() (app-only, pushed mode)    │
      │  start_practice() (= both, no orphan on error) │
      │  get_position() / stop_monitoring()            │
      │  list_sessions()                               │
@@ -74,8 +78,8 @@ The server is stateful in Phase B: sessions live in a module-level `SessionRegis
 
 MCP protocol layer. Contains no analysis logic.
 
-- Registers eleven tools: `analyze_recording`, `load_score`, `start_practice`, `describe_score` (shared, from `sheet_music_mcp_core.references`), `start_monitoring`, `get_current_position`, `stop_monitoring`, `list_sessions`, `get_score_for_session` (app-only), `list_capabilities`, `health_check`
-- MCP Apps: `PRACTICE_COACH` (`ui://pitch/practice-coach`) in a `UiRegistry` over `PackageAssetSource("pitch_mcp")`, served with `make_resource_handlers`; `meta_for()` drops the link while the HTML is not packaged. `call_tool_result()` returns `CallToolResult` for the five structured tools (`_RESULT_TOOLS`), `call_tool()` keeps returning the content blocks
+- Registers twelve tools: `analyze_recording`, `load_score`, `start_practice`, `describe_score` (shared, from `sheet_music_mcp_core.references`), `start_monitoring` (`source: server_mic | pushed`), `get_current_position`, `stop_monitoring`, `list_sessions`, `get_score_for_session` (app-only), `push_audio_chunk` (app-only), `list_capabilities`, `health_check`
+- MCP Apps: `PRACTICE_COACH` (`ui://pitch/practice-coach`) in a `UiRegistry` over `PackageAssetSource("pitch_mcp")`, served with `make_resource_handlers`; `meta_for()` drops the link while the HTML is not packaged. `call_tool_result()` returns `CallToolResult` for the tools in `_RESULT_TOOLS` (the six structured ones, plus `start_monitoring`, `stop_monitoring` and `list_sessions`, whose errors set `isError` through `_text_result`), `call_tool()` keeps returning the content blocks
 - `analyze_recording`, `load_score` and `start_practice` take `measures` (`MEASURES_PROPERTY` from `sheet_music_mcp_core.measures`); `_measures(arguments)` passes it to the engine only when given, so calls without it are unchanged
 - Resolves the score of `analyze_recording`, `load_score` and `start_practice` with `_reference_score()`: the core's `references.load_score()` (inline `musicxml`, or `musicxml_path` confined to the read roots, `.mxl` unpacked) followed by the same `validate_musicxml()` check inline text always had. The engine still receives MusicXML text, so it is unchanged
 - `call_tool(name, arguments, ctx=None)` is wired with `make_handlers(..., pass_context=True)` so `load_score` can ask the client for its MCP roots
@@ -89,7 +93,8 @@ MCP protocol layer. Contains no analysis logic.
 Turns engine results into `(content, structured_content)` for the Practice Coach tools. `content`
 is the JSON text the tools always returned; `structured_content` carries the same data (for the
 session openers, `engine.describe_session()`, which adds `tempo_bpm`). Output schemas live here.
-No engine logic.
+No engine logic. `present_pushed_position()` gives `push_audio_chunk` the position snapshot as
+`structured_content` and one short line of text, never the audio.
 
 ### `engine.py`
 
@@ -106,18 +111,26 @@ Session management and offline analysis orchestration.
 
 | Class / Function | Description |
 |-----------------|-------------|
-| `ScoreSession(musicxml, part_id, measures=None)` | One active monitoring session (UUID, note sequence, audio stream, worker thread). Cuts the score to `measures` first; `measure_count` = last note's measure − first practised bar (`measures[0]`, else 1) + 1 |
-| `ScoreSession.start(tempo_bpm)` | Open sounddevice stream; spawn worker thread |
+| `AudioSource` (protocol) | Where a session's audio comes from: `start(sink)` delivers mono float32 chunks at 22 050 Hz to `sink`, `stop()`, `close()` (both idempotent). Raises `ProcessingError` if it cannot open |
+| `SoundDeviceSource` | Server microphone (option A): `sd.InputStream(22050 Hz, mono, float32, blocksize 512)`; the callback only queues blocks, a daemon worker hands them to the sink. A stream that opened but failed to start is closed before the error |
+| `PushedChunkSource(clock, max_pushes_per_second)` | Browser microphone (option B): `push(pcm_b64, sample_rate)` checks the limits, decodes 16-bit LE PCM, resamples (`_LinearResampler`, streaming, continuous across chunks) and calls the sink on the caller's thread |
+| `server_mic_source`, `pushed_source` | Module-level factories (dependency inversion); tests replace them |
+| `PitchFrames` | The analysis every source feeds: a 2048-sample rolling window, one `(freq, confidence, elapsed_sec)` per 512-sample hop, elapsed = hops × 512 / 22 050 (audio time) |
+| `_yin_pitch(buf, sr)` | YIN: difference function, CMND, first dip below 0.15, walk down to its minimum, parabolic interpolation |
+| `ScoreSession(musicxml, part_id, measures=None)` | One active monitoring session (UUID, note sequence, audio source). Cuts the score to `measures` first; `measure_count` = last note's measure − first practised bar (`measures[0]`, else 1) + 1 |
+| `ScoreSession.start(tempo_bpm, source=None)` | Fresh `PitchFrames`; `source.start(self._feed)` (default `server_mic_source()`); the session keeps the source only once it started |
+| `ScoreSession._feed(chunk)` | The sink: `PitchFrames.feed` → `_process_pitch_frame` per frame |
+| `ScoreSession.audio_source`, `is_monitoring` | The started source (None when loaded); monitoring = a source is set |
 | `ScoreSession.get_position()` | Thread-safe read of current position dict; before any pitch, the first note's measure, beat and name |
-| `ScoreSession.stop()` | Close stream; join worker thread; return summary |
-| `ScoreSession._worker_loop(sr, hop)` | Background thread: buffer audio → YIN pitch → `_process_pitch_frame` |
+| `ScoreSession.stop()` | Take the source under the lock; `stop()` then `close()` (each attempted); drop the analysis window; return summary |
 | `ScoreSession._process_pitch_frame(freq, confidence, elapsed_sec)` | Per-frame update: tempo-scale elapsed time, pick the current note via `_find_best_note_index`, update `_current_position` and append to `_history` |
 | `ScoreSession._find_best_note_index(score_time, freq_hz)` | Audio-driven note selection: best pitch match among plausible upcoming notes, with a timeline fallback |
 | `SessionRegistry` | Open sessions, their last-activity times and the timed-out summaries; `add`, `get`, `touch`, `remove`, `list`, `reap(now)`, `expired_minutes`, `pop_expired`. Injected `clock` (default `time.monotonic`) |
 | `Reaper` | Daemon thread: `registry.reap(clock())` every 30 s; injected `sleep` and `stop_event` |
 | `idle_minutes_from_env()` | Parse `PITCH_SESSION_IDLE_MINUTES` (default 10, `0` = off, invalid → warning + 10) |
 | `load_score(musicxml, part_id, measures=None)` | Create ScoreSession; `_registry.add`; start the reaper on first use; return session_id |
-| `start_monitoring(session_id, tempo_bpm)` | `_registry.touch`; session.start(); touch again |
+| `start_monitoring(session_id, tempo_bpm, source="server_mic")` | Unknown `source` → `INVALID_PARAMETER`; `_registry.touch`; `session.start(tempo_bpm)` (server mic) or `session.start(tempo_bpm, source=pushed_source())`; touch again. A pushed result adds `source: "pushed"` |
+| `push_audio_chunk(session_id, pcm_b64, sample_rate)` | `_registry.touch`; the session's source must be a `PushedChunkSource` (else `INVALID_PARAMETER`); `source.push(...)`; return `session.get_position()` |
 | `start_practice(musicxml, part_id, tempo_bpm=None, measures=None)` | `load_score` then `start_monitoring`; their fields merged. If starting fails, `_discard` removes and stops the session, then the error is re-raised |
 | `get_position(session_id)` | `_registry.touch`; session.get_position() |
 | `stop_monitoring(session_id)` | `_registry.remove` + session.stop() (`timed_out: false`), else the timed-out summary (`timed_out: true`), else `SESSION_NOT_FOUND` |
@@ -249,18 +262,27 @@ load_score(musicxml, part_id, measures=None)
   → _ensure_reaper()                  ← first call starts the Reaper thread (not if timeout = 0)
   → return {session_id, part_id, part_name, measure_count, duration_seconds}
 
-start_monitoring(session_id, tempo_bpm)
+start_monitoring(session_id, tempo_bpm, source="server_mic")
   → session = _registry.touch(session_id)   ← activity
-  → session.start(tempo_bpm)
-       ├─ open sounddevice.InputStream(
-       │       samplerate=22050,
-       │       channels=1,
-       │       blocksize=512,
-       │       callback=_audio_callback
-       │  )
-       ├─ spawn threading.Thread(target=_worker_loop)
-       └─ stream.start()
-  → return {status: "started"}
+  → session.start(tempo_bpm[, source=pushed_source()])
+       ├─ _frames = PitchFrames()
+       ├─ source.start(sink=session._feed)
+       │    SoundDeviceSource: open sounddevice.InputStream(
+       │       samplerate=22050, channels=1, blocksize=512, callback=_audio_callback)
+       │       stream.start(); spawn the worker thread (queue → sink)
+       │    PushedChunkSource: remember the sink; audio arrives with push_audio_chunk
+       └─ session._stream = source        ← only once it started
+  → return {status: "started", session_id[, source: "pushed"]}
+
+push_audio_chunk(session_id, pcm_b64, sample_rate)      ← app-only, pushed sessions
+  → session = _registry.touch(session_id)   ← activity
+  → source = session.audio_source; not a PushedChunkSource → INVALID_PARAMETER
+  → source.push(pcm_b64, sample_rate)       ← under the source's lock, on the handler's thread
+       ├─ sample_rate in 8000..48000, base64 length ≤ the byte limit, ≤ 25 pushes in the last second
+       ├─ base64 → int16 LE → float32 / 32768
+       ├─ _LinearResampler → 22050 Hz
+       └─ sink(samples) = session._feed → PitchFrames → _process_pitch_frame
+  → return session.get_position()           ← already reflects this chunk
 
 start_practice(musicxml, part_id, tempo_bpm, measures)
   → loaded = load_score(musicxml, part_id, measures)
@@ -277,10 +299,9 @@ get_current_position(session_id)
 stop_monitoring(session_id)
   → session = _registry.remove(session_id)
   → session.stop()
-       ├─ _stop_event.set()
-       ├─ take _stream and _worker_thread under session._lock (safe if the reaper races us)
-       ├─ stream.stop(); stream.close()
-       ├─ worker_thread.join()
+       ├─ take _stream (the source) under session._lock (safe if the reaper races us)
+       ├─ source.stop(); source.close()   ← SoundDeviceSource: stop event, stream stop/close, join worker
+       ├─ _frames = PitchFrames()          ← no audio outlives the take
        └─ summarize(history): counts plus highlights (history has one entry per frame)
   → return {session_id, summary, timed_out: false}
   (not open but timed out < 1 h ago → return the stored summary with timed_out: true, once)
@@ -316,28 +337,46 @@ SessionRegistry.reap(now)
 - **Testing:** the clock, the sleep and the stop event are injected, so unit tests call
   `reap(now)` and `Reaper.run()` directly with a fake clock and never wait on real time.
 
-### Worker Thread (YIN Autocorrelation)
+### Audio Sources and Pitch Frames (YIN Autocorrelation)
+
+`ScoreSession` depends on the `AudioSource` protocol (proposal §6.4: L and D). Both sources deliver
+mono float32 at 22 050 Hz to the same sink, `ScoreSession._feed`:
+
+| Source | Thread that runs the analysis | Why |
+|---|---|---|
+| `SoundDeviceSource` | its daemon worker (callback → `queue.Queue` → worker → sink) | the PortAudio callback must stay deadline-safe |
+| `PushedChunkSource` | the `push_audio_chunk` handler, synchronously | the push's reply already reflects its chunk (one round trip pushes and polls), and no queue can grow behind a slow analysis |
+
+The proposal sketched the pushed source as a queue for the existing worker; feeding synchronously
+was chosen instead for the two reasons in the table. Analysis costs about 5 ms per hop, so a
+100 ms push (about 4 hops) takes about 20 ms.
 
 ```
-_worker_loop(sample_rate=22050, hop_size=512):
-  buffer = np.zeros(2048)    ← rolling audio window
+PitchFrames.feed(chunk):            ← window 2048, hop 512, sample_rate 22050
+  samples = pending + chunk
+  for each whole hop of 512 samples:
+    buffer = np.roll(buffer, -512); buffer[-512:] = hop
 
-  while not _stop_event.is_set():
-    chunk = _audio_queue.get(timeout=0.1)  ← non-blocking
-    buffer = np.roll(buffer, -len(chunk))
-    buffer[-len(chunk):] = chunk
-
-    ── YIN autocorrelation ──────────────────────────────
+    ── YIN autocorrelation (_yin_pitch) ─────────────────
     half = len(buffer) // 2
     d = [sum((buf[:half] - buf[tau:tau+half])**2)
          for tau in range(1, half)]       ← difference function
     cmnd = d[tau] * tau / sum(d[1:tau+1]) ← cumulative mean normalized
-    tau_est = first tau where cmnd[tau] < 0.15
+    tau = first tau where cmnd[tau] < 0.15
+    walk tau down to the dip's local minimum
     ── parabolic interpolation for sub-sample accuracy ──
     freq = sample_rate / tau_est
 
-    _process_pitch_frame(freq, confidence, elapsed_sec)
+    yield (freq, confidence, hops * 512 / 22050)
+  pending = the samples short of a hop
+
+ScoreSession._feed(chunk):
+  for each frame: _process_pitch_frame(freq, confidence, elapsed_sec)
 ```
+
+Interpolating from the dip's first sample below the threshold rather than its minimum read every
+note 30–50 cents flat (fixed with the AudioSource refactor; sine tones E2–A5 now read within
+3 cents).
 
 `_process_pitch_frame` is what makes position tracking audio-driven rather than
 a wall-clock pointer:
@@ -380,7 +419,14 @@ _process_pitch_frame(freq_hz, confidence, elapsed_sec):
     _history.append(_current_position)   ← consumed by stop()'s summary
 ```
 
-**The audio callback is minimal** — it only puts chunks into `_audio_queue` and returns immediately. All computation happens in the worker thread, keeping the PortAudio callback deadline-safe.
+**The audio callback is minimal** — it only puts chunks into `SoundDeviceSource`'s queue and returns immediately. All computation happens in the worker thread, keeping the PortAudio callback deadline-safe.
+
+**Pushed audio limits** (proposal §7): `sample_rate` 8 000–48 000 Hz; a chunk at most
+`int(sample_rate × 1.25) × 2` bytes, checked on the base64 length before decoding; at most 25
+accepted pushes per second per session (sliding one-second window on an injected clock; refused
+pushes do not count). Violations are `INVALID_PARAMETER` with the limit in the `hint`; undecodable
+or odd-length PCM is `INVALID_INPUT`. Nothing is written to disk; the source keeps only the
+resampler's last sample and phase, and the session only the 2048-sample window, cleared at stop.
 
 ---
 
@@ -404,7 +450,7 @@ Returns one frequency estimate per hop. Only voiced (singing) frames are returne
 
 ### Real-time: YIN autocorrelation (Phase B)
 
-Simple YIN with parabolic interpolation. Runs entirely in the worker thread with no external library dependencies.
+Simple YIN with parabolic interpolation at the dip's minimum. Runs in the server-mic worker thread, or in the `push_audio_chunk` handler for pushed audio, with no external library dependencies.
 
 **Why not pYIN for real-time?** librosa.pyin is batch-only (processes entire files). The real-time worker uses the simpler YIN algorithm which operates on short rolling windows.
 
@@ -474,11 +520,9 @@ _reaper: Reaper | None                 ← daemon thread, started lazily
 ScoreSession:
   session_id: str                  (UUID4)
   note_sequence: list[dict]        (immutable after load)
-  _stream: sounddevice.InputStream (Phase B only)
-  _worker: threading.Thread        (Phase B only)
-  _audio_queue: queue.Queue        (audio chunks)
-  _stop_event: threading.Event     (signals worker to exit)
-  _current_position: dict          (latest position, mutated by worker)
+  _stream: AudioSource | None      (the started source; SoundDeviceSource owns stream, queue, worker)
+  _frames: PitchFrames             (rolling YIN window; replaced at start and stop)
+  _current_position: dict          (latest position, mutated by the sink)
   _lock: threading.Lock            (guards _current_position/_history)
   _history: list[dict]             (every processed frame's position; feeds stop()'s summary)
   _note_idx: int                   (causal position pointer; never moves backward)
@@ -486,7 +530,7 @@ ScoreSession:
   _tempo_bpm: int | None           (start()'s override; scales elapsed time into score-time)
 ```
 
-`_current_position` is written only by the worker thread and read by `get_position()` (called from the MCP handler). Access is guarded by `_lock` to prevent torn reads.
+`_current_position` is written only by the sink (the server-mic worker, or the push handler under the source's lock) and read by `get_position()` (called from the MCP handler). Access is guarded by `_lock` to prevent torn reads.
 
 Neither the registry lock nor `session._lock` is ever taken in the audio callback, which only
 queues chunks. The reaper takes the registry lock briefly and stops sessions outside it.
