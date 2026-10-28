@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import tempfile
 from pathlib import Path
 
 import mcp.server.stdio
@@ -348,6 +349,26 @@ async def _get_parts(arguments: dict, ctx) -> CallToolResult:
         return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
 
 
+def _render_to_new_file(midi_bytes: bytes, target: str) -> float:
+    """Render into a temporary file beside ``target`` and ``os.replace`` it onto the target.
+
+    Every render then has a new inode, so an artifact id stored for an earlier WAV at the same path
+    reads as unavailable (FileArtifactStore compares inodes) instead of serving the new bytes.
+    The temporary file is created exclusively (no symlink followed) in the target's folder, which
+    ``confine_output_path`` already placed inside the output root.
+    """
+    folder = Path(target).parent
+    folder.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".synth-", suffix=".wav", dir=folder)
+    os.close(fd)
+    try:
+        duration = synthesize_midi(midi_bytes, temporary)
+        os.replace(temporary, target)
+        return duration
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
 async def _synthesize(arguments: dict, ctx) -> CallToolResult:
     try:
         musicxml = await load_score(arguments, ctx)
@@ -395,7 +416,7 @@ async def _synthesize(arguments: dict, ctx) -> CallToolResult:
         return _error(error_content(f"MIDI extraction failed: {e}", "PROCESSING_FAILED"))
 
     try:
-        duration = synthesize_midi(midi_bytes, resolved_output)
+        duration = _render_to_new_file(midi_bytes, resolved_output)
     except ProcessingError as e:
         return _error(processing_error_content(e))
     except Exception as e:

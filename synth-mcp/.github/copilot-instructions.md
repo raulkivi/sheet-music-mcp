@@ -8,7 +8,7 @@ or any combination) and an optional tempo factor. Returns a path to a rendered W
 **Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references: `musicxml_path`, `describe_score`)
 + UX Wave 3 (practice tracks: `measures`, `repeat`, count-in/metronome, `timbre`, part gains and
 presets; new `starting_pitches` tool) complete. MCP Apps Practice Player server side done
-(`structuredContent`, app-only `read_audio_chunk` and `get_score_xml`; page not built yet). 380 unit + 10 integration tests (integration needs
+(`structuredContent`, app-only `read_audio_chunk` and `get_score_xml`; page not built yet). 383 unit + 10 integration tests (integration needs
 a soundfont, libfluidsynth and, for most, the omr-mcp MXL fixtures).
 
 ---

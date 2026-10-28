@@ -344,6 +344,56 @@ class TestReadAudioChunk:
         assert _with_client(go) == out.read_bytes()
 
 
+class TestReusedOutputPath:
+    @pytest.fixture
+    def same_size_renders(self, monkeypatch):
+        """Each render writes a WAV of the same size but different bytes."""
+        count = [0]
+
+        def fake(midi_bytes, output_path):
+            count[0] += 1
+            with wave.open(output_path, "wb") as w:
+                w.setnchannels(1)
+                w.setsampwidth(2)
+                w.setframerate(8000)
+                w.writeframes(bytes([count[0]]) * 800)
+            return 0.1
+
+        monkeypatch.setattr(server, "synthesize_midi", fake)
+
+    async def test_old_id_never_serves_the_new_bytes(self, monkeypatch, output_root, same_size_renders):
+        use_store(monkeypatch, FileArtifactStore())
+        out = str(output_root / "take.wav")
+        # confine_output_path refuses an existing file; this simulates losing a race for the name.
+        monkeypatch.setattr(server, "generate_output_path", lambda path: out)
+
+        first = (await _synthesize(output_path=out)).structured_content
+        second = (await _synthesize(output_path=out)).structured_content
+
+        assert first["byte_length"] == second["byte_length"]
+        old = await call_tool_result("read_audio_chunk", {"audio_id": first["audio_id"], "offset": 0, "length": 900})
+        new = await call_tool_result("read_audio_chunk", {"audio_id": second["audio_id"], "offset": 0, "length": 900})
+        assert old.is_error and _error_code(old) == "INVALID_PARAMETER"
+        assert base64.b64decode(new.structured_content["data_b64"]) == (output_root / "take.wav").read_bytes()
+        assert (output_root / "take.wav").read_bytes()[-1] == 2
+
+    async def test_no_temporary_files_are_left_behind(self, output_root, same_size_renders):
+        await _synthesize(output_path=str(output_root / "take.wav"))
+
+        assert [p.name for p in output_root.iterdir()] == ["take.wav"]
+
+    async def test_a_failed_render_leaves_no_temporary_file(self, monkeypatch, output_root):
+        from synth_mcp.engine import ProcessingError
+
+        def boom(midi, path):
+            raise ProcessingError("no soundfont", "PROCESSING_FAILED")
+
+        monkeypatch.setattr(server, "synthesize_midi", boom)
+        await call_tool_result("synthesize", {"musicxml": VALID_MUSICXML, "output_path": str(output_root / "t.wav")})
+
+        assert list(output_root.iterdir()) == []
+
+
 class TestGetScoreXml:
     async def test_returns_the_score_the_audio_was_made_from(self):
         audio_id = (await _synthesize()).structured_content["audio_id"]

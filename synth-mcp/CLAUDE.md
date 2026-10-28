@@ -8,7 +8,7 @@ or any combination) and an optional tempo factor. Returns a WAV file path.
 **Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references: `musicxml_path`, `describe_score`)
 + UX Wave 3 (practice tracks: `measures`, `repeat`, count-in/metronome, `timbre`, part gains and
 presets; new `starting_pitches` tool) complete. MCP Apps Practice Player server side done
-(`structuredContent`, app-only `read_audio_chunk` and `get_score_xml`; page not built yet). 380 unit + 10 integration tests (integration needs
+(`structuredContent`, app-only `read_audio_chunk` and `get_score_xml`; page not built yet). 383 unit + 10 integration tests (integration needs
 a soundfont, libfluidsynth and, for most, the omr-mcp MXL fixtures).
 
 ---
@@ -17,7 +17,7 @@ a soundfont, libfluidsynth and, for most, the omr-mcp MXL fixtures).
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v                          # 380 unit tests (fast)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v                          # 383 unit tests (fast)
 
 # Integration tests require a soundfont
 VIRTUAL_ENV= SYNTH_SOUNDFONT_PATH=/usr/share/sounds/sf2/TimGM6mb.sf2 \
@@ -146,7 +146,7 @@ asyncio.run(_run())
   before each test, so reading the variable inside a test gets nothing.
 - **Practice Player (MCP Apps).** `synthesize` stores the finished WAV in the module-level
   `artifact_store` (`FileArtifactStore`, kind `audio/wav`) and returns `audio_id` in
-  `structuredContent`; a stored file must not be rewritten. The store only takes files inside the
+  `structuredContent`; a stored file must not be rewritten (`_render_to_new_file` renders to a temp file and `os.replace`s it, giving a new inode). The store only takes files inside the
   output root, so the default output is now `<output root>/audio/output-<timestamp>.wav`
   (was `/tmp/synth-mcp-<uid>/`). `ScoreBook` (`score_book`) holds the MusicXML per id and asks the
   store on every `get`, so it expires with the WAV; tests swap both with `tests/conftest.py:use_store`.

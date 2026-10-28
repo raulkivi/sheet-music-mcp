@@ -46,6 +46,8 @@ The server MUST accept a `tempo_factor` parameter and scale the score tempo acco
 
 The server MUST write the WAV file to the specified output path. If no path is provided, the server MUST auto-generate a new, unused path `audio/output-<timestamp>.wav` inside the output root (the artifact store only accepts files there).
 
+**Behaviour change (MCP Apps):** the default output moved from `/tmp/synth-mcp-<uid>/output_*.wav` to `<output root>/audio/output-<timestamp>.wav`, where the output root is `SHEET_MUSIC_OUTPUT_ROOT` (default: the working directory). Callers that read the default location must use the `audio_path` in the result. Each render is written to a temporary file beside the target and renamed onto it, so a path always gets a new inode and an `audio_id` of an earlier WAV there can never read the new bytes.
+
 The response MUST include the final output path.
 
 ### FR-5a — Score references
@@ -174,7 +176,8 @@ Input (exactly one of musicxml / musicxml_path, JSON Schema oneOf):
   tempo_factor  float         optional  0.25–4.0; default: 1.0
   output_path   string        optional  path to write WAV inside SHEET_MUSIC_OUTPUT_ROOT
                                         (.wav, .mid or .midi; always written as WAV);
-                                        auto-generated in /tmp/synth-mcp-<uid>/ if omitted
+                                        auto-generated as <output root>/audio/output-<timestamp>.wav if omitted
+                                        (behaviour change: earlier releases used /tmp/synth-mcp-<uid>/)
   measures      [int, int]    optional  inclusive printed bar numbers; default: whole score
   repeat        integer       optional  1–20; default: 1
   count_in_bars integer       optional  0–4; default: 0
