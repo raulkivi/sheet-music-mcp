@@ -6,7 +6,7 @@ Converts between MusicXML and ABC notation. ABC is compact and text-based — Cl
 edit it directly in its context window, which is impractical with verbose MusicXML.
 
 **Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references) + UX Wave 3 (`measures`) complete.
-214 unit tests pass (`-m "not integration"`) + 4 integration. MCP Apps ABC Workbench server side done (`structuredContent`, output schemas, app-only `get_abc`); the page is not built yet.
+233 unit tests pass (`-m "not integration"`) + 4 integration. MCP Apps ABC Workbench server side done (`structuredContent`, output schemas, app-only `get_abc`); the page is not built yet.
 
 ---
 
@@ -14,7 +14,7 @@ edit it directly in its context window, which is impractical with verbose MusicX
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v               # 214 unit tests (integration deselected)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v               # 233 unit tests (integration deselected)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration # round-trip conversion tests
 ```
 

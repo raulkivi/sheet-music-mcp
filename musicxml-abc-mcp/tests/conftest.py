@@ -6,12 +6,16 @@ from sheet_music_mcp_core.ui import InMemoryAssetSource, UiRegistry
 import musicxml_abc_mcp.server as server
 
 WORKBENCH_HTML = "<!doctype html><title>ABC Workbench</title>"
+SETUP_DOCTOR_HTML = "<!doctype html><title>Setup Doctor</title>"
 
 
 def registry(*, packaged: bool) -> UiRegistry:
-    """The server's UI registry over in-memory assets, with or without the built workbench."""
-    assets = {server.ABC_WORKBENCH.asset: WORKBENCH_HTML} if packaged else {}
-    return UiRegistry([server.ABC_WORKBENCH], InMemoryAssetSource(assets))
+    """The server's UI registry over in-memory assets, with or without a UI build."""
+    assets = {
+        server.ABC_WORKBENCH.asset: WORKBENCH_HTML,
+        server.SETUP_DOCTOR.asset: SETUP_DOCTOR_HTML,
+    } if packaged else {}
+    return UiRegistry([server.ABC_WORKBENCH, server.SETUP_DOCTOR], InMemoryAssetSource(assets))
 
 
 @pytest.fixture(autouse=True)
