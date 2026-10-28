@@ -74,7 +74,8 @@ The server is stateful in Phase B: sessions live in a module-level `SessionRegis
 
 MCP protocol layer. Contains no analysis logic.
 
-- Registers ten tools: `analyze_recording`, `load_score`, `start_practice`, `describe_score` (shared, from `sheet_music_mcp_core.references`), `start_monitoring`, `get_current_position`, `stop_monitoring`, `list_sessions`, `list_capabilities`, `health_check`
+- Registers eleven tools: `analyze_recording`, `load_score`, `start_practice`, `describe_score` (shared, from `sheet_music_mcp_core.references`), `start_monitoring`, `get_current_position`, `stop_monitoring`, `list_sessions`, `get_score_for_session` (app-only), `list_capabilities`, `health_check`
+- MCP Apps: `PRACTICE_COACH` (`ui://pitch/practice-coach`) in a `UiRegistry` over `PackageAssetSource("pitch_mcp")`, served with `make_resource_handlers`; `meta_for()` drops the link while the HTML is not packaged. `call_tool_result()` returns `CallToolResult` for the five structured tools (`_RESULT_TOOLS`), `call_tool()` keeps returning the content blocks
 - `analyze_recording`, `load_score` and `start_practice` take `measures` (`MEASURES_PROPERTY` from `sheet_music_mcp_core.measures`); `_measures(arguments)` passes it to the engine only when given, so calls without it are unchanged
 - Resolves the score of `analyze_recording`, `load_score` and `start_practice` with `_reference_score()`: the core's `references.load_score()` (inline `musicxml`, or `musicxml_path` confined to the read roots, `.mxl` unpacked) followed by the same `validate_musicxml()` check inline text always had. The engine still receives MusicXML text, so it is unchanged
 - `call_tool(name, arguments, ctx=None)` is wired with `make_handlers(..., pass_context=True)` so `load_score` can ask the client for its MCP roots
@@ -82,6 +83,13 @@ MCP protocol layer. Contains no analysis logic.
 - Checks microphone availability via `sounddevice.query_devices()`
 - Converts engine results and `ProcessingError` exceptions to `TextContent` JSON
 - Entry point via `mcp.server.stdio.stdio_server()`
+
+### `presenter.py`
+
+Turns engine results into `(content, structured_content)` for the Practice Coach tools. `content`
+is the JSON text the tools always returned; `structured_content` carries the same data (for the
+session openers, `engine.describe_session()`, which adds `tempo_bpm`). Output schemas live here.
+No engine logic.
 
 ### `engine.py`
 
@@ -529,7 +537,9 @@ pitch-mcp/
 ├── src/
 │   └── pitch_mcp/
 │       ├── __init__.py
-│       ├── server.py          ← MCP layer (tool registration, dispatch)
+│       ├── server.py          ← MCP layer (tool registration, dispatch, UI resource)
+│       ├── presenter.py       ← content + structuredContent, output schemas
+│       ├── ui/assets/         ← practice-coach.html, built by ui/ (gitignored, packaged)
 │       ├── engine.py          ← Session management, offline analysis orchestration
 │       ├── pitch_detector.py  ← librosa / crepe pitch detection
 │       ├── aligner.py         ← Time-domain alignment, accuracy classification

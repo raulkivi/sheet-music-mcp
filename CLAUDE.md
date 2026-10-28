@@ -51,7 +51,7 @@ before writing any code.
 | synth-mcp | ✅ Phase 1 + UX complete | 306 unit + 10 integration |
 | render-mcp | ✅ Phase 1 + UX complete; MCP Apps spike 0c (Score Viewer, app-only `render_page_svg`) awaiting manual host checks | 234 unit + 12 integration |
 | musicxml-abc-mcp | ✅ Phase 1 + UX complete | 161 unit + 4 integration |
-| pitch-mcp | ✅ Phase A+B + UX complete (audio-driven position tracking, DTW via dtaidistance) | 293 unit (+2 skipped) + 4 integration |
+| pitch-mcp | ✅ Phase A+B + UX complete (audio-driven position tracking, DTW via dtaidistance); MCP Apps Practice Coach server side done (`structuredContent`, app-only `get_score_for_session`), page not built yet | 331 unit (+6 skipped) + 4 integration |
 | comparer-mcp | ✅ Phase 4 (Advanced features) complete — all originally-scoped phases done | 279 unit + 7 integration |
 
 | sheet-music-mcp-core | ✅ 0.3.1 shared library: Wave 1 helpers, score references (`paths`, `scores`, `references`), measure ranges (`measures`) and MCP Apps UI resources and app-only tool visibility (`ui`, `wiring`). Not yet on PyPI — publish before the next server release | 455 unit |
