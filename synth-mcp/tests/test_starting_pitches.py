@@ -400,5 +400,6 @@ async def test_real_practice_track(monkeypatch, output_root):
 
     data = _json(result)
     assert "error" not in data, data
-    # 1 count-in bar + 2 × 2 bars of 4/4 at 120 BPM = 10 s, plus the release tail.
-    assert 10.0 <= data["duration_seconds"] < 13.0
+    # 1 count-in bar + 2 × 2 bars of 4/4 at 120 BPM = 10 s, plus the release tail, whose length
+    # depends on the soundfont (about 2.6 s with FluidR3_GM, 3.0 s with TimGM6mb).
+    assert 10.0 <= data["duration_seconds"] <= 14.0
