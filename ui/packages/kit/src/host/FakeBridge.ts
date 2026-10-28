@@ -12,11 +12,14 @@ import type {
 } from "./HostBridge.ts";
 import { Listeners } from "./listeners.ts";
 
+/** A fixed result, or one computed from the call's arguments (paging through a score). */
+export type ToolAnswer = ToolResult | ((args: Record<string, unknown>) => ToolResult | Promise<ToolResult>);
+
 export interface FakeScript {
   context?: HostContext;
   toolInput?: ToolInput;
   toolResult?: ToolResult;
-  toolAnswers?: Record<string, ToolResult>;
+  toolAnswers?: Record<string, ToolAnswer>;
 }
 
 export interface RecordedCall {
@@ -73,7 +76,7 @@ export class FakeBridge implements HostBridge {
     this.calls.push({ method: "tools/call", params: { name, arguments: args } });
     const answer = this.script.toolAnswers?.[name];
     if (!answer) throw new Error(`FakeBridge has no answer for tool ${name}`);
-    return answer;
+    return typeof answer === "function" ? answer(args) : answer;
   }
 
   async sendMessage(text: string): Promise<void> {

@@ -1,14 +1,12 @@
-// Verovio wrapper. The only kit file that imports Verovio.
+// Verovio WASM ScoreRenderer. The only kit file that imports Verovio.
 
 import createVerovioModule, { type VerovioModule } from "verovio/wasm";
 import { VerovioToolkit, enableLogToBuffer, type TimemapEntry } from "verovio/esm";
 import { clampPage, layoutFor } from "./paging.ts";
+import { ScoreLoadError, type RenderedPage, type ScoreRenderer } from "./ScoreRenderer.ts";
 
 export type { TimemapEntry };
-
-export class ScoreLoadError extends Error {
-  override name = "ScoreLoadError";
-}
+export { ScoreLoadError };
 
 let modulePromise: Promise<VerovioModule> | undefined;
 
@@ -24,7 +22,9 @@ function verovioModule(): Promise<VerovioModule> {
 
 const DEFAULT_CONTAINER_WIDTH = 1000;
 
-export class ScoreView {
+export class ScoreView implements ScoreRenderer {
+  readonly engine = "wasm" as const;
+  private loaded = false;
   private containerWidth = DEFAULT_CONTAINER_WIDTH;
   private factor = 1;
   private currentScale = 100;
@@ -38,7 +38,8 @@ export class ScoreView {
 
   load(xml: string): void {
     this.applyLayout();
-    if (!this.toolkit.loadData(xml) || this.toolkit.getPageCount() < 1) {
+    this.loaded = this.toolkit.loadData(xml) && this.toolkit.getPageCount() >= 1;
+    if (!this.loaded) {
       throw new ScoreLoadError(`Verovio could not read the score. ${this.toolkit.getLog()}`.trim());
     }
   }
@@ -47,7 +48,8 @@ export class ScoreView {
   layout(containerWidth: number): void {
     if (containerWidth > 0) this.containerWidth = containerWidth;
     this.applyLayout();
-    this.toolkit.redoLayout();
+    // Before the first load the options are simply applied by load().
+    if (this.loaded) this.toolkit.redoLayout();
   }
 
   /** Sets the zoom factor (1 = 100 %) and re-flows. */
@@ -71,6 +73,12 @@ export class ScoreView {
 
   svg(page: number): string {
     return this.toolkit.renderToSVG(clampPage(page, this.pageCount));
+  }
+
+  page(page: number): RenderedPage {
+    const pageCount = this.pageCount;
+    const shown = clampPage(page, pageCount);
+    return { svg: this.toolkit.renderToSVG(shown), page: shown, pageCount };
   }
 
   timemap(): TimemapEntry[] {

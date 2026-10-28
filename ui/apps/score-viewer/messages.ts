@@ -3,6 +3,7 @@
 // the MusicXML (titles, lyrics, credits) ever reaches a message.
 
 import type { ToolResult } from "@sheet-music-mcp/ui-kit/host/HostBridge";
+import { errorEnvelope } from "@sheet-music-mcp/ui-kit/host/toolErrors";
 
 export type ScoreInput = { kind: "inline"; xml: string } | { kind: "path" } | { kind: "none" };
 
@@ -23,24 +24,11 @@ export function readScoreInput(args: Record<string, unknown>): ScoreInput {
 
 /** `render_to_pdf` → `pdf_path`; `render_to_image` → `image_path`; errors → `error_code`. */
 export function readSavedFile(result: ToolResult): SavedFile {
-  if (result.isError) return { error: errorCode(result) };
+  const failure = errorEnvelope(result);
+  if (failure) return { error: failure.code };
   const data = result.structuredContent ?? {};
   const path = data.pdf_path ?? data.image_path;
   return typeof path === "string" && path !== "" ? { path } : {};
-}
-
-function errorCode(result: ToolResult): string {
-  for (const block of result.content ?? []) {
-    const text = (block as { type?: string; text?: unknown }).text;
-    if (typeof text !== "string") continue;
-    try {
-      const code = (JSON.parse(text) as { error_code?: unknown }).error_code;
-      if (typeof code === "string") return code;
-    } catch {
-      // Not the JSON envelope; keep looking.
-    }
-  }
-  return "UNKNOWN_ERROR";
 }
 
 /** D6 fallback: asks the model to help open or share the file the render tool saved. */

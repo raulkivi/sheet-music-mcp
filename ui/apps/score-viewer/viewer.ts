@@ -1,24 +1,23 @@
-// Score Viewer behaviour. Depends only on the HostBridge, a Renderer and a ViewerUi, so it runs
-// unchanged against FakeBridge in unit tests and against the real host in the built page.
+// Score Viewer behaviour. Depends only on the HostBridge, ScoreRenderer candidates and a
+// ViewerUi, so it runs unchanged against FakeBridge in unit tests and against the real host.
 
 import type { HostBridge, HostContext, ToolInput, ToolResult } from "@sheet-music-mcp/ui-kit/host/HostBridge";
+import { openScore } from "@sheet-music-mcp/ui-kit/score/openScore";
 import { clampPage, stepZoom } from "@sheet-music-mcp/ui-kit/score/paging";
+import {
+  ScoreLoadError,
+  type RendererEngine,
+  type RendererFactory,
+  type ScoreRenderer,
+} from "@sheet-music-mcp/ui-kit/score/ScoreRenderer";
 import { helpMessage, pageContext, readSavedFile, readScoreInput } from "./messages.ts";
-
-/** The part of ScoreView the viewer needs. */
-export interface Renderer {
-  load(xml: string): void;
-  layout(containerWidth: number): void;
-  zoom(factor: number): void;
-  readonly zoomFactor: number;
-  readonly pageCount: number;
-  svg(page: number): string;
-}
 
 export interface ViewerUi {
   showPage(svg: string, page: number, pageCount: number): void;
   showNotice(text: string): void;
   showZoom(factor: number): void;
+  /** Which engine renders the pages (the manual host checks record it). */
+  showEngine(engine: RendererEngine): void;
   showSavedPath(path: string): void;
   showDownloadFallback(path: string): void;
   showFullscreen(available: boolean, active: boolean): void;
@@ -35,21 +34,27 @@ export const NOTICES = {
     "The viewer could not start the notation engine in this host (WebAssembly may be blocked). " +
     "The rendered file is listed below.",
   unreadable: "The viewer could not read this score.",
+  pageFailed: "The viewer could not render this page. The rendered file is listed below.",
   noScore: "This tool call did not include a score.",
   renderFailed: (code: string) => `Rendering failed (${code}).`,
 };
 
 export class ScoreViewer {
-  private renderer: Renderer | undefined;
+  private renderer: ScoreRenderer | undefined;
   private page = 1;
+  private pageCount = 1;
+  private svg: string | undefined;
   private width = 0;
   private savedPath: string | undefined;
   private context: HostContext = {};
   private work: Promise<void> = Promise.resolve();
+  /** Bumped by every render request, so a page superseded while waiting is skipped. */
+  private renderRequest = 0;
 
+  /** `renderers` in order of preference: Verovio WASM first, the server second. */
   constructor(
     private readonly bridge: HostBridge,
-    private readonly createRenderer: () => Promise<Renderer>,
+    private readonly renderers: readonly RendererFactory[],
     private readonly ui: ViewerUi,
   ) {}
 
@@ -60,9 +65,13 @@ export class ScoreViewer {
     this.onHostContext(await this.bridge.connect());
   }
 
-  /** Resolves when queued rendering and host calls have finished. */
-  idle(): Promise<void> {
-    return this.work;
+  /** Resolves when queued rendering and host calls have finished, including work they queued. */
+  async idle(): Promise<void> {
+    let settled: Promise<void>;
+    do {
+      settled = this.work;
+      await settled;
+    } while (settled !== this.work);
   }
 
   next(): void {
@@ -89,8 +98,9 @@ export class ScoreViewer {
   }
 
   downloadSvg(): void {
-    if (!this.renderer) return;
-    this.ui.download(`score-page-${this.page}.svg`, this.renderer.svg(this.page), "image/svg+xml");
+    // The page on screen, so the click needs no render call and keeps its user activation.
+    if (!this.svg) return;
+    this.ui.download(`score-page-${this.page}.svg`, this.svg, "image/svg+xml");
     // A sandbox without allow-downloads drops the click silently, so always offer the fallback.
     if (this.savedPath) this.ui.showDownloadFallback(this.savedPath);
   }
@@ -130,33 +140,30 @@ export class ScoreViewer {
   }
 
   private async open(xml: string): Promise<void> {
-    let renderer: Renderer;
-    try {
-      renderer = this.renderer ?? (await this.createRenderer());
-    } catch {
-      return this.ui.showNotice(NOTICES.engineBlocked);
-    }
-    try {
-      renderer.load(xml);
-    } catch {
-      return this.ui.showNotice(NOTICES.unreadable);
-    }
-    this.renderer = renderer;
     this.width = Math.round(this.ui.containerWidth());
-    renderer.layout(this.width);
+    try {
+      if (this.renderer) {
+        this.renderer.layout(this.width);
+        await this.renderer.load(xml);
+      } else {
+        this.renderer = await openScore(xml, this.width, this.renderers);
+      }
+    } catch (error) {
+      return this.ui.showNotice(error instanceof ScoreLoadError ? NOTICES.unreadable : NOTICES.engineBlocked);
+    }
+    this.ui.showEngine(this.renderer.engine);
     this.page = 1;
-    this.ui.showZoom(renderer.zoomFactor);
+    this.ui.showZoom(this.renderer.zoomFactor);
     this.render();
   }
 
   private goTo(page: number): void {
     if (!this.renderer) return;
-    const target = clampPage(page, this.renderer.pageCount);
+    const target = clampPage(page, this.pageCount);
     if (target === this.page) return;
     this.page = target;
     this.render();
-    const text = pageContext(this.page, this.renderer.pageCount);
-    this.enqueue(() => this.bridge.updateModelContext(text));
+    this.enqueue(() => this.bridge.updateModelContext(pageContext(this.page, this.pageCount)));
   }
 
   private setZoom(direction: 1 | -1): void {
@@ -167,9 +174,20 @@ export class ScoreViewer {
   }
 
   private render(): void {
-    if (!this.renderer) return;
-    this.page = clampPage(this.page, this.renderer.pageCount);
-    this.ui.showPage(this.renderer.svg(this.page), this.page, this.renderer.pageCount);
+    const request = ++this.renderRequest;
+    this.enqueue(async () => {
+      if (!this.renderer || request !== this.renderRequest) return;
+      try {
+        const shown = await this.renderer.page(this.page);
+        if (request !== this.renderRequest) return;
+        this.page = shown.page;
+        this.pageCount = shown.pageCount;
+        this.svg = shown.svg;
+        this.ui.showPage(shown.svg, shown.page, shown.pageCount);
+      } catch {
+        this.ui.showNotice(NOTICES.pageFailed);
+      }
+    });
   }
 
   private enqueue(task: () => Promise<void>): void {

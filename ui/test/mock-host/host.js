@@ -8,6 +8,7 @@
 //   downloads 1 | 0   adds allow-downloads to the sandbox  (default 1)
 //   modes     comma list of display modes the host offers  (default inline)
 //   width     container width in CSS pixels                (default 1000)
+//   server    1 | 0   answers render_page_svg tools/call    (default 1; 0 = no such tool)
 //
 // Tests read window.__host.log: every message in either direction, in order.
 
@@ -18,11 +19,40 @@ const csp = params.get("csp") ?? "spec-wasm";
 const downloads = params.get("downloads") !== "0";
 const modes = (params.get("modes") ?? "inline").split(",");
 const width = Number(params.get("width") ?? 1000);
+const serverRenders = params.get("server") !== "0";
 
 const PDF_RESULT = {
   content: [{ type: "text", text: "Rendered 5 page(s) to /tmp/sheet-music-output/score.pdf" }],
   structuredContent: { pdf_path: "/tmp/sheet-music-output/score.pdf", page_count: 5, backend: "verovio" },
 };
+
+// Stand-in for render-mcp's render_page_svg: a five-page score of labelled placeholder pages,
+// answered in the server's contract (structuredContent {svg, page, page_count}, error envelope).
+const SERVER_PAGES = 5;
+
+function renderPageSvg(args) {
+  if (typeof args.musicxml !== "string" || !args.musicxml.includes("<score-partwise")) {
+    return toolError("Not a MusicXML score", "INVALID_INPUT");
+  }
+  if (args.page > SERVER_PAGES) {
+    return toolError(`Page ${args.page} is out of range.`, "INVALID_PARAMETER", `This score has pages 1–${SERVER_PAGES} at this width and zoom.`);
+  }
+  const w = args.width_px;
+  const h = Math.round(w * 1.414);
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}px" height="${h}px" viewBox="0 0 ${w} ${h}" ` +
+    `data-server-page="${args.page}" data-zoom="${args.zoom}"><text x="24" y="48" font-size="24">` +
+    `Server page ${args.page}</text></svg>`;
+  return {
+    content: [{ type: "text", text: `Page ${args.page} of ${SERVER_PAGES} rendered as SVG.` }],
+    structuredContent: { svg, page: args.page, page_count: SERVER_PAGES },
+  };
+}
+
+function toolError(error, code, hint) {
+  const envelope = hint ? { error, error_code: code, hint } : { error, error_code: code };
+  return { isError: true, content: [{ type: "text", text: JSON.stringify(envelope) }] };
+}
 
 async function fixture(name) {
   const res = await fetch(`/fixtures/${name}`);
@@ -93,6 +123,7 @@ const handlers = {
     return { mode: displayMode };
   },
   "tools/call": (msg) => {
+    if (serverRenders && msg.params.name === "render_page_svg") return renderPageSvg(msg.params.arguments ?? {});
     throw { code: -32602, message: `mock host has no fixture for tool ${msg.params.name}` };
   },
   ping: () => ({}),

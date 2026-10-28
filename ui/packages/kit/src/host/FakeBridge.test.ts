@@ -71,4 +71,12 @@ describe("FakeBridge", () => {
     await expect(bridge.requestDisplayMode("fullscreen")).resolves.toBe("fullscreen");
     await expect(bridge.requestDisplayMode("pip")).resolves.toBe("fullscreen");
   });
+
+  it("answers tool calls from a function of the arguments", async () => {
+    const bridge = new FakeBridge({
+      toolAnswers: { render_page_svg: (args) => ({ structuredContent: { page: args.page } }) },
+    });
+    await expect(bridge.callTool("render_page_svg", { page: 3 })).resolves.toEqual({ structuredContent: { page: 3 } });
+    expect(bridge.calls).toEqual([{ method: "tools/call", params: { name: "render_page_svg", arguments: { page: 3 } } }]);
+  });
 });

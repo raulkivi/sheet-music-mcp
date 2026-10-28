@@ -7,8 +7,12 @@
     "./host/HostBridge": "./src/host/HostBridge.ts",
     "./host/ExtAppsBridge": "./src/host/ExtAppsBridge.ts",
     "./host/FakeBridge": "./src/host/FakeBridge.ts",
+    "./host/toolErrors": "./src/host/toolErrors.ts",
     "./theme": "./src/theme.ts",
     "./score/ScoreView": "./src/score/ScoreView.ts",
+    "./score/ScoreRenderer": "./src/score/ScoreRenderer.ts",
+    "./score/ServerScoreRenderer": "./src/score/ServerScoreRenderer.ts",
+    "./score/openScore": "./src/score/openScore.ts",
     "./score/paging": "./src/score/paging.ts"
   },
   "dependencies": {

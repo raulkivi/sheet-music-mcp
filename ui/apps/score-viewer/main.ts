@@ -1,7 +1,8 @@
-// Composition root: real host bridge, Verovio renderer and DOM, wired into the ScoreViewer.
+// Composition root: real host bridge, both renderers and DOM, wired into the ScoreViewer.
 
 import { createExtAppsBridge } from "@sheet-music-mcp/ui-kit/host/ExtAppsBridge";
 import { ScoreView } from "@sheet-music-mcp/ui-kit/score/ScoreView";
+import { ServerScoreRenderer } from "@sheet-music-mcp/ui-kit/score/ServerScoreRenderer";
 import { DomUi } from "./dom.ts";
 import { ScoreViewer } from "./viewer.ts";
 import "./style.css";
@@ -12,7 +13,8 @@ const bridge = createExtAppsBridge({
   displayModes: ["inline", "fullscreen"],
 });
 const ui = new DomUi(document);
-const viewer = new ScoreViewer(bridge, () => ScoreView.create(), ui);
+// Verovio WASM first; hosts whose CSP refuses WebAssembly get pages from render_page_svg.
+const viewer = new ScoreViewer(bridge, [() => ScoreView.create(), async () => new ServerScoreRenderer(bridge)], ui);
 ui.bind(viewer);
 
 viewer.start().catch((error: unknown) => {

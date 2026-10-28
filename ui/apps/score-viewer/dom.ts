@@ -1,6 +1,7 @@
 // DOM implementation of ViewerUi. Knows the markup in index.html; no host or Verovio code.
 
 import type { HostContext } from "@sheet-music-mcp/ui-kit/host/HostBridge";
+import type { RendererEngine } from "@sheet-music-mcp/ui-kit/score/ScoreRenderer";
 import { applyTheme } from "@sheet-music-mcp/ui-kit/theme";
 import type { ViewerUi } from "./viewer.ts";
 
@@ -14,6 +15,11 @@ export interface Controls {
   askForHelp(): Promise<void>;
   toggleFullscreen(): Promise<void>;
 }
+
+export const ENGINE_LABELS: Record<RendererEngine, string> = {
+  wasm: "Notation rendered in this view (Verovio WebAssembly)",
+  server: "Notation rendered by the server (Verovio)",
+};
 
 /** Marked once, when the first score page is on screen; read by scripts/measure.mjs. */
 export const FIRST_PAGE_MARK = "score-first-page";
@@ -34,6 +40,7 @@ export class DomUi implements ViewerUi {
     savedPath: HTMLElement;
     fallback: HTMLElement;
     ask: HTMLButtonElement;
+    engine: HTMLElement;
   };
   private firstPageShown = false;
 
@@ -58,6 +65,7 @@ export class DomUi implements ViewerUi {
       savedPath: byId("saved-path"),
       fallback: byId("fallback"),
       ask: byId("ask"),
+      engine: byId("engine"),
     };
   }
 
@@ -108,6 +116,12 @@ export class DomUi implements ViewerUi {
 
   showZoom(factor: number): void {
     this.el.zoomLabel.textContent = `${Math.round(factor * 100)}%`;
+  }
+
+  showEngine(engine: RendererEngine): void {
+    this.el.engine.textContent = ENGINE_LABELS[engine];
+    this.el.engine.dataset.engine = engine;
+    this.el.engine.hidden = false;
   }
 
   showSavedPath(path: string): void {

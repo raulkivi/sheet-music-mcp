@@ -171,8 +171,49 @@ test("offers fullscreen only when the host does, and requests it", async ({ page
   expect((await messages(page, "ui/request-display-mode"))[0]!.params).toEqual({ mode: "fullscreen" });
 });
 
-test("under the spec's default CSP (no wasm-unsafe-eval) the viewer explains it cannot render", async ({ page }) => {
+test("with wasm-unsafe-eval the page renders itself and calls no tool", async ({ page }) => {
+  const frame = await openHost(page);
+  await expect(frame.locator("#score svg").first()).toBeVisible();
+  await expect(frame.locator("#engine")).toHaveAttribute("data-engine", "wasm");
+  await expect(frame.locator("#engine")).toContainText("WebAssembly");
+  expect(await messages(page, "tools/call")).toEqual([]);
+});
+
+test("under the spec's default CSP (no wasm-unsafe-eval) pages come from render_page_svg", async ({ page }) => {
   const frame = await openHost(page, { csp: "spec" });
+  await expect(frame.locator("#score svg[data-server-page='1']")).toBeVisible();
+  await expect(frame.locator("#page-label")).toHaveText("Page 1 / 5");
+  await expect(frame.locator("#engine")).toHaveAttribute("data-engine", "server");
+  await expect(frame.locator("#engine")).toContainText("server");
+  await expect(frame.locator("#notice")).toBeHidden();
+
+  const [first] = await messages(page, "tools/call");
+  expect(first!.params).toMatchObject({
+    name: "render_page_svg",
+    arguments: { page: 1, zoom: 1, width_px: expect.any(Number) },
+  });
+  const args = (first!.params as { arguments: { musicxml: string; width_px: number } }).arguments;
+  expect(args.musicxml).toContain("<score-partwise");
+  expect(args.width_px).toBeGreaterThan(500);
+  expect(args.width_px).toBeLessThanOrEqual(1000);
+
+  for (let i = 2; i <= 5; i++) {
+    await frame.locator("#next").click();
+    await expect(frame.locator(`#score svg[data-server-page='${i}']`)).toBeVisible();
+  }
+  await expect(frame.locator("#page-label")).toHaveText("Page 5 / 5");
+  await expect(frame.locator("#next")).toBeDisabled();
+  await frame.locator("#prev").click();
+  await expect(frame.locator("#score svg[data-server-page='4']")).toBeVisible();
+
+  await frame.locator("#zoom-in").click();
+  await expect(frame.locator("#score svg[data-zoom='1.25']")).toBeVisible();
+  expect((await messages(page, "tools/call")).at(-1)!.params).toMatchObject({ arguments: { page: 4, zoom: 1.25 } });
+});
+
+test("when neither WebAssembly nor render_page_svg is available the viewer explains it cannot render", async ({ page }) => {
+  const frame = await openHost(page, { csp: "spec", server: "0" });
   await expect(frame.locator("#notice")).toContainText("could not start the notation engine");
   await expect(frame.locator("#saved-path")).toHaveText("/tmp/sheet-music-output/score.pdf");
+  await expect(frame.locator("#engine")).toBeHidden();
 });

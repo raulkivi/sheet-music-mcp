@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { ScoreLoadError, ScoreView } from "./ScoreView.ts";
+import { ScoreLoadError as RendererScoreLoadError, type ScoreRenderer } from "./ScoreRenderer.ts";
 
 const fixture = (name: string) =>
   readFileSync(new URL(`../../../../test/fixtures/${name}`, import.meta.url), "utf8");
@@ -86,5 +87,26 @@ describe("ScoreView", () => {
 
   it("rejects input that is not a score", () => {
     expect(() => view.load("not music")).toThrow(ScoreLoadError);
+  });
+
+  it("is the WASM ScoreRenderer: page() clamps and reports the page count", () => {
+    const renderer: ScoreRenderer = view;
+    expect(renderer.engine).toBe("wasm");
+    view.load(LONG);
+    view.zoom(1);
+    view.layout(1000);
+    const last = view.page(99);
+    expect(last).toEqual({ svg: view.svg(view.pageCount), page: view.pageCount, pageCount: view.pageCount });
+  });
+
+  it("can be laid out before the first load, as openScore does", async () => {
+    const fresh = await ScoreView.create();
+    fresh.layout(700);
+    fresh.load(LONG);
+    expect(fresh.pageCount).toBeGreaterThanOrEqual(5);
+  });
+
+  it("throws the shared ScoreLoadError", () => {
+    expect(ScoreLoadError).toBe(RendererScoreLoadError);
   });
 });

@@ -98,6 +98,14 @@ button:focus-visible {
   align-items: center;
 }
 
+.engine {
+  margin: 0;
+  padding: 2px 12px 8px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+#engine[hidden],
 #fallback[hidden],
 #notice[hidden],
 #saved[hidden],

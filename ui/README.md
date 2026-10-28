@@ -7,7 +7,7 @@ Verovio WASM inlined; no network references). See
 
 | Path | Contents |
 |---|---|
-| `packages/kit/` | Shared kit: `HostBridge` (interface), `ExtAppsBridge` (the only importer of `@modelcontextprotocol/ext-apps`), `FakeBridge`, `theme.ts`, `score/ScoreView.ts` (the only importer of Verovio), `score/paging.ts` (pure) |
+| `packages/kit/` | Shared kit: `HostBridge` (interface), `ExtAppsBridge` (the only importer of `@modelcontextprotocol/ext-apps`), `FakeBridge`, `toolErrors.ts` (error envelope), `theme.ts`, `score/ScoreRenderer.ts` (interface), `score/ScoreView.ts` (Verovio WASM renderer, the only importer of Verovio), `score/ServerScoreRenderer.ts` (pages from render-mcp's app-only `render_page_svg`), `score/openScore.ts` (first renderer that starts wins), `score/paging.ts` (pure; `layout-cases.json` is shared with render-mcp's tests) |
 | `apps/score-viewer/` | Score Viewer for render-mcp (`ui://render/score-viewer`); `e2e/` holds its Playwright tests |
 | `test/mock-host/` | Host page that embeds the built HTML in a sandboxed iframe, speaks the host side of the postMessage JSON-RPC and logs every message (`window.__host.log`) |
 | `test/fixtures/` | MusicXML fixtures |
@@ -36,10 +36,20 @@ it in `render-mcp/src/render_mcp/ui/assets/`, which is gitignored; the release w
 same before `uv build`, and hatch packages the file through its `artifacts` setting. Without the
 file, render-mcp serves text-only tools.
 
+## Two render paths
+
+The MCP Apps default CSP has no `'wasm-unsafe-eval'`, and a resource cannot ask for it, so a host
+that enforces the default refuses Verovio's WebAssembly. The Score Viewer therefore tries
+`ScoreView` (Verovio WASM in the page) first and, if it cannot start, `ServerScoreRenderer`, which
+asks render-mcp's app-only `render_page_svg` tool for each page. Both lay pages out with
+`paging.ts` `layoutFor()`, which render-mcp mirrors. Only if both fail does the viewer show its
+"cannot start the notation engine" notice. The line under the score names the active engine
+(`#engine`, `data-engine="wasm"` or `"server"`).
+
 ## Mock host options
 
 `node test/mock-host/server.mjs [port]` serves the host at `/` with these query parameters:
 `scenario` (`inline-long`, `inline-satb`, `path-only`), `theme` (`light`, `dark`), `csp` (`spec` =
 the spec's default policy, `spec-wasm` = the same plus `'wasm-unsafe-eval'`), `downloads` (`1`/`0`:
-`allow-downloads` in the iframe sandbox), `modes` (display modes offered, e.g. `inline,fullscreen`)
-and `width` (container width in CSS pixels).
+`allow-downloads` in the iframe sandbox), `modes` (display modes offered, e.g. `inline,fullscreen`),
+`width` (container width in CSS pixels) and `server` (`1`/`0`: whether the host answers `render_page_svg` with five placeholder pages, for the server-side fallback).
