@@ -81,19 +81,18 @@ jobs:
           if [ "$MCP_SERVER" = "true" ]; then
             jq -e --arg v "$VERSION" '.version == $v and all(.packages[]; .version == $v)' server.json
           fi
-      # The wheel packages the built Score Viewer page, which is not in git.
+      # The wheel packages the built Score Viewer page, which is not in git. This job can mint
+      # publishing tokens, so no npm cache (poisoning) and no dependency install scripts.
       - name: Set up Node
         if: steps.tag.outputs.server == 'render-mcp'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
-          cache: npm
-          cache-dependency-path: ui/package-lock.json
       - name: Build UI
         if: steps.tag.outputs.server == 'render-mcp'
         working-directory: ui
         run: |
-          npm ci
+          npm ci --ignore-scripts
           npm run build
           npm run copy-assets
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
