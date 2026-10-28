@@ -443,7 +443,8 @@ class TestIntegrationRealSATBFiles:
         tgt_xml = _mxl_to_musicxml(mxl_files[1])
 
         result = await call_tool(
-            "export_annotated_musicxml", {"reference_xml": ref_xml, "target_xml": tgt_xml}
+            "export_annotated_musicxml",
+            {"reference_xml": ref_xml, "target_xml": tgt_xml, "return": "inline"},
         )
         payload = json.loads(result[0].text)
         assert "reference_annotated_musicxml" in payload
