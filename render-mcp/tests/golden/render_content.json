@@ -1,0 +1,126 @@
+{
+  "bad_dpi": [
+    {
+      "text": "{\"error\": \"dpi must be between 72 and 600, got 5\", \"error_code\": \"INVALID_PARAMETER\"}",
+      "type": "text"
+    }
+  ],
+  "bad_page": [
+    {
+      "text": "{\"error\": \"page must be at least 1, got 0\", \"error_code\": \"INVALID_PARAMETER\"}",
+      "type": "text"
+    }
+  ],
+  "engine_crash": [
+    {
+      "text": "{\"error\": \"Rendering failed: cairo exploded\", \"error_code\": \"PROCESSING_FAILED\"}",
+      "type": "text"
+    }
+  ],
+  "engine_error_with_hint": [
+    {
+      "text": "{\"error\": \"Measures 9-12 are outside the score.\", \"error_code\": \"INVALID_PARAMETER\", \"hint\": \"This score has measures 1-4.\"}",
+      "type": "text"
+    }
+  ],
+  "invalid_xml": [
+    {
+      "text": "{\"error\": \"Not a MusicXML score: root element is <nope>, expected <score-partwise> or <score-timewise>\", \"error_code\": \"INVALID_INPUT\"}",
+      "type": "text"
+    }
+  ],
+  "no_score": [
+    {
+      "text": "{\"error\": \"One of 'musicxml' or 'musicxml_path' is required.\", \"error_code\": \"INVALID_PARAMETER\"}",
+      "type": "text"
+    }
+  ],
+  "pdf": [
+    {
+      "text": "{\n  \"pdf_path\": \"<ROOT>/score.pdf\",\n  \"page_count\": 2,\n  \"backend\": \"verovio\"\n}",
+      "type": "text"
+    },
+    {
+      "mimeType": "application/pdf",
+      "name": "score.pdf",
+      "size": 15,
+      "type": "resource_link",
+      "uri": "file://<ROOT>/score.pdf"
+    }
+  ],
+  "pdf_from_path": [
+    {
+      "text": "{\n  \"pdf_path\": \"<ROOT>/from-path.pdf\",\n  \"page_count\": 2,\n  \"backend\": \"verovio\"\n}",
+      "type": "text"
+    },
+    {
+      "mimeType": "application/pdf",
+      "name": "from-path.pdf",
+      "size": 15,
+      "type": "resource_link",
+      "uri": "file://<ROOT>/from-path.pdf"
+    }
+  ],
+  "pdf_measures": [
+    {
+      "text": "{\n  \"pdf_path\": \"<ROOT>/cut.pdf\",\n  \"page_count\": 1,\n  \"backend\": \"verovio\"\n}",
+      "type": "text"
+    },
+    {
+      "mimeType": "application/pdf",
+      "name": "cut.pdf",
+      "size": 15,
+      "type": "resource_link",
+      "uri": "file://<ROOT>/cut.pdf"
+    }
+  ],
+  "png": [
+    {
+      "text": "{\n  \"image_path\": \"<ROOT>/page.png\",\n  \"format\": \"png\",\n  \"page\": 2,\n  \"total_pages\": 3,\n  \"backend\": \"verovio\",\n  \"width_px\": 1,\n  \"height_px\": 1\n}",
+      "type": "text"
+    },
+    {
+      "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+      "mimeType": "image/png",
+      "type": "image"
+    },
+    {
+      "mimeType": "image/png",
+      "name": "page.png",
+      "size": 70,
+      "type": "resource_link",
+      "uri": "file://<ROOT>/page.png"
+    }
+  ],
+  "png_measures": [
+    {
+      "text": "{\n  \"image_path\": \"<ROOT>/cut.png\",\n  \"format\": \"png\",\n  \"page\": 1,\n  \"total_pages\": 3,\n  \"backend\": \"verovio\",\n  \"width_px\": 1,\n  \"height_px\": 1\n}",
+      "type": "text"
+    },
+    {
+      "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+      "mimeType": "image/png",
+      "type": "image"
+    },
+    {
+      "mimeType": "image/png",
+      "name": "cut.png",
+      "size": 70,
+      "type": "resource_link",
+      "uri": "file://<ROOT>/cut.png"
+    }
+  ],
+  "svg": [
+    {
+      "text": "{\n  \"image_path\": \"<ROOT>/page.svg\",\n  \"format\": \"svg\",\n  \"page\": 1,\n  \"total_pages\": 3,\n  \"backend\": \"verovio\"\n}",
+      "type": "text"
+    },
+    {
+      "mimeType": "image/svg+xml",
+      "name": "page.svg",
+      "size": 69,
+      "type": "resource_link",
+      "uri": "file://<ROOT>/page.svg"
+    }
+  ]
+}
