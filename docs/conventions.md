@@ -121,6 +121,8 @@ MCP client):
 | `PROCESSING_FAILED` | Backend engine error during processing |
 | `INVALID_PARAMETER` | A tool parameter value is out of range or logically invalid |
 | `SESSION_NOT_FOUND` | Referenced session ID does not exist (for stateful tools) |
+| `RESOURCE_NOT_FOUND` | `resources/read` for a URI the server does not offer (sent as JSON-RPC `-32602`, envelope in `data`) |
+| `UI_ASSET_MISSING` | A registered MCP Apps UI whose HTML was not built or packaged; the message says to run `npm run build` in `ui/` (sent as JSON-RPC `-32603`, envelope in `data`) |
 
 ### Optional fields: `hint` and `choices`
 
@@ -374,7 +376,8 @@ code every server needs, so it is written and tested once.
 | `scores` | `read_score_file()` (`.musicxml`, `.xml`, `.mxl`), `describe_score()`, `score_summary()`, `first_pitches()`, `ScoreFormatError`; parses with `defusedxml`, not music21 | no |
 | `measures` | `MEASURES_PROPERTY`, `parse_range()`, `printed_numbers()`, `select_measures()`, `MeasureRangeError` (see [Measure Ranges](#measure-ranges)) | no |
 | `references` | Score input schema helpers, `client_roots()`, `load_score()`, `deliver_score()`, the shared `describe_score` tool | yes |
-| `wiring` | `make_handlers()`: input-schema validation and error results for `Server(...)`; pass the server's own `logger=`. Schema failures (`INVALID_PARAMETER`) and exceptions a tool did not handle (`PROCESSING_FAILED`, or a `ProcessingError`'s own code, hint and choices) come back as `isError` results in the `{error, error_code}` envelope | yes |
+| `wiring` | `make_handlers()`: input-schema validation and error results for `Server(...)`; pass the server's own `logger=`. Schema failures (`INVALID_PARAMETER`) and exceptions a tool did not handle (`PROCESSING_FAILED`, or a `ProcessingError`'s own code, hint and choices) come back as `isError` results in the `{error, error_code}` envelope. `make_resource_handlers()` serves a resource provider (a `UiRegistry`) as `on_list_resources` / `on_read_resource`; a failed read is logged and raised as an `MCPError` whose `data` is the envelope plus `uri` (`RESOURCE_NOT_FOUND` as `-32602`, anything else as `-32603`) | yes |
+| `ui` | MCP Apps UI resources: `UI_MIME`, `UI_EXTENSION`, `UiResource` (with `tool_meta()`), `UiRegistry` (`meta_for()`, `list_resources()`, `read()`), the `AssetSource` protocol with `PackageAssetSource` (built HTML under `<package>/ui/assets/`) and `InMemoryAssetSource` (tests), `UiAssetMissing`, `UiResourceNotFound`, `client_supports_ui()`. An app whose HTML is not packaged is hidden: `meta_for()` returns `None` and it is not listed | yes |
 
 - Engines may import only the modules without `mcp` (`errors`, `parts`, `params`, `annotations`, `paths`, `scores`, `measures`). This keeps `engine.py` free of MCP imports.
 - Servers depend on `sheet-music-mcp-core>=X.Y,<X.(Y+1)` while the core is 0.x. For development,

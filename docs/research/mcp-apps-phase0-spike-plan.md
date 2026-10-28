@@ -3,7 +3,7 @@
 **Status:** Plan, awaiting approval. No code has been written.
 **Date:** 2026-10-27
 **Parent:** [mcp-apps-ux-proposal.md](mcp-apps-ux-proposal.md) (roadmap phase 0; decisions D1–D7)
-**Server:** `render-mcp` only. The other five servers are untouched.
+**Server:** `render-mcp` only, plus the shared `ui` module in `sheet-music-mcp-core` (0.3.1). The other five servers are untouched.
 
 ---
 
@@ -57,40 +57,71 @@ Prove the whole MCP Apps path once, on the smallest useful app, before building 
 
 ## 3. Design (SOLID)
 
-### 3.1 Python (render-mcp)
+### 3.1 Python (shared core + render-mcp)
+
+**Decision (2026-10-28):** the UI resource plumbing lives in the shared core,
+`sheet_music_mcp_core.ui` (core 0.3.1), so all six servers reuse it. render-mcp only registers its
+resource and links its tools.
 
 ```
-src/render_mcp/
+sheet-music-mcp-core/src/sheet_music_mcp_core/
+  ui.py              # DONE UiResource, UiRegistry, AssetSource protocol   [S, O, D]
+  wiring.py          # DONE make_resource_handlers(registry) -> (on_list_resources, on_read_resource)
+
+render-mcp/src/render_mcp/
   engine.py          # unchanged; no mcp import
   presenter.py       # NEW  engine result -> (content, structured_content)   [S]
-  ui/
-    __init__.py      # NEW  UiResource, UiRegistry, AssetSource protocol   [S, O, D]
-    assets/          # NEW  score-viewer.html, built by CI, gitignored (D1)
-  server.py          # wiring: on_list_resources, on_read_resource, Tool(meta=...)
+  ui/assets/         # NEW  score-viewer.html, built by CI, gitignored (D1)
+  server.py          # registers the resource; Tool(meta=...); Server(..., on_list_resources=...,
+                     #   on_read_resource=...) from make_resource_handlers
 ```
 
+render-mcp's whole UI setup:
+
 ```python
-UI_MIME = "text/html;profile=mcp-app"
+from sheet_music_mcp_core.ui import PackageAssetSource, UiRegistry, UiResource
+from sheet_music_mcp_core.wiring import make_resource_handlers
+
+SCORE_VIEWER = UiResource("ui://render/score-viewer", "score-viewer.html", "Score Viewer", "...")
+registry = UiRegistry([SCORE_VIEWER], PackageAssetSource("render_mcp"))  # reads render_mcp/ui/assets/
+_on_list_resources, _on_read_resource = make_resource_handlers(registry, logger=logger)
+```
+
+The core API (`sheet_music_mcp_core.ui`):
+
+```python
+UI_MIME = "text/html;profile=mcp-app"        # = mcp.server.apps.APP_MIME_TYPE
+UI_EXTENSION = "io.modelcontextprotocol/ui"  # = mcp.server.apps.EXTENSION_ID
 
 class AssetSource(Protocol):                 # D: the registry never touches the filesystem
     def read(self, name: str) -> str | None: ...        # None = not packaged
 
 class PackageAssetSource:                    # production: importlib.resources
+    def __init__(self, package: str, directory: str = "ui/assets"): ...
 class InMemoryAssetSource:                   # tests: {"score-viewer.html": "<!doctype html>..."}
+    def __init__(self, mapping: dict[str, str]): ...
 
 @dataclass(frozen=True)
 class UiResource:                            # S: describes one resource
     uri: str
     asset: str
     name: str
+    description: str | None = None
     def tool_meta(self) -> dict: ...         # {"ui": {"resourceUri": uri}}
 
 class UiRegistry:                            # O: new apps are registered, not coded in
-    def __init__(self, resources, source: AssetSource): ...
+    def __init__(self, resources, source: AssetSource): ...       # duplicate URI -> ValueError
     def meta_for(self, resource: UiResource) -> dict | None: ...  # None when asset missing
     def list_resources(self) -> list[Resource]: ...               # only packaged assets
-    def read(self, uri: str) -> ReadResourceResult: ...           # raises UiAssetMissing
+    def read(self, uri: str) -> ReadResourceResult: ...           # raises UiAssetMissing / UiResourceNotFound
+
+def client_supports_ui(ctx) -> bool: ...     # delegates to mcp.server.apps.client_supports_apps
 ```
+
+`make_resource_handlers` turns a failed read into an `MCPError` whose `data` is the
+`{error, error_code}` envelope plus `uri`: `RESOURCE_NOT_FOUND` as `-32602`, `UI_ASSET_MISSING`
+(and anything unexpected) as `-32603`. Without it the SDK would send only an opaque
+"Internal server error".
 
 - **S:** `presenter.py` builds both result shapes, so `server.py` only wires and `engine.py` only
   renders.
@@ -149,9 +180,9 @@ refactor. One commit per step, with the tests and the code together.
 
 | Step | Tests first (red) | Then implement (green) |
 |---|---|---|
-| **1. SDK characterisation** | `test_mcp_apps_sdk.py`: an in-memory `Client` with an `extensions` entry for `io.modelcontextprotocol/ui` is seen by the server. A `Tool(meta=...)` is serialised as `_meta` on the wire. `TextResourceContents(mime_type=...)` keeps the profile parameter. | Nothing, or small helpers. This step pins down SDK behaviour that later steps rely on. If one of these assumptions fails, stop and revise the plan. |
-| **2. UiRegistry** | `test_ui.py`: `meta_for` returns `{"ui":{"resourceUri":...}}` when the asset exists and `None` when it is missing. `list_resources` omits missing assets. `read` returns `UI_MIME` and the HTML. `read` on a missing asset raises `UiAssetMissing` whose message names `npm run build`. `read` on an unknown URI raises. | `ui/__init__.py` with `UiResource`, `UiRegistry`, `InMemoryAssetSource`, `PackageAssetSource`. |
-| **3. Resource wiring** | `test_mcp_protocol.py` (extended): `client.list_resources()` contains the viewer when packaged. `client.read_resource(uri)` returns the MIME type and HTML. A missing asset gives an error result, not a crash. | `_on_list_resources` and `_on_read_resource` in `server.py`, passed to `Server(...)`. |
+| **1. SDK characterisation** (done, in core) | `sheet-music-mcp-core/tests/test_mcp_apps_sdk.py`: an in-memory `Client` with an `extensions` entry for `io.modelcontextprotocol/ui` is seen by the server. A `Tool(meta=...)` is serialised as `_meta` on the wire. `TextResourceContents(mime_type=...)` keeps the profile parameter. | Nothing, or small helpers. This step pins down SDK behaviour that later steps rely on. If one of these assumptions fails, stop and revise the plan. |
+| **2. UiRegistry** (done, in core) | `sheet-music-mcp-core/tests/test_ui.py`: `meta_for` returns `{"ui":{"resourceUri":...}}` when the asset exists and `None` when it is missing. `list_resources` omits missing assets. `read` returns `UI_MIME` and the HTML. `read` on a missing asset raises `UiAssetMissing` whose message names `npm run build`. `read` on an unknown URI raises. | `sheet_music_mcp_core/ui.py` with `UiResource`, `UiRegistry`, `InMemoryAssetSource`, `PackageAssetSource`. |
+| **3. Resource wiring** | `test_mcp_protocol.py` (extended): `client.list_resources()` contains the viewer when packaged. `client.read_resource(uri)` returns the MIME type and HTML. A missing asset gives an error result, not a crash. (The generic handler behaviour is already tested in core `tests/test_wiring.py`.) | `make_resource_handlers(registry, logger=logger)` from the core in `server.py`, passed to `Server(...)`. |
 | **4. Tool linking and structured output** | `test_server.py` (extended): both render tools carry `meta` exactly when the asset exists. A golden test asserts `content` is unchanged for the existing fixtures. `structured_content` validates against `output_schema`. Validation errors still return the `{error, error_code}` content with no `structured_content`. | `presenter.py`. `output_schema` and `meta` on the two `Tool`s. `call_tool` returns `CallToolResult` parts through the presenter. |
 | **5. UI workspace scaffold** | Vitest: `paging.test.ts` covers `clampPage` (1..n, NaN to 1), `zoomSteps`, and `fitWidthScale(containerWidth, pageWidth)`. `theme.test.ts` maps the host `theme` and `styles.variables` to CSS variables, with a fallback when absent. | `ui/` workspace, TS config, Vitest, `paging.ts`, `theme.ts`. |
 | **6. HostBridge** | Vitest: `FakeBridge` replays tool-input and then tool-result in order. `ExtAppsBridge` contract tests run against a mocked `App` and forward `callTool`, `sendMessage`, `updateModelContext` and `notifySize`. | `HostBridge`, `FakeBridge`, `ExtAppsBridge`. |
@@ -170,8 +201,9 @@ Steps 1–4 (Python) and 5–8 (TypeScript) are independent and can run in paral
 
 | Layer | File | New tests (approx.) | Default run? |
 |---|---|---|---|
-| Python unit | `render-mcp/tests/test_mcp_apps_sdk.py` | 3 | yes |
-| Python unit | `render-mcp/tests/test_ui.py` | 7 | yes |
+| Python unit (done) | `sheet-music-mcp-core/tests/test_mcp_apps_sdk.py` | 8 | yes |
+| Python unit (done) | `sheet-music-mcp-core/tests/test_ui.py` | 18 | yes |
+| Python unit (done) | `sheet-music-mcp-core/tests/test_wiring.py` (extended) | 7 | yes |
 | Python unit | `render-mcp/tests/test_mcp_protocol.py` (extended) | 3 | yes |
 | Python unit | `render-mcp/tests/test_server.py` (extended) | 6 | yes |
 | Python integration | `render-mcp/tests/test_packaging.py` | 2 | no (`-m integration`, run by `ui.yml`) |
