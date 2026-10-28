@@ -8,6 +8,7 @@ from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from sheet_music_mcp_core.content import error_content, processing_error_content
 from sheet_music_mcp_core.measures import MEASURES_PROPERTY
+from sheet_music_mcp_core.paths import max_score_bytes
 from sheet_music_mcp_core.references import (
     DESCRIBE_SCORE_TOOL,
     describe_score_tool,
@@ -75,8 +76,10 @@ SCORE_VIEWER = UiResource(
 DEFAULT_UI_REGISTRY = UiRegistry([SCORE_VIEWER], PackageAssetSource("render_mcp"))
 ui_registry = DEFAULT_UI_REGISTRY
 
-# Keeps the last score the viewer paged through parsed (engine.SvgPageRenderer).
+# Keeps the last score the viewer paged through parsed (engine.SvgPageRenderer). It runs in a
+# worker thread and one Verovio toolkit is not thread-safe, so calls take turns.
 page_renderer = SvgPageRenderer()
+_page_renderer_lock = asyncio.Lock()
 
 
 def _score_properties() -> dict:
@@ -288,11 +291,31 @@ async def _render_image(arguments: dict, ctx) -> CallToolResult:
 
 async def _render_page_svg(arguments: dict, ctx) -> CallToolResult:
     musicxml = arguments["musicxml"]
+    # App-only tools are still callable by any client, so the inline score gets the file cap.
+    limit = max_score_bytes()
+    if len(musicxml.encode("utf-8")) > limit:
+        return _error(
+            processing_error_content(
+                ProcessingError(
+                    f"The score is larger than {limit} bytes.",
+                    "INVALID_PARAMETER",
+                    hint="Raise SHEET_MUSIC_MAX_SCORE_BYTES or render a measure range.",
+                )
+            )
+        )
     ok, err = validate_musicxml(musicxml)
     if not ok:
         return _error(error_content(err, "INVALID_INPUT"))
     try:
-        page = page_renderer.render(musicxml, arguments["page"], arguments["width_px"], arguments["zoom"])
+        # Verovio layout of a large score takes long enough to stall other requests.
+        async with _page_renderer_lock:
+            page = await asyncio.to_thread(
+                page_renderer.render,
+                musicxml,
+                arguments["page"],
+                arguments["width_px"],
+                arguments["zoom"],
+            )
     except ProcessingError as e:
         return _error(processing_error_content(e))
     content, structured = present_page_svg(page)

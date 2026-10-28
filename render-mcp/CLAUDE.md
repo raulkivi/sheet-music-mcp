@@ -6,7 +6,7 @@ Renders MusicXML scores to PDF (for printing) or PNG (for display in web/mobile 
 Uses Verovio (in-process) + cairosvg + pypdf. No MuseScore CLI required.
 
 **Status:** Phase 1 + UX Waves 1–3 complete; MCP Apps spike phase 0c (Score Viewer resource,
-`structuredContent`, app-only `render_page_svg`). 231 unit tests (default run) + 12 integration.
+`structuredContent`, app-only `render_page_svg`). 234 unit tests (default run) + 12 integration.
 
 ---
 
@@ -14,7 +14,7 @@ Uses Verovio (in-process) + cairosvg + pypdf. No MuseScore CLI required.
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v             # 231 unit tests (integration deselected)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v             # 234 unit tests (integration deselected)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration  # Verovio runs in-process, always fast
 ```
 
@@ -127,6 +127,9 @@ asyncio.run(_run())
 - **Layout parity.** `engine.page_layout()` mirrors `ui/packages/kit/src/score/paging.ts`
   `layoutFor()` (JS rounding); both are checked against `ui/packages/kit/src/score/layout-cases.json`.
 - **Verovio reads almost anything.** Validate with `validate_musicxml()` before the engine.
+- **Verovio's resource path is per thread.** `render_page_svg` renders in a worker thread
+  (`asyncio.to_thread`, one at a time behind a lock); `engine._verovio_toolkit()` sets the
+  resource path itself, or a toolkit made off the importing thread finds no fonts.
 - **Integration tests need the omr-mcp samples.** They read
   `../omr-mcp/test_samples/pdmx_satb_samples/mxl/`; without that folder they fail with
   "Fixture dir not found".

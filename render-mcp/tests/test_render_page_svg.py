@@ -127,6 +127,35 @@ class TestCall:
         assert result.is_error
         assert json.loads(result.content[0].text)["error_code"] == "INVALID_INPUT"
 
+    async def test_a_score_over_the_size_limit_is_refused_before_parsing(self, monkeypatch):
+        # Any client can call app-only tools, so the inline score gets the same cap as score files.
+        monkeypatch.setenv("SHEET_MUSIC_MAX_SCORE_BYTES", "100")
+        monkeypatch.setattr(server, "page_renderer", None)
+
+        result = await call_tool_result("render_page_svg", ARGS)
+
+        assert result.is_error
+        payload = json.loads(result.content[0].text)
+        assert payload["error_code"] == "INVALID_PARAMETER"
+        assert "SHEET_MUSIC_MAX_SCORE_BYTES" in payload["hint"]
+
+    async def test_verovio_runs_off_the_event_loop(self, monkeypatch):
+        import threading
+
+        seen = []
+
+        class Recording(SvgPageRenderer):
+            def render(self, *args):
+                seen.append(threading.get_ident())
+                return super().render(*args)
+
+        monkeypatch.setattr(server, "page_renderer", Recording())
+
+        result = await call_tool_result("render_page_svg", ARGS)
+
+        assert not result.is_error
+        assert seen and seen[0] != threading.get_ident()
+
     @pytest.mark.parametrize(
         "change",
         [

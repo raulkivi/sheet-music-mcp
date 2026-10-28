@@ -25,7 +25,7 @@ provisional until they are recorded.
 | Suite | Tests |
 |---|---|
 | Core unit | 455 |
-| render-mcp unit / integration | 231 / 12 |
+| render-mcp unit / integration | 234 / 12 |
 | Other five servers against core 0.3.1 | unchanged (279, 161, 306, 293, 164) |
 | Vitest / Playwright | 124 / 13 |
 

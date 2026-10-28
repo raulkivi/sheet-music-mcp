@@ -210,3 +210,15 @@ class TestTextFont:
         ), page=1, width_px=1000, zoom=1)["svg"]
 
         assert "@font-face" in svg
+
+
+def test_renders_from_a_worker_thread():
+    # The server renders off the event loop. Verovio keeps its resource path per thread, set
+    # only on the thread that imported it, so a toolkit made elsewhere finds no fonts.
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        page = pool.submit(SvgPageRenderer().render, VALID_MUSICXML, 1, 1000, 1).result()
+
+    assert page["page_count"] >= 1
+    assert "<svg" in page["svg"]

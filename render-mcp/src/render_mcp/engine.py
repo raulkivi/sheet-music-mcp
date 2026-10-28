@@ -458,9 +458,15 @@ def _viewer_options(layout: dict) -> dict:
 
 
 def _verovio_toolkit():
+    from importlib.resources import files
+
     import verovio
 
-    return verovio.toolkit()
+    toolkit = verovio.toolkit()
+    # verovio sets its default resource path per thread, on the importing thread only; a toolkit
+    # made on a worker thread would otherwise look for fonts at the wheel's build-time path.
+    toolkit.setResourcePath(str(files("verovio") / "data"))
+    return toolkit
 
 
 class SvgPageRenderer:
