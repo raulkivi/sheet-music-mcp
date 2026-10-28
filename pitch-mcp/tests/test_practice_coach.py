@@ -255,3 +255,64 @@ class TestErrors:
         assert result.is_error
         assert result.structured_content is None
         assert json.loads(result.content[0].text)["error_code"] == code
+
+
+class TestSessionToolErrorsAreIsError:
+    """start_monitoring, stop_monitoring and list_sessions failures set isError (content
+    unchanged), so an app can tell a failed Start or Stop from a result."""
+
+    @pytest.mark.parametrize(
+        "tool, arguments, code",
+        [
+            ("start_monitoring", {"session_id": "no-such-session"}, "SESSION_NOT_FOUND"),
+            ("start_monitoring", {"session_id": ""}, "INVALID_INPUT"),
+            ("start_monitoring", {"session_id": "x", "source": "browser"}, "INVALID_PARAMETER"),
+            ("stop_monitoring", {"session_id": "no-such-session"}, "SESSION_NOT_FOUND"),
+            ("stop_monitoring", {"session_id": "  "}, "INVALID_INPUT"),
+        ],
+    )
+    def test_failures(self, tool, arguments, code):
+        result = _with_client(lambda c: c.call_tool(tool, arguments))
+
+        assert result.is_error
+        assert json.loads(result.content[0].text)["error_code"] == code
+
+    async def test_failures_through_the_handler(self):
+        for tool in ("start_monitoring", "stop_monitoring"):
+            result = await call_tool_result(tool, {"session_id": "no-such-session"})
+
+            assert result.is_error
+            assert json.loads(result.content[0].text)["error_code"] == "SESSION_NOT_FOUND"
+
+    def test_a_microphone_that_fails_to_open(self, mic):  # noqa: F811
+        mic.fail_on = "open"
+        opened = _with_client(lambda c: c.call_tool("load_score", {"musicxml": SIX_BARS, "part": "P1"}))
+        sid = opened.structured_content["session_id"]
+
+        result = _with_client(lambda c: c.call_tool("start_monitoring", {"session_id": sid}))
+
+        assert result.is_error
+        assert json.loads(result.content[0].text)["error_code"] == "PROCESSING_FAILED"
+
+    async def test_list_sessions_failure(self, monkeypatch):
+        def broken():
+            raise RuntimeError("registry unavailable")
+
+        monkeypatch.setattr(server, "list_sessions", broken)
+
+        result = await call_tool_result("list_sessions", {})
+
+        assert result.is_error
+        assert json.loads(result.content[0].text)["error_code"] == "PROCESSING_FAILED"
+
+    def test_successes_are_not_errors(self, mic):  # noqa: F811
+        async def go(client):
+            opened = await client.call_tool("load_score", {"musicxml": SIX_BARS, "part": "P1"})
+            sid = opened.structured_content["session_id"]
+            return [
+                await client.call_tool("start_monitoring", {"session_id": sid}),
+                await client.call_tool("list_sessions", {}),
+                await client.call_tool("stop_monitoring", {"session_id": sid}),
+            ]
+
+        assert [r.is_error for r in _with_client(go)] == [False, False, False]

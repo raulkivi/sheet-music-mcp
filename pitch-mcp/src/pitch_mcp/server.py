@@ -370,48 +370,6 @@ async def _plain_tool(name: str, arguments: dict, ctx=None) -> list:
         except ProcessingError as e:
             return processing_error_content(e)
 
-    elif name == "start_monitoring":
-        session_id = arguments.get("session_id", "")
-        tempo_bpm = arguments.get("tempo_bpm")
-        source = arguments.get("source", "server_mic")
-
-        ok, err = validate_session_id(session_id)
-        if not ok:
-            return error_content(err, "INVALID_INPUT")
-
-        try:
-            # The default call is exactly the one earlier releases made.
-            if source == "server_mic":
-                result = start_monitoring(session_id, tempo_bpm)
-            else:
-                result = start_monitoring(session_id, tempo_bpm, source=source)
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
-        except ProcessingError as e:
-            return processing_error_content(e)
-        except Exception as e:
-            logger.error("start_monitoring unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
-
-    elif name == "stop_monitoring":
-        session_id = arguments.get("session_id", "")
-
-        ok, err = validate_session_id(session_id)
-        if not ok:
-            return error_content(err, "INVALID_INPUT")
-
-        try:
-            result = stop_monitoring(session_id)
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
-        except ProcessingError as e:
-            return processing_error_content(e)
-        except Exception as e:
-            logger.error("stop_monitoring unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
-
-    elif name == "list_sessions":
-        result = list_sessions()
-        return [TextContent(type="text", text=json.dumps(result, indent=2))]
-
     elif name == "list_capabilities":
         # Check aubio availability
         pitch_backend = _active_backend()
@@ -561,6 +519,46 @@ async def _get_score_for_session(arguments: dict, ctx) -> CallToolResult:
         return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
 
 
+def _text_result(name: str, call) -> CallToolResult:
+    """A text-only session tool: its JSON as before, or the error envelope with isError set."""
+    try:
+        return CallToolResult(content=[TextContent(type="text", text=json.dumps(call(), indent=2))])
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("%s unexpected error: %s", name, e)
+        return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
+
+
+async def _start_monitoring(arguments: dict, ctx) -> CallToolResult:
+    session_id = arguments.get("session_id", "")
+
+    ok, err = validate_session_id(session_id)
+    if not ok:
+        return _error(error_content(err, "INVALID_INPUT"))
+
+    source = arguments.get("source", "server_mic")
+    # The default call is exactly the one earlier releases made.
+    extra = {} if source == "server_mic" else {"source": source}
+    return _text_result(
+        "start_monitoring", lambda: start_monitoring(session_id, arguments.get("tempo_bpm"), **extra)
+    )
+
+
+async def _stop_monitoring(arguments: dict, ctx) -> CallToolResult:
+    session_id = arguments.get("session_id", "")
+
+    ok, err = validate_session_id(session_id)
+    if not ok:
+        return _error(error_content(err, "INVALID_INPUT"))
+
+    return _text_result("stop_monitoring", lambda: stop_monitoring(session_id))
+
+
+async def _list_sessions(arguments: dict, ctx) -> CallToolResult:
+    return _text_result("list_sessions", list_sessions)
+
+
 async def _push_audio_chunk(arguments: dict, ctx) -> CallToolResult:
     session_id = arguments.get("session_id", "")
 
@@ -585,6 +583,9 @@ _RESULT_TOOLS = {
     "get_current_position": _get_current_position,
     "get_score_for_session": _get_score_for_session,
     "push_audio_chunk": _push_audio_chunk,
+    "start_monitoring": _start_monitoring,
+    "stop_monitoring": _stop_monitoring,
+    "list_sessions": _list_sessions,
 }
 
 
