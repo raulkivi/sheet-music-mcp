@@ -128,8 +128,9 @@ returned. No engine logic.
 ### `scorebook.py`
 
 `ScoreBook`: MusicXML per `audio_id` for `get_score_xml`. It is kept in step with the artifact store by
-construction: `get()` calls `store.info(id)` first (same TTL, same unknown-id error), `remember()` drops
-entries the store has dropped and never holds more than the store's cap (64). It takes the store through a
+construction: `get()` calls `store.info(id)` first (same TTL, same unknown-id error), entries
+live in a core `ExpiringTable` with the store's default TTL (3600 s) and cap (64), so they go when their WAV
+does. It takes the store through a
 getter, so tests can swap the store. No MCP imports.
 
 ### Practice Player flow
