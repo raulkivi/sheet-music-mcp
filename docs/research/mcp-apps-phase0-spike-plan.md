@@ -2,7 +2,8 @@
 
 **Status:** Steps 1–9 and the code side of 12 done on `mcp-apps/phase0` (core 0.3.1 UI module and
 app-only visibility, render-mcp linking and `render_page_svg`, `ui/` kit and Score Viewer with both
-render paths, wheel packaging). Open: CI (step 10), measurements report (11), manual host checks (§6).
+render paths, wheel packaging), plus CI (step 10) and measurements (11). Findings and the provisional
+recommendation: [mcp-apps-phase0-findings.md](mcp-apps-phase0-findings.md). Open: manual host checks (§6).
 **Date:** 2026-10-27
 **Parent:** [mcp-apps-ux-proposal.md](mcp-apps-ux-proposal.md) (roadmap phase 0; decisions D1–D7)
 **Server:** `render-mcp` only, plus the shared `ui` module in `sheet-music-mcp-core` (0.3.1). The other five servers are untouched.
