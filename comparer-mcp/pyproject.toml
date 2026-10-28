@@ -44,6 +44,10 @@ Repository = "https://github.com/raulkivi/sheet-music-mcp"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build]
+# The Diff Viewer HTML is built by ui/ and gitignored (decision D1); artifacts packages it anyway.
+artifacts = ["src/comparer_mcp/ui/assets/*.html"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 addopts = "-m 'not integration'"
