@@ -95,7 +95,8 @@ as without the option: no CC7, no program change, no clicks, the whole score.
 `starting_pitches` MUST return each selected part's first sounding note as text
 (`"S: D5, A: A4, T: F#4, B: D3"`, from core `scores.first_pitches`, parts without notes left out)
 and, when FluidSynth and a soundfont work, a piano clip: each note for 1 s in score order, then
-the chord for 2 s, velocity 80, written as mono 16 kHz 16-bit WAV. Without audio the result MUST
+the chord for 2 s, velocity 80, written as mono 16 kHz 16-bit WAV. The render is cut 0.25 s after
+the chord (faded out), dropping FluidSynth's long release tail. Without audio the result MUST
 still succeed, with `"audio_path": null` and `"audio_unavailable"` (decision W3-6).
 
 ### FR-6 — Capability reporting
@@ -217,7 +218,7 @@ Output (content[0]):
 ```
 
 Then, with audio: an `audio` block (`audio/wav`) when the WAV is at most 200 KB (a 4-part clip
-is about 192 KB), and a `resource_link` to the WAV. Without audio: no other blocks, not an error.
+is 6.25 s, about 200,000 bytes; 5 or more parts are only linked), and a `resource_link` to the WAV. Without audio: no other blocks, not an error.
 
 ### IR-3a — Tool: `describe_score`
 

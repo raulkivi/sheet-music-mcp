@@ -6,7 +6,8 @@ No MCP SDK imports here. Pipeline:
     starting_pitches()  → each selected part's first note (core scores.first_pitches)
     pitches_text()      → "S: D5, A: A4, T: F#4, B: D3"
     clip_midi()         → piano: each note for 1 s in score order, then the chord for 2 s
-    render_clip()       → synthesize_midi() (FluidSynth), then downmix_wav() to mono 16 kHz
+    render_clip()       → synthesize_midi() (FluidSynth), then downmix_wav() to mono 16 kHz,
+                          trimmed to the clip plus a short faded release
 """
 
 import tempfile
@@ -24,6 +25,9 @@ from .engine import synthesize_midi
 CLIP_RATE = 16000  # Hz, mono 16-bit: about 32 KB per second
 NOTE_SECONDS = 1.0
 CHORD_SECONDS = 2.0
+# FluidSynth renders the chord's full release tail (about 2.6 s with FluidR3_GM), which would push a
+# 4-part clip past the 200 KB inline limit; keep this much of it, faded out.
+RELEASE_SECONDS = 0.25
 VELOCITY = 80
 PIANO = 0  # GM program
 _LOWPASS_TAPS = 63
@@ -79,8 +83,17 @@ def clip_midi(midi_numbers: Sequence[int]) -> bytes:
     return music21.midi.translate.streamToMidiFile(score, addEndDelay=False).writestr()
 
 
-def render_clip(midi_bytes: bytes, output_path: Optional[str] = None) -> tuple[str, float]:
+def clip_seconds(note_count: int) -> float:
+    """Length of a clip of ``note_count`` notes: one second each, then the chord."""
+    return note_count * NOTE_SECONDS + CHORD_SECONDS
+
+
+def render_clip(
+    midi_bytes: bytes, output_path: Optional[str] = None, *, seconds: Optional[float] = None
+) -> tuple[str, float]:
     """Render the clip with FluidSynth and write it as mono 16 kHz 16-bit WAV.
+
+    With ``seconds`` (the clip's musical length), the render is cut ``RELEASE_SECONDS`` after it.
 
     Written to ``output_path`` (already confined by the caller) or to a new
     ``<output root>/audio/starting-pitches-<timestamp>.wav``, which is only created once the
@@ -91,14 +104,19 @@ def render_clip(midi_bytes: bytes, output_path: Optional[str] = None) -> tuple[s
         rendered = str(Path(tmp) / "clip.wav")
         synthesize_midi(midi_bytes, rendered)
         target = output_path or str(new_output_path("starting-pitches", ".wav", subdir="audio"))
-        return target, downmix_wav(rendered, target)
+        max_seconds = seconds + RELEASE_SECONDS if seconds is not None else None
+        return target, downmix_wav(rendered, target, max_seconds=max_seconds)
 
 
-def downmix_wav(source: str, target: str, *, rate: int = CLIP_RATE) -> float:
+def downmix_wav(
+    source: str, target: str, *, rate: int = CLIP_RATE, max_seconds: Optional[float] = None
+) -> float:
     """Write ``source`` (PCM WAV, any channels and rate) as mono ``rate`` Hz 16-bit to ``target``.
 
     Channels are averaged, the signal is low-passed below the new Nyquist frequency when the rate
-    goes down, then resampled by linear interpolation. Returns the duration in seconds.
+    goes down, then resampled by linear interpolation. A longer signal is cut at ``max_seconds``,
+    its last ``RELEASE_SECONDS`` faded out linearly; a shorter one is not padded. Returns the
+    duration in seconds.
     """
     import numpy as np
 
@@ -114,6 +132,11 @@ def downmix_wav(source: str, target: str, *, rate: int = CLIP_RATE) -> float:
     count = round(len(mono) * rate / source_rate)
     positions = np.arange(count) * (source_rate / rate)
     resampled = np.interp(positions, np.arange(len(mono)), mono)
+    if max_seconds is not None and count > round(max_seconds * rate):
+        count = round(max_seconds * rate)
+        fade = min(count, round(RELEASE_SECONDS * rate))
+        resampled = resampled[:count]
+        resampled[count - fade:] *= np.linspace(1.0, 0.0, fade)
     pcm = np.clip(np.round(resampled), -32768, 32767).astype("<i2")
 
     Path(target).parent.mkdir(parents=True, exist_ok=True)

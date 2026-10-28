@@ -263,7 +263,7 @@ Waves 1–3 ship together (W3-8):
 | core | 289 → 407 |
 | omr | 164 (+48 skipped), core constraint only |
 | render | 147 → 169 |
-| synth | 158 → 303 |
+| synth | 158 → 306 |
 | abc | 140 → 161 |
 | pitch | 235 → 293 (+2 skipped) |
 | comparer | 239 → 279 |
@@ -295,6 +295,12 @@ unless listed):
   first, so synth's count-in marks go at offset 0 of the first part.
 - A starting-pitch clip at FluidSynth's 44.1 kHz stereo is about 1 MB; mono 16 kHz brings a 4-part
   clip under the 200 KB inline limit.
+
+**Verified after the merge** (FluidSynth and FluidR3_GM installed in the dev container): the synth
+audio integration tests pass; every server answers real tool calls over stdio. Two fixes came out of
+it: the real `starting_pitches` clip was 8.6 s (275 KB, never inline) because FluidSynth renders the
+chord's release tail, so it is now cut 0.25 s after the chord (6.25 s for four parts); and the audio
+integration tests read `SYNTH_SOUNDFONT_PATH` after an autouse fixture had removed it.
 
 **Follow-ups:**
 

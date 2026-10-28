@@ -115,8 +115,9 @@ No MCP imports; each step is a no-op at its default.
 | `starting_pitches(musicxml, parts)` | Core `scores.first_pitches`, filtered with `resolve_parts` against the core's part list |
 | `pitches_text(entries)` | `"S: D5, A: A4, T: F#4, B: D3"` (parts without notes left out) |
 | `clip_midi(midi_numbers)` | Piano, 60 BPM: each note 1 quarter (1 s), then the chord for 2 s, velocity 80, no end delay |
-| `render_clip(midi_bytes, output_path)` | `synthesize_midi` into a temp WAV, then `downmix_wav` to the target (new `audio/starting-pitches-<timestamp>.wav` only after rendering worked) |
-| `downmix_wav(source, target)` | numpy: average channels, 63-tap windowed-sinc low-pass, linear resample to 16 kHz, 16-bit mono via stdlib `wave` |
+| `clip_seconds(note_count)` | `note_count × 1 s + 2 s` (the chord) |
+| `render_clip(midi_bytes, output_path, *, seconds)` | `synthesize_midi` into a temp WAV, then `downmix_wav(..., max_seconds=seconds + RELEASE_SECONDS)` to the target (new `audio/starting-pitches-<timestamp>.wav` only after rendering worked) |
+| `downmix_wav(source, target, *, max_seconds)` | numpy: average channels, 63-tap windowed-sinc low-pass, linear resample to 16 kHz, cut at `max_seconds` with the last `RELEASE_SECONDS` (0.25 s) faded out, 16-bit mono via stdlib `wave`. FluidSynth renders about 2.6 s of release tail after the chord, which would push a 4-part clip to 275 KB |
 
 ### `utils.py`
 
@@ -197,7 +198,7 @@ call_tool("starting_pitches", {musicxml | musicxml_path, parts, output_path})
   ├─ clip.starting_pitches(musicxml, parts) → first_pitches entries (score order)
   ├─ payload = {text, parts, audio_path: null, duration_seconds: null}
   ├─ no pitched part → payload.audio_unavailable, return [json]
-  ├─ clip.render_clip(clip.clip_midi(midis), output_path)
+  ├─ clip.render_clip(clip.clip_midi(midis), output_path, seconds=clip.clip_seconds(len(midis)))
   │     └─ ProcessingError (no soundfont / FluidSynth / render failure)
   │           → payload.audio_unavailable = reason, return [json]   (not an error, W3-6)
   └─ return [json, audio_block(path) if ≤ 200 KB, file_link(path, "audio/wav")]
