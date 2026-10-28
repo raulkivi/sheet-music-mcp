@@ -53,3 +53,7 @@ markers = [
 
 [tool.uv.sources]
 sheet-music-mcp-core = { path = "../sheet-music-mcp-core", editable = true }
+
+[tool.hatch.build]
+# The ABC Workbench HTML is built by ui/ and gitignored (decision D1); artifacts packages it anyway.
+artifacts = ["src/musicxml_abc_mcp/ui/assets/*.html"]

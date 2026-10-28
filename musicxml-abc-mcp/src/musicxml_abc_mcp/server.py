@@ -4,7 +4,7 @@ import logging
 
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import TextContent, Tool, ToolAnnotations
+from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from sheet_music_mcp_core.content import error_content, processing_error_content
 from sheet_music_mcp_core.measures import MEASURES_PROPERTY
@@ -18,10 +18,21 @@ from sheet_music_mcp_core.references import (
     load_score,
     score_input_properties,
 )
-from sheet_music_mcp_core.wiring import make_handlers
+from sheet_music_mcp_core.ui import PackageAssetSource, UiRegistry, UiResource
+from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 
 from . import __version__
+from .abc_store import AbcStore
 from .engine import ProcessingError, abc_to_musicxml, health_check, musicxml_to_abc, validate_abc
+from .presenter import (
+    ABC_OUTPUT_SCHEMA,
+    CONVERSION_OUTPUT_SCHEMA,
+    VALIDATION_OUTPUT_SCHEMA,
+    present_abc,
+    present_conversion,
+    present_stored_abc,
+    present_validation,
+)
 from .utils import validate_abc_str, validate_musicxml
 
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +50,21 @@ INSTRUCTIONS = (
     "Prefer musicxml_path over inline musicxml text, pass on the musicxml_path that "
     "abc_to_musicxml returns for large scores, and use describe_score to learn part IDs cheaply."
 )
+
+ABC_WORKBENCH = UiResource(
+    "ui://abc/workbench",
+    "abc-workbench.html",
+    "ABC Workbench",
+    "Shows the model's ABC edit against the original, validates ABC as you type, and converts the accepted text to MusicXML.",
+)
+
+# Reads the HTML packaged under musicxml_abc_mcp/ui/assets/; tests replace ui_registry with
+# in-memory assets. Without a UI build the workbench is hidden and the tools carry no _meta.ui.
+DEFAULT_UI_REGISTRY = UiRegistry([ABC_WORKBENCH], PackageAssetSource("musicxml_abc_mcp"))
+ui_registry = DEFAULT_UI_REGISTRY
+
+# The ABC each musicxml_to_abc call produced, so the workbench can show it as the "original".
+abc_store = AbcStore()
 
 
 def _musicxml_input_properties() -> dict:
@@ -81,6 +107,8 @@ async def list_tools():
                 },
                 **exactly_one("musicxml", "musicxml_path"),
             },
+            output_schema=ABC_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(ABC_WORKBENCH),
         ),
         Tool(
             name="abc_to_musicxml",
@@ -106,6 +134,8 @@ async def list_tools():
                 },
                 "required": ["abc"],
             },
+            output_schema=CONVERSION_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(ABC_WORKBENCH),
         ),
         Tool(
             name="validate_abc",
@@ -125,6 +155,26 @@ async def list_tools():
                 },
                 "required": ["abc"],
             },
+            output_schema=VALIDATION_OUTPUT_SCHEMA,
+        ),
+        Tool(
+            name="get_abc",
+            title="ABC of an export",
+            annotations=ToolAnnotations(**READ_ONLY),
+            description=(
+                "For the ABC Workbench app only: the ABC an earlier musicxml_to_abc call "
+                "returned, so the app can show it as the original next to the model's edit. "
+                "Takes an abc_id (omit it for the latest export), never a path."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "abc_id": {"type": "string", "description": "abc_id from musicxml_to_abc"},
+                },
+                "additionalProperties": False,
+            },
+            output_schema=ABC_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(ABC_WORKBENCH, app_only=True),
         ),
         Tool(
             name="list_capabilities",
@@ -157,55 +207,100 @@ async def list_tools():
     ]
 
 
-async def call_tool(name: str, arguments: dict, ctx=None):
-    if name == "musicxml_to_abc":
-        try:
-            musicxml = await load_score(arguments, ctx)
-        except ProcessingError as e:
-            return processing_error_content(e)
-        ok, err = validate_musicxml(musicxml)
-        if not ok:
-            return error_content(err, "INVALID_INPUT")
+def _error(content: list) -> CallToolResult:
+    # isError, so clients skip output_schema validation of the absent structured content.
+    return CallToolResult(content=content, is_error=True)
 
-        try:
-            part = aliased(arguments, "part", "part_id")  # optional
-            result = musicxml_to_abc(musicxml, part, arguments.get("measures"))
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
-        except ProcessingError as e:
-            return processing_error_content(e)
-        except Exception as e:
-            logger.error("musicxml_to_abc unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
-    elif name == "abc_to_musicxml":
-        abc = arguments.get("abc", "")
+def _result(presented: tuple[list, dict]) -> CallToolResult:
+    content, structured = presented
+    return CallToolResult(content=content, structured_content=structured)
 
-        ok, err = validate_abc_str(abc)
-        if not ok:
-            return error_content(err, "INVALID_INPUT")
 
-        try:
-            result = abc_to_musicxml(abc)
-            return deliver_score(result, field="musicxml", mode=arguments.get("return"), stem="from-abc")
-        except ProcessingError as e:
-            return processing_error_content(e)
-        except Exception as e:
-            logger.error("abc_to_musicxml unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
+async def _musicxml_to_abc(arguments: dict, ctx) -> CallToolResult:
+    try:
+        musicxml = await load_score(arguments, ctx)
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    ok, err = validate_musicxml(musicxml)
+    if not ok:
+        return _error(error_content(err, "INVALID_INPUT"))
 
-    elif name == "validate_abc":
-        abc = arguments.get("abc", "")
-        # validate_abc handles empty string itself
-        try:
-            result = validate_abc(abc)
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
-        except ProcessingError as e:
-            return processing_error_content(e)
-        except Exception as e:
-            logger.error("validate_abc unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
+    try:
+        part = aliased(arguments, "part", "part_id")  # optional
+        result = musicxml_to_abc(musicxml, part, arguments.get("measures"))
+        # Remembered for every client: the id is cheap, and only the app ever asks for it.
+        return _result(present_abc(result, abc_store.put(result)))
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("musicxml_to_abc unexpected error: %s", e)
+        return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
 
-    elif name == "list_capabilities":
+
+async def _abc_to_musicxml(arguments: dict, ctx) -> CallToolResult:
+    abc = arguments.get("abc", "")
+
+    ok, err = validate_abc_str(abc)
+    if not ok:
+        return _error(error_content(err, "INVALID_INPUT"))
+
+    try:
+        result = abc_to_musicxml(abc)
+        content = deliver_score(result, field="musicxml", mode=arguments.get("return"), stem="from-abc")
+        return _result(present_conversion(content, result))
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("abc_to_musicxml unexpected error: %s", e)
+        return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
+
+
+async def _validate_abc(arguments: dict, ctx) -> CallToolResult:
+    # validate_abc handles an empty string itself
+    try:
+        return _result(present_validation(validate_abc(arguments.get("abc", ""))))
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("validate_abc unexpected error: %s", e)
+        return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
+
+
+async def _get_abc(arguments: dict, ctx) -> CallToolResult:
+    try:
+        abc_id, stored = abc_store.fetch(arguments.get("abc_id"))
+        return _result(present_stored_abc(stored, abc_id))
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("get_abc unexpected error: %s", e)
+        return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
+
+
+_RESULT_TOOLS = {
+    "musicxml_to_abc": _musicxml_to_abc,
+    "abc_to_musicxml": _abc_to_musicxml,
+    "validate_abc": _validate_abc,
+    "get_abc": _get_abc,
+}
+
+
+async def call_tool(name: str, arguments: dict, ctx=None) -> list:
+    """The tool's content blocks: what every client sees, structured content aside."""
+    return (await call_tool_result(name, arguments, ctx)).content
+
+
+async def call_tool_result(name: str, arguments: dict, ctx=None) -> CallToolResult:
+    """The full result the server sends, ``structuredContent`` included."""
+    if name in _RESULT_TOOLS:
+        return await _RESULT_TOOLS[name](arguments, ctx)
+    return CallToolResult(content=await _plain_tool(name, arguments, ctx))
+
+
+async def _plain_tool(name: str, arguments: dict, ctx) -> list:
+    """Tools without a UI: content blocks only."""
+    if name == "list_capabilities":
         backend_version = "unknown"
         try:
             import music21
@@ -228,6 +323,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
                 "list_capabilities",
                 "health_check",
                 "describe_score",
+                "get_abc",
             ],
             "backend": "music21",
             "backend_version": backend_version,
@@ -256,13 +352,26 @@ async def call_tool(name: str, arguments: dict, ctx=None):
     raise ValueError(f"Unknown tool: {name}")
 
 
-_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, pass_context=True, logger=logger)
+class _CurrentUiRegistry:
+    """Serves whichever registry ``ui_registry`` holds at request time, so tests can swap it."""
+
+    def list_resources(self):
+        return ui_registry.list_resources()
+
+    def read(self, uri: str):
+        return ui_registry.read(uri)
+
+
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool_result, pass_context=True, logger=logger)
+_on_list_resources, _on_read_resource = make_resource_handlers(_CurrentUiRegistry(), logger=logger)
 
 app = Server(
     "musicxml-abc-mcp",
     instructions=INSTRUCTIONS,
     on_list_tools=_on_list_tools,
     on_call_tool=_on_call_tool,
+    on_list_resources=_on_list_resources,
+    on_read_resource=_on_read_resource,
 )
 
 
@@ -281,7 +390,7 @@ def main():
 
     logger.info(
         "musicxml-abc-mcp ready. Tools: musicxml_to_abc, abc_to_musicxml, "
-        "validate_abc, list_capabilities, health_check, describe_score"
+        "validate_abc, list_capabilities, health_check, describe_score (app-only: get_abc)"
     )
 
     async def _run():

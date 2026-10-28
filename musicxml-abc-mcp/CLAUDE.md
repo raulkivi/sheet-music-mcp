@@ -6,7 +6,7 @@ Converts between MusicXML and ABC notation. ABC is compact and text-based — Cl
 edit it directly in its context window, which is impractical with verbose MusicXML.
 
 **Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references) + UX Wave 3 (`measures`) complete.
-161 unit tests pass (`-m "not integration"`) + 4 integration.
+214 unit tests pass (`-m "not integration"`) + 4 integration. MCP Apps ABC Workbench server side done (`structuredContent`, output schemas, app-only `get_abc`); the page is not built yet.
 
 ---
 
@@ -14,7 +14,7 @@ edit it directly in its context window, which is impractical with verbose MusicX
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v               # 161 unit tests (integration deselected)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v               # 214 unit tests (integration deselected)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration # round-trip conversion tests
 ```
 
@@ -27,6 +27,8 @@ Install dependencies: `uv sync --extra dev` (note: `--extra dev`, not `--group d
 | File | Purpose |
 |------|---------|
 | `src/musicxml_abc_mcp/server.py` | MCP tool definitions and handlers |
+| `src/musicxml_abc_mcp/presenter.py` | `structuredContent` + output schemas for the ABC Workbench tools |
+| `src/musicxml_abc_mcp/abc_store.py` | `AbcStore`: bounded, expiring `abc_id` handles to `musicxml_to_abc` results (no MCP imports) |
 | `src/musicxml_abc_mcp/engine.py` | Conversion pipeline + custom ABC serializer (no MCP imports) |
 | `src/musicxml_abc_mcp/utils.py` | Input validation helpers |
 | `docs/HANDOVER.md` | Status, remaining work, definition of done |
@@ -46,6 +48,7 @@ Install dependencies: `uv sync --extra dev` (note: `--extra dev`, not `--group d
 | `list_capabilities` | Server metadata and format support |
 | `health_check` | MusicXML → ABC → MusicXML round-trip self-test |
 | `describe_score` | Shared core tool: title, key, time, tempo, parts (`P1`…), ranges, measures, duration |
+| `get_abc` | App-only: the ABC of an earlier `musicxml_to_abc` by `abc_id` (omit for the latest); no paths |
 
 ---
 
@@ -107,6 +110,14 @@ asyncio.run(_run())
   music21 reads as a MetronomeMark with only `numberSounding`, so `Q:` falls back to it
   (`_tempo_number`). The serializer has no pickup or bar-number logic, so a cut starting at bar 3
   needs no special case.
+- **MCP Apps ABC Workbench.** `musicxml_to_abc` and `abc_to_musicxml` link `ui://abc/workbench`
+  only when `musicxml_abc_mcp/ui/assets/abc-workbench.html` is packaged (gitignored, shipped via
+  hatch `artifacts`); tests use the `packaged_ui` fixture in `conftest.py`. `content` is pinned by
+  `tests/golden/abc_content.json` (`ABC_GOLDEN_UPDATE=1` re-records it; music21's random part ids
+  are masked). `structuredContent` never holds a MusicXML score: `abc_to_musicxml` reports
+  `{warnings, delivery, musicxml_bytes}`. Every `musicxml_to_abc` success stores its result in
+  `server.abc_store` under a fresh `abc_id` (only in `structuredContent`, never `content`); the
+  app-only `get_abc` returns it. Tests get a fresh store from an autouse fixture.
 - **`X:` header required.** music21's ABC parser requires the tune-number header. It adds it
   automatically on output but may fail to parse input that lacks it.
 
