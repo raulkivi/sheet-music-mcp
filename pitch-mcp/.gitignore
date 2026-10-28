@@ -1,2 +1,0 @@
-# Built by ui/ (npm run build); shipped through pyproject [tool.hatch.build] artifacts
-src/pitch_mcp/ui/assets/*.html
