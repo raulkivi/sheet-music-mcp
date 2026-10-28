@@ -137,6 +137,8 @@ class ScoreSession:
         # A cut score's timeline starts at its first selected bar; measures keep printed numbers.
         # select_measures validates the range itself, so a reversed one gets the score's bars as hint
         musicxml_str = select_measures(musicxml_str, measures)
+        # Kept so an app can show the bars being practised (get_session_score).
+        self.musicxml = musicxml_str
         self._first_measure = measures[0] if measures is not None else 1
 
         try:
@@ -179,6 +181,11 @@ class ScoreSession:
     @property
     def part_name(self) -> str:
         return self._part_name
+
+    @property
+    def tempo_bpm(self) -> float:
+        """The tempo the session follows: the start() override, else the score's own."""
+        return self._tempo_bpm or self._nominal_bpm
 
     @property
     def is_monitoring(self) -> bool:
@@ -739,6 +746,30 @@ def start_practice(
         _discard(loaded["session_id"])
         raise
     return {**loaded, **started}
+
+
+def describe_session(session_id: str) -> dict:
+    """An open session's facts for an app: ids, size and the tempo it follows.
+
+    Not counted as activity; callers have just opened or used the session.
+    """
+    session = _registry.get(session_id)
+    if session is None:
+        raise _session_not_found(session_id)
+    return {
+        "session_id": session.session_id,
+        "part_id": session.part_id,
+        "part_name": session.part_name,
+        "measure_count": session.measure_count,
+        "duration_seconds": round(session.duration_seconds, 2),
+        "tempo_bpm": session.tempo_bpm,
+    }
+
+
+def get_session_score(session_id: str) -> dict:
+    """The MusicXML an open session practises (cut to ``measures`` if it was)."""
+    session = _active_session(session_id)
+    return {"session_id": session.session_id, "musicxml": session.musicxml}
 
 
 def _discard(session_id: str) -> None:

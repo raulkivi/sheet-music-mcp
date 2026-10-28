@@ -475,9 +475,15 @@ def recognize_images(image_paths: list[str], engine: str = "oemer") -> dict[str,
             "error_code": "PROCESSING_FAILED",
         }
 
+    pages = [
+        {"index": i, "staves_detected": r["metadata"]["staves_detected"], "measures": r["metadata"]["measures"]}
+        for i, r in enumerate(page_results, start=1)
+    ]
+
     if len(page_results) == 1:
         result = page_results[0]
         result["metadata"]["page_count"] = 1
+        result["_pages"] = pages
         return _with_warnings(result, warnings)
 
     merged_xml = _merge_musicxml_pages([r["musicxml"] for r in page_results])
@@ -493,6 +499,8 @@ def recognize_images(image_paths: list[str], engine: str = "oemer") -> dict[str,
             "processing_time_ms": total_time,
             "engine": engine,
         },
+        # Internal: the server moves this into structuredContent and drops it from the text.
+        "_pages": pages,
     }, warnings)
 
 

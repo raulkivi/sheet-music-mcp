@@ -1,0 +1,98 @@
+{
+  "analyze": [
+    {
+      "text": "{\n  \"part_id\": \"P1\",\n  \"part_name\": \"Soprano\",\n  \"measures_covered\": 2,\n  \"avg_accuracy_cents\": 12.5,\n  \"note_accuracy\": [\n    {\n      \"measure\": 1,\n      \"beat\": 1.0,\n      \"expected\": \"C4\",\n      \"expected_hz\": 261.63,\n      \"sung_hz\": 258.0,\n      \"accuracy_cents\": -24,\n      \"status\": \"on_pitch\"\n    },\n    {\n      \"measure\": 2,\n      \"beat\": 1.0,\n      \"expected\": \"D4\",\n      \"expected_hz\": 293.66,\n      \"sung_hz\": null,\n      \"accuracy_cents\": null,\n      \"status\": \"no_signal\"\n    }\n  ],\n  \"accuracy_histogram\": {\n    \"on_pitch\": 1,\n    \"sharp\": 0,\n    \"flat\": 0,\n    \"no_signal\": 1\n  },\n  \"highlights\": []\n}",
+      "type": "text"
+    }
+  ],
+  "analyze_from_path": [
+    {
+      "text": "{\n  \"part_id\": \"P1\",\n  \"part_name\": \"Soprano\",\n  \"measures_covered\": 2,\n  \"avg_accuracy_cents\": 12.5,\n  \"note_accuracy\": [\n    {\n      \"measure\": 1,\n      \"beat\": 1.0,\n      \"expected\": \"C4\",\n      \"expected_hz\": 261.63,\n      \"sung_hz\": 258.0,\n      \"accuracy_cents\": -24,\n      \"status\": \"on_pitch\"\n    },\n    {\n      \"measure\": 2,\n      \"beat\": 1.0,\n      \"expected\": \"D4\",\n      \"expected_hz\": 293.66,\n      \"sung_hz\": null,\n      \"accuracy_cents\": null,\n      \"status\": \"no_signal\"\n    }\n  ],\n  \"accuracy_histogram\": {\n    \"on_pitch\": 1,\n    \"sharp\": 0,\n    \"flat\": 0,\n    \"no_signal\": 1\n  },\n  \"highlights\": []\n}",
+      "type": "text"
+    }
+  ],
+  "analyze_missing_audio": [
+    {
+      "text": "{\"error\": \"Audio file not found: '<TMP>/nope.wav'\", \"error_code\": \"FILE_NOT_FOUND\"}",
+      "type": "text"
+    }
+  ],
+  "analyze_no_part": [
+    {
+      "text": "{\"error\": \"part is required.\", \"error_code\": \"INVALID_INPUT\"}",
+      "type": "text"
+    }
+  ],
+  "list_sessions": [
+    {
+      "text": "{\n  \"idle_timeout_minutes\": 10,\n  \"sessions\": [\n    {\n      \"session_id\": \"<SESSION>\",\n      \"part_id\": \"P1\",\n      \"part_name\": \"Soprano\",\n      \"state\": \"loaded\",\n      \"idle_seconds\": 0.0\n    },\n    {\n      \"session_id\": \"<SESSION>\",\n      \"part_id\": \"P2\",\n      \"part_name\": \"Alto\",\n      \"state\": \"loaded\",\n      \"idle_seconds\": 0.0\n    },\n    {\n      \"session_id\": \"<SESSION>\",\n      \"part_id\": \"P1\",\n      \"part_name\": \"Soprano\",\n      \"state\": \"monitoring\",\n      \"idle_seconds\": 0.0\n    }\n  ]\n}",
+      "type": "text"
+    }
+  ],
+  "load_bad_part": [
+    {
+      "text": "{\"error\": \"Part 'Tuba' not found.\", \"error_code\": \"INVALID_PARAMETER\", \"hint\": \"Pass one of the listed part names or IDs.\", \"choices\": [\"Soprano (P1)\"]}",
+      "type": "text"
+    }
+  ],
+  "load_bad_xml": [
+    {
+      "text": "{\"error\": \"Input does not appear to be MusicXML: no <score-partwise> or <score-timewise> root element found.\", \"error_code\": \"INVALID_INPUT\"}",
+      "type": "text"
+    }
+  ],
+  "load_no_part": [
+    {
+      "text": "{\"error\": \"part is required.\", \"error_code\": \"INVALID_INPUT\"}",
+      "type": "text"
+    }
+  ],
+  "load_score": [
+    {
+      "text": "{\n  \"session_id\": \"<SESSION>\",\n  \"part_id\": \"P1\",\n  \"part_name\": \"Soprano\",\n  \"measure_count\": 1,\n  \"duration_seconds\": 2.0\n}",
+      "type": "text"
+    }
+  ],
+  "load_score_measures": [
+    {
+      "text": "{\n  \"session_id\": \"<SESSION>\",\n  \"part_id\": \"P2\",\n  \"part_name\": \"Alto\",\n  \"measure_count\": 2,\n  \"duration_seconds\": 5.33\n}",
+      "type": "text"
+    }
+  ],
+  "position": [
+    {
+      "text": "{\n  \"session_id\": \"<SESSION>\",\n  \"measure\": 1,\n  \"beat\": 1.0,\n  \"expected_note\": \"A4\",\n  \"sung_pitch_hz\": null,\n  \"accuracy_cents\": null,\n  \"status\": \"no_signal\"\n}",
+      "type": "text"
+    }
+  ],
+  "position_invalid_id": [
+    {
+      "text": "{\"error\": \"session_id is empty.\", \"error_code\": \"INVALID_INPUT\"}",
+      "type": "text"
+    }
+  ],
+  "position_unknown": [
+    {
+      "text": "{\"error\": \"Session 'no-such-session' not found. Call load_score first.\", \"error_code\": \"SESSION_NOT_FOUND\"}",
+      "type": "text"
+    }
+  ],
+  "practice_bad_measures": [
+    {
+      "text": "{\"error\": \"Measures 9\\u201312 are outside this score.\", \"error_code\": \"INVALID_PARAMETER\", \"hint\": \"This score has measures 1\\u20136.\"}",
+      "type": "text"
+    }
+  ],
+  "start_practice": [
+    {
+      "text": "{\n  \"session_id\": \"<SESSION>\",\n  \"part_id\": \"P1\",\n  \"part_name\": \"Soprano\",\n  \"measure_count\": 6,\n  \"duration_seconds\": 16.0,\n  \"status\": \"started\"\n}",
+      "type": "text"
+    }
+  ],
+  "stop": [
+    {
+      "text": "{\n  \"session_id\": \"<SESSION>\",\n  \"summary\": {\n    \"measures_covered\": 0,\n    \"avg_accuracy_cents\": null,\n    \"accuracy_histogram\": {\n      \"on_pitch\": 0,\n      \"sharp\": 0,\n      \"flat\": 0,\n      \"no_signal\": 0\n    },\n    \"highlights\": []\n  },\n  \"timed_out\": false\n}",
+      "type": "text"
+    }
+  ]
+}

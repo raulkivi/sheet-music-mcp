@@ -8,7 +8,7 @@ multi-staff SATB scores where oemer flattens or crashes). This is the entry poin
 music pipeline — all other servers consume MusicXML produced here.
 
 **Status:** Phases 1–4 complete, including the Audiveris backend option (2026-08-16), and UX
-Wave 2 (score references). 164 unit tests pass, 48 skipped (all mocked — no real
+Wave 2 (score references). MCP Apps Recognition Review server side is done (`structuredContent`, app-only `get_recognized_score` and `get_source_preview`); the page is not built yet. 267 unit tests pass, 89 skipped (all mocked — no real
 oemer/Audiveris invocation). Integration tests verified against real oemer (2026-08-15);
 oemer's SATB voice-loss is root-caused as an architectural limitation, fixed via the opt-in
 Audiveris engine, not yet the default. See `docs/HANDOVER.md`.
