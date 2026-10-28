@@ -40,6 +40,22 @@ RESTS_IN_ALTO = """<?xml version="1.0" encoding="UTF-8"?>
 </score-partwise>"""
 
 
+def _one_note_parts(count: int) -> str:
+    """A score of ``count`` parts, each a single whole note on a different pitch."""
+    steps = "CDEFGABC"
+    parts = "".join(f'<score-part id="P{i}"><part-name>Voice {i}</part-name></score-part>' for i in range(1, count + 1))
+    music = "".join(
+        f'<part id="P{i}"><measure number="1"><attributes><divisions>1</divisions></attributes>'
+        f"<note><pitch><step>{steps[i - 1]}</step><octave>4</octave></pitch><duration>4</duration>"
+        f"<type>whole</type></note></measure></part>"
+        for i in range(1, count + 1)
+    )
+    return f'<?xml version="1.0"?><score-partwise version="4.0"><part-list>{parts}</part-list>{music}</score-partwise>'
+
+
+EIGHT_PARTS = _one_note_parts(8)
+
+
 @pytest.fixture(autouse=True)
 def output_root(tmp_path, monkeypatch):
     root = tmp_path / "root"
@@ -149,6 +165,26 @@ class TestDownmix:
         peak = max(abs(s) for (s,) in struct.iter_unpack("<h", data))
         assert 7000 < peak <= 8001  # the tone survives at its level
 
+    def test_trims_to_max_seconds_with_a_faded_release(self, tmp_path):
+        # FluidSynth renders the release tail of the last chord (about 2.6 s with FluidR3_GM).
+        src, dst = tmp_path / "in.wav", tmp_path / "out.wav"
+        _write_tone(src, 8.6, rate=44100, channels=2)
+
+        duration = downmix_wav(str(src), str(dst), max_seconds=6.25)
+
+        with wave.open(str(dst)) as w:
+            assert w.getnframes() == 100000  # 6.25 s at 16 kHz
+            samples = [s for (s,) in struct.iter_unpack("<h", w.readframes(w.getnframes()))]
+        assert duration == 6.25
+        assert max(abs(s) for s in samples[-160:]) < 400  # faded out by the end
+        assert max(abs(s) for s in samples[90000:94000]) > 7000  # full level before the release
+
+    def test_shorter_input_is_not_padded(self, tmp_path):
+        src, dst = tmp_path / "in.wav", tmp_path / "out.wav"
+        _write_tone(src, 1.0, rate=44100, channels=2)
+
+        assert abs(downmix_wav(str(src), str(dst), max_seconds=6.25) - 1.0) < 0.001
+
     def test_mono_input(self, tmp_path):
         src, dst = tmp_path / "in.wav", tmp_path / "out.wav"
         _write_tone(src, 0.5, rate=22050, channels=1)
@@ -228,12 +264,22 @@ class TestToolWithAudio:
         _, tracks = read_midi(fake.calls[0])
         assert len([e for t in tracks for e in t.of("note_on")]) == 8
 
-    async def test_large_clip_is_only_linked(self, monkeypatch):
-        monkeypatch.setattr(clip, "synthesize_midi", _fake_synth(8.0))  # 8 s * 32 KB/s > 200 KB
+    async def test_render_tail_is_trimmed_so_four_parts_stay_inline(self, monkeypatch):
+        monkeypatch.setattr(clip, "synthesize_midi", _fake_synth(8.6))  # FluidSynth's release tail
 
         result = await call_tool("starting_pitches", {"musicxml": SATB})
 
+        assert [b.type for b in result] == ["text", "audio", "resource_link"]
+        assert _json(result)["duration_seconds"] == 6.25  # 4 notes + 2 s chord + 0.25 s release
+
+    async def test_large_clip_is_only_linked(self, monkeypatch):
+        # Eight parts: 8 s of notes + 2 s chord + release, 10.25 s * 32 KB/s > 200 KB.
+        monkeypatch.setattr(clip, "synthesize_midi", _fake_synth(12.0))
+
+        result = await call_tool("starting_pitches", {"musicxml": EIGHT_PARTS})
+
         assert [b.type for b in result] == ["text", "resource_link"]
+        assert _json(result)["duration_seconds"] == 10.25
 
     async def test_parts_select_the_clip(self, monkeypatch):
         fake = _fake_synth(1.0)
@@ -321,25 +367,29 @@ def _soundfont() -> str | None:
     return None
 
 
+# Resolved at import: the autouse output_root fixture removes SYNTH_SOUNDFONT_PATH before each test.
+SOUNDFONT = _soundfont()
+
+
 @pytest.mark.integration
-@pytest.mark.skipif(_soundfont() is None, reason="No soundfont: set SYNTH_SOUNDFONT_PATH")
+@pytest.mark.skipif(SOUNDFONT is None, reason="No soundfont: set SYNTH_SOUNDFONT_PATH")
 async def test_real_clip_is_inline_mono_16k(monkeypatch):
-    monkeypatch.setenv("SYNTH_SOUNDFONT_PATH", _soundfont())
+    monkeypatch.setenv("SYNTH_SOUNDFONT_PATH", SOUNDFONT)
 
     result = await call_tool("starting_pitches", {"musicxml": SATB})
 
     data = _json(result)
     assert "audio_unavailable" not in data, data
     assert [b.type for b in result] == ["text", "audio", "resource_link"]  # 4 parts fit in 200 KB
-    assert 5.5 < data["duration_seconds"] < 7.0
+    assert data["duration_seconds"] == 6.25
     with wave.open(data["audio_path"]) as w:
         assert (w.getnchannels(), w.getframerate(), w.getsampwidth()) == (1, 16000, 2)
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(_soundfont() is None, reason="No soundfont: set SYNTH_SOUNDFONT_PATH")
+@pytest.mark.skipif(SOUNDFONT is None, reason="No soundfont: set SYNTH_SOUNDFONT_PATH")
 async def test_real_practice_track(monkeypatch, output_root):
-    monkeypatch.setenv("SYNTH_SOUNDFONT_PATH", _soundfont())
+    monkeypatch.setenv("SYNTH_SOUNDFONT_PATH", SOUNDFONT)
 
     result = await call_tool(
         "synthesize",

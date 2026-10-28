@@ -7,7 +7,7 @@ or any combination) and an optional tempo factor. Returns a WAV file path.
 
 **Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references: `musicxml_path`, `describe_score`)
 + UX Wave 3 (practice tracks: `measures`, `repeat`, count-in/metronome, `timbre`, part gains and
-presets; new `starting_pitches` tool) complete. 302 unit + 10 integration tests (integration needs
+presets; new `starting_pitches` tool) complete. 306 unit + 10 integration tests (integration needs
 a soundfont, libfluidsynth and, for most, the omr-mcp MXL fixtures).
 
 ---
@@ -16,7 +16,7 @@ a soundfont, libfluidsynth and, for most, the omr-mcp MXL fixtures).
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v                          # 302 unit tests (fast)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v                          # 306 unit tests (fast)
 
 # Integration tests require a soundfont
 VIRTUAL_ENV= SYNTH_SOUNDFONT_PATH=/usr/share/sounds/sf2/TimGM6mb.sf2 \
@@ -133,6 +133,12 @@ asyncio.run(_run())
   (no soundfont, no FluidSynth, render failure) becomes `"audio_unavailable"`; the
   `audio/starting-pitches-*.wav` path is only created after rendering worked. Tests patch
   `synth_mcp.clip.synthesize_midi`.
+- **FluidSynth renders the full release tail** (about 2.6 s after the last chord with FluidR3_GM),
+  so `render_clip` cuts the clip 0.25 s after the chord, faded out (`clip_seconds` +
+  `RELEASE_SECONDS`); otherwise a 4-part clip is 275 KB and never inline.
+- **Integration tests resolve the soundfont at import** (`SOUNDFONT` in
+  `test_starting_pitches.py`): the autouse `output_root` fixture deletes `SYNTH_SOUNDFONT_PATH`
+  before each test, so reading the variable inside a test gets nothing.
 - **Running tests:** `VIRTUAL_ENV=` prefix prevents uv from picking up the wrong venv.
 
 ---

@@ -20,7 +20,7 @@ from sheet_music_mcp_core.references import (
 from sheet_music_mcp_core.wiring import make_handlers
 
 from . import __version__
-from .clip import clip_midi, pitches_text, render_clip, starting_pitches
+from .clip import clip_midi, clip_seconds, pitches_text, render_clip, starting_pitches
 from .engine import ProcessingError, extract_midi, parse_parts, resolve_part_ids, synthesize_midi
 from .practice import MAX_COUNT_IN_BARS, MAX_GAIN, MAX_REPEAT, PRESETS, TIMBRES
 from .utils import confine_output_path, generate_output_path, validate_musicxml, validate_tempo_factor
@@ -487,7 +487,9 @@ async def _starting_pitches(arguments: dict, ctx):
         return [TextContent(type="text", text=json.dumps(payload, indent=2))]
 
     try:
-        audio_path, duration = render_clip(clip_midi(numbers), output_path or None)
+        audio_path, duration = render_clip(
+            clip_midi(numbers), output_path or None, seconds=clip_seconds(len(numbers))
+        )
     except ProcessingError as e:
         payload["audio_unavailable"] = str(e)
         return [TextContent(type="text", text=json.dumps(payload, indent=2))]
