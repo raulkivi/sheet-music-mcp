@@ -98,6 +98,65 @@ servers and the orchestration layer (Phase 2 web app).
 
 ---
 
+## Health Reports
+
+Every `health_check` tool returns the core's standard report as `structuredContent`, for the shared
+Setup Doctor app ([proposal §5.7](research/mcp-apps-ux-proposal.md#57-all-servers-setup-doctor)).
+Its text `content` stays as it is.
+
+```json
+{
+  "status": "ready | degraded | not_ready",
+  "checks": [{"name": "Soundfont", "status": "ok | warn | fail", "version": "…", "hint": "…", "fix_snippet": "…", "doc_url": "…"}]
+}
+```
+
+Wiring: build `[HealthCheck(...)]` with MCP-free code (engine or presenter), return
+`health_report(checks)`, declare `output_schema=HEALTH_OUTPUT_SCHEMA`, register
+`setup_doctor_resource("<uri name>")` in the server's `UiRegistry` and link the tool with
+`meta=ui_registry.meta_for(SETUP_DOCTOR)`. Unset fields are omitted, never `null`.
+
+Mapping rules:
+
+- **One check per thing a user installs or configures**: a package, a system library, a file or
+  environment variable, a smoke test. `name` is what the user recognises, not an internal key.
+- **`status`**: `fail` when the main tools cannot work without it; `warn` when an optional feature is
+  off or the first use will be slow but the main tools work; `ok` when it works, or is optional and
+  in its expected default state.
+- **`version`**: the dependency's version when known; sentinels ("unknown", "unavailable") become unset.
+- **`hint`**: one sentence for `warn`/`fail`: what is wrong and what stops working, with the old
+  error text. On `ok` only when the user must know something (a download on first use).
+- **`fix_snippet`**: only text to paste verbatim, a shell command or a client-config fragment.
+- **`doc_url`**: on `warn`/`fail`, `https://github.com/raulkivi/sheet-music-mcp/blob/main/<dir>/TROUBLESHOOTING.md`.
+- **Overall status** is derived, never set: any `fail` is `not_ready`, else any `warn` is
+  `degraded`, else `ready`.
+
+Per server (source → checks, in this order; "omit" means the row is left out):
+
+| Server (URI name) | Source field | Check `name` | `ok` when | otherwise | `hint` (not ok) | `fix_snippet` |
+|---|---|---|---|---|---|---|
+| omr (`omr`) | `omr_engine.health_check()["checks"]["oemer"]` | `oemer` | `status == "ok"`; `version` | `fail` | `oemer is not installed: {error}` | `uv sync` |
+| | `…["model_cache"]` | `oemer model cache` | `status == "ok"` | `warn` | `note` | – |
+| | `…["audiveris"]` | `Audiveris (optional)` | `status` `ok` (with `version`) or `not_installed` (`hint` = `note`) | – | – | – |
+| render (`render`) | `engine.get_health_status()["backend"]` | `Rendering backend` | not None; `version` = `importlib.metadata.version("verovio")` if `"verovio"` | `fail` | `No rendering backend found; render_to_pdf and render_to_image fail.` | `uv add verovio cairosvg` |
+| | `["cairosvg_available"]`, only if `verovio_available` | `cairosvg` | true | `warn` | `PNG and PDF output via Verovio will fail; SVG still works.` | `sudo apt install libcairo2` |
+| synth (`synth`) | `SYNTH_SOUNDFONT_PATH` (probes now inline in `server.py`; move them to an MCP-free function, text unchanged) | `Soundfont` | set and the file exists | `fail` | unset: `SYNTH_SOUNDFONT_PATH is not set; download an SF2 soundfont such as TimGM6mb.sf2 (https://sourceforge.net/projects/timidity/files/).` Missing file: `No soundfont file at {path!r}.` | `"env": {"SYNTH_SOUNDFONT_PATH": "/path/to/TimGM6mb.sf2"}` |
+| | `import fluidsynth` | `FluidSynth` | imports; `version` = `importlib.metadata.version("pyfluidsynth")` | `fail` (`ImportError`/`OSError`) | `FluidSynth could not be loaded: {e}` | `sudo apt install libfluidsynth-dev` |
+| | `import music21` | `music21` | imports; `music21.__version__` | `fail` | `music21 is not installed: {e}` | `uv sync` |
+| abc (`abc`) | `engine.health_check()["checks"]["music21"]` | `music21` | `ok`; `version` | `fail` | `music21 is not installed: {error}` | `uv sync` |
+| | `…["round_trip"]` (omit if absent) | `ABC round trip` | `ok` | `fail` | `MusicXML → ABC → MusicXML smoke test failed: {error}` | – |
+| comparer (`comparer`) | `engine.health_check()["checks"]["music21"]` | `music21` | `ok`; `version` | `fail` | `music21 is not installed: {error}` | `uv sync` |
+| | `…["self_compare"]` (omit if absent) | `Self-comparison` | `ok` | `fail` | `Comparing a score with itself failed: {error}` | – |
+| pitch (`pitch`) | `engine.health_check()["offline_analysis"]` | `librosa (offline analysis)` | `available`; `librosa_version` | `fail` | `librosa is not installed; analyze_recording fails.` | `uv sync` |
+| | `["realtime_monitoring"]` | `Server microphone (PortAudio)` | `available`; `sounddevice_version` | `warn` | `{sounddevice is not installed \| libportaudio2 is missing}; start_monitoring with the server microphone fails. The Practice Coach can still use the browser microphone.` | `uv sync` if not `sounddevice_available`, else `sudo apt install libportaudio2` |
+| | `["realtime_monitoring"]["microphone_detected"]`, only if `available` | `Microphone` | true | `warn` | `No input device found on the server; use the browser microphone instead.` | – |
+
+Overall status changes against today's output: omr with `oemer` missing, abc and comparer
+`degraded` become `not_ready` (nothing works); render with Verovio but no cairosvg, and pitch
+with PortAudio but no input device, become `degraded` (they used to say `ok`).
+
+---
+
 ## Error Response Format
 
 All tools must return errors in this consistent structure (never raise unhandled exceptions to the
@@ -377,11 +436,12 @@ code every server needs, so it is written and tested once.
 | `measures` | `MEASURES_PROPERTY`, `parse_range()`, `printed_numbers()`, `select_measures()`, `MeasureRangeError` (see [Measure Ranges](#measure-ranges)) | no |
 | `artifacts` | Opaque ids for output files that an MCP App reads back in chunks (proposal §5.2, §6.3 rule 3): the `ArtifactStore` protocol (`put(path, kind) -> id`, `info(id) -> ArtifactInfo(artifact_id, kind, byte_length)`, `read_chunk(id, offset, length)`), `FileArtifactStore(output_root=None, ttl_seconds=3600, max_entries=64)`, `InMemoryArtifactStore` (tests; also `put_bytes`), `chunk_payload()` (`{artifact_id, offset, length, byte_length, eof, data_b64}`, the result of every app-only chunk tool), `MAX_CHUNK_BYTES` (1 MiB), `ArtifactError`. The producing tool calls `put` on a file it wrote inside the output root; symlinks anywhere in the path are refused. Ids are random (`secrets.token_urlsafe`), never paths, and live for a fixed TTL from `put` (reads do not extend it), oldest evicted past `max_entries`, all lost on restart. Each read reopens the file with `O_NOFOLLOW` and checks it is the same inode and size inside the root. Unknown, expired or no longer valid ids, a negative or non-integer `offset`/`length`, or `length` over the limit (named in the `hint`) are `INVALID_PARAMETER`; `put` of a missing or non-regular file is `FILE_NOT_FOUND`. Reading at or past the end returns no bytes. The id table is an `expiring.ExpiringTable` | no |
 | `expiring` | `ExpiringTable[K, V](*, ttl_seconds, max_entries, clock=time.monotonic, on_evict=None)`: a bounded, thread-safe map for server state an MCP App refers to by handle. `put(value) -> token` (`secrets.token_urlsafe(24)`), `set(key, value)` (replacing restarts the TTL), `get(key) -> value`, `discard(key)` (never raises), `len()`. The TTL is fixed at insert (reads do not extend it); past `max_entries` the oldest goes first. Every miss (never stored, expired, evicted, discarded, unhashable key) raises `EntryNotFound` (a `KeyError` that carries no key), which the caller maps to its own error, usually `INVALID_PARAMETER`. `on_evict(key, value)` runs for entries the table drops on its own (expiry, cap), not for `discard` or replacement, after the lock is released; its exceptions are logged, not raised | no |
+| `health` | The standard `health_check` report (see [Health Reports](#health-reports)): `HealthCheck(name, status, version=None, hint=None, fix_snippet=None, doc_url=None)` (frozen; `status` is `ok`, `warn` or `fail`, else `ValueError`; `to_dict()` omits unset fields), `health_report(checks) -> {status, checks}` (duplicate names are a `ValueError`), `HEALTH_OUTPUT_SCHEMA`, `setup_doctor_resource(server) -> UiResource` (`ui://<server>/setup-doctor`, asset `setup-doctor.html`, `permissions={"clipboardWrite": {}}`; imports `ui`, and so `mcp`, only when called) | no |
 | `references` | Score input schema helpers, `client_roots()`, `load_score()`, `deliver_score()`, the shared `describe_score` tool | yes |
 | `wiring` | `make_handlers()`: input-schema validation and error results for `Server(...)`; pass the server's own `logger=`. Schema failures (`INVALID_PARAMETER`) and exceptions a tool did not handle (`PROCESSING_FAILED`, or a `ProcessingError`'s own code, hint and choices) come back as `isError` results in the `{error, error_code}` envelope. `make_resource_handlers()` serves a resource provider (a `UiRegistry`) as `on_list_resources` / `on_read_resource`; a failed read is logged and raised as an `MCPError` whose `data` is the envelope plus `uri` (`RESOURCE_NOT_FOUND` as `-32602`, anything else as `-32603`). `on_list_tools` hides app-only tools from clients that do not advertise MCP Apps (`client_supports_ui`); `tools/call` still validates and runs them | yes |
 | `ui` | MCP Apps UI resources: `UI_MIME`, `UI_EXTENSION`, `UiResource(uri, asset, name, description=None, permissions=None, csp=None)` (with `tool_meta(app_only=False)` and `resource_meta()`), `UiRegistry` (`meta_for(resource, app_only=False)`, `list_resources()`, `read()`), `is_app_only(tool)`, the `AssetSource` protocol with `PackageAssetSource` (built HTML under `<package>/ui/assets/`) and `InMemoryAssetSource` (tests), `UiAssetMissing`, `UiResourceNotFound`, `client_supports_ui()`. An app whose HTML is not packaged is hidden: `meta_for()` returns `None` and it is not listed. `app_only=True` adds `visibility: ["app"]` for tools only an app calls (proposal §6.5); without the HTML such a tool keeps the visibility but loses the link, so the model never sees it. `permissions` (`microphone`, `camera`, `geolocation`, `clipboardWrite`) and `csp` (`connectDomains`, `resourceDomains`, `frameDomains`, `baseUriDomains`) follow the ext-apps `McpUiResourceMeta`: pass the SDK's `mcp.server.apps.ResourcePermissions` / `ResourceCsp` or the same JSON as a mapping (unknown keys are a `ValueError`). The registry sends them as `_meta.ui` on both the `resources/list` entry and the `resources/read` contents; an app that declares neither gets no `_meta` | yes |
 
-- Engines may import only the modules without `mcp` (`errors`, `parts`, `params`, `annotations`, `paths`, `scores`, `measures`, `artifacts`, `expiring`). This keeps `engine.py` free of MCP imports.
+- Engines may import only the modules without `mcp` (`errors`, `parts`, `params`, `annotations`, `paths`, `scores`, `measures`, `artifacts`, `expiring`, `health`). This keeps `engine.py` free of MCP imports.
 - Servers depend on `sheet-music-mcp-core>=X.Y,<X.(Y+1)` while the core is 0.x. For development,
   they point uv at the local copy, which `uv build` leaves out of published wheels:
 
