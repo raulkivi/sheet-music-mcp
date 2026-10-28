@@ -330,6 +330,10 @@ omr-mcp/
 │       ├── __init__.py
 │       ├── server.py        ← MCP layer (tool registration, dispatch)
 │       ├── omr_engine.py    ← Business logic (oemer, merge)
+│       ├── presenter.py     ← content + structuredContent, output schemas (MCP Apps)
+│       ├── previews.py      ← source-preview JPEG and job-id table
+│       ├── staff_estimate.py ← staff count from the image
+│       ├── ui/assets/       ← built recognition-review.html (gitignored, packaged)
 │       └── utils.py         ← Input validation, base64, image info
 └── tests/
     ├── test_server.py
@@ -338,3 +342,24 @@ omr-mcp/
     └── test_samples/
         └── pdmx_satb_samples/  ← PNG + MXL fixture pairs
 ```
+
+---
+
+## MCP Apps: Recognition Review
+
+| Module | Role |
+|---|---|
+| `presenter.py` | `present_recognition` / `present_preview`: `content` plus `structuredContent`; the output schemas |
+| `previews.py` | `write_source_preview()` (JPEG of at most 1600 px into the output root) and `SourcePreviews` (job id to per-page artifact ids, bounded) |
+| `staff_estimate.py` | `estimate_staves()`: counts staff lines in the image with numpy; no engine run |
+| `server.py` | `ui_registry`, `artifact_store`, `source_previews`; `call_tool_result` returns `CallToolResult` |
+
+Runtime flow of `recognize_sheet`: decode or take the image path, run the engine off the event loop
+(`_run_with_progress`), then on success `_prepare_review` (preview JPEG and staff count per page, in a
+worker thread), `SourcePreviews.register` (stores each preview, returns `job_id`) and
+`present_recognition`. The app later calls `get_source_preview(job_id, page, offset, length)`, which
+resolves the id to an artifact and returns `chunk_payload(...)`. Neither the id table nor the store
+hands out a path.
+
+`recognize_images()` adds an internal `_pages` list (per-page `staves_detected` and `measures`); the
+server moves it into `structuredContent.pages` and drops it from the text, so `content` is unchanged.

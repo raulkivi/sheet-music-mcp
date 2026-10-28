@@ -16,6 +16,7 @@ EXPECTED = {
     "list_capabilities": ("OMR capabilities", READ_ONLY),
     "list_supported_formats": ("OMR formats (deprecated)", READ_ONLY),
     "health_check": ("OMR health check", READ_ONLY),
+    "get_source_preview": ("Source page preview", READ_ONLY),
 }
 
 # Phrases the instructions must contain: the routing knowledge the model needs up front.

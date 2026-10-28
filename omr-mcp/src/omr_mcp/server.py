@@ -1,13 +1,15 @@
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import TextContent, Tool, ToolAnnotations
+from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE_DOWNLOADS
+from sheet_music_mcp_core.artifacts import MAX_CHUNK_BYTES, FileArtifactStore, chunk_payload
 from sheet_music_mcp_core.content import error_content, file_link, processing_error_content
 from sheet_music_mcp_core.errors import ProcessingError
 from sheet_music_mcp_core.paths import max_score_bytes
 from sheet_music_mcp_core.references import RETURN_PROPERTY, SCORE_MIME_TYPE, deliver_score
 from sheet_music_mcp_core.scores import read_score_file, score_summary
-from sheet_music_mcp_core.wiring import make_handlers
+from sheet_music_mcp_core.ui import PackageAssetSource, UiRegistry, UiResource
+from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 import asyncio
 import json
 import logging
@@ -16,6 +18,9 @@ import time
 
 from . import __version__
 from .omr_engine import recognize_image, recognize_image_to_file, recognize_images, health_check as _engine_health_check
+from .presenter import PREVIEW_OUTPUT_SCHEMA, RECOGNITION_OUTPUT_SCHEMA, present_preview, present_recognition
+from .previews import SourcePreviews, write_source_preview
+from .staff_estimate import estimate_staves
 from .utils import decode_base64_image, SUPPORTED_IMAGE_FORMATS
 
 # Set up logging
@@ -36,6 +41,22 @@ INSTRUCTIONS = (
 MUSICXML_MIME_TYPE = SCORE_MIME_TYPE
 # File name stem of scores that recognize_sheet / recognize_sheets write in 'path' mode.
 RECOGNIZED_STEM = "recognized"
+
+RECOGNITION_REVIEW = UiResource(
+    "ui://omr/recognition-review",
+    "recognition-review.html",
+    "Recognition Review",
+    "Shows the photographed page next to the recognised score and warns when a choir score was flattened.",
+)
+
+# Reads the HTML packaged under omr_mcp/ui/assets/; tests replace ui_registry with in-memory
+# assets. Without a UI build the app is hidden and the tools carry no _meta.ui.
+DEFAULT_UI_REGISTRY = UiRegistry([RECOGNITION_REVIEW], PackageAssetSource("omr_mcp"))
+ui_registry = DEFAULT_UI_REGISTRY
+
+# Source previews live in the output root and are served by opaque id (never by path).
+artifact_store = FileArtifactStore()
+source_previews = SourcePreviews()
 
 
 async def list_tools():
@@ -78,7 +99,9 @@ async def list_tools():
                     **RETURN_PROPERTY,
                 },
                 "required": ["image"]
-            }
+            },
+            output_schema=RECOGNITION_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(RECOGNITION_REVIEW),
         ),
         Tool(
             name="recognize_sheet_to_file",
@@ -135,7 +158,38 @@ async def list_tools():
                     **RETURN_PROPERTY,
                 },
                 "required": ["images"]
-            }
+            },
+            output_schema=RECOGNITION_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(RECOGNITION_REVIEW),
+        ),
+        Tool(
+            name="get_source_preview",
+            title="Source page preview",
+            annotations=ToolAnnotations(**READ_ONLY),
+            description=(
+                "For the Recognition Review app only: a downscaled JPEG (at most 1600 px) of an input "
+                "page of an earlier recognition, read in base64 chunks. Takes the job_id from "
+                "recognize_sheet or recognize_sheets, never a path."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "job_id": {"type": "string", "description": "job_id from a recognition result"},
+                    "page": {"type": "integer", "minimum": 1, "default": 1, "description": "1-based page"},
+                    "offset": {"type": "integer", "minimum": 0, "default": 0, "description": "First byte to read"},
+                    "length": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": MAX_CHUNK_BYTES,
+                        "default": MAX_CHUNK_BYTES,
+                        "description": "Bytes to read",
+                    },
+                },
+                "required": ["job_id"],
+                "additionalProperties": False,
+            },
+            output_schema=PREVIEW_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(RECOGNITION_REVIEW, app_only=True),
         ),
         Tool(
             name="list_capabilities",
@@ -232,104 +286,179 @@ async def _run_with_progress(fn, *args, ctx=None, message_prefix: str, interval_
             related_request_id=ctx.request_id,
         )
 
-async def call_tool(name: str, arguments: dict, ctx=None):
-    if name == "recognize_sheet":
-        image = arguments["image"]
-        format_hint = arguments.get("format")
-        engine = arguments.get("engine", "oemer")
-        input_format = _detect_input_format(image, format_hint)
+def _error(content: list) -> CallToolResult:
+    # isError, so clients skip output_schema validation of the absent structured content.
+    return CallToolResult(content=content, is_error=True)
 
-        logger.info(f"Processing sheet music recognition (format: {input_format}, engine: {engine})")
 
+def _prepare_review(image_paths: list[str]) -> tuple[list, list[int | None]]:
+    """Per page image, its stored-preview file (None if unreadable) and staff count. Blocking."""
+    previews, estimates = [], []
+    for path in image_paths:
         try:
-            if input_format == "base64":
-                # Decode base64 to temporary file
-                success, path_or_error = decode_base64_image(image)
-                if not success:
-                    return error_content(path_or_error, "INVALID_INPUT")
-                image_path = path_or_error
-            else:
-                image_path = image
-
-            result = await _run_with_progress(
-                recognize_image, image_path, engine=engine, ctx=ctx, message_prefix="Running OMR recognition"
-            )
-            return _deliver_recognized(result, arguments.get("return"))
+            previews.append(write_source_preview(path))
         except ProcessingError as e:
-            return processing_error_content(e)
-        except Exception as e:
-            logger.error(f"Error processing image: {str(e)}")
-            return error_content(f"Failed to process image: {str(e)}", "PROCESSING_FAILED")
+            logger.warning("No source preview for %s: %s", path, e)
+            previews.append(None)
+        estimates.append(estimate_staves(path))
+    return previews, estimates
 
-    elif name == "recognize_sheet_to_file":
-        input_path = arguments["input_path"]
-        output_path = arguments.get("output_path")
-        engine = arguments.get("engine", "oemer")
 
-        logger.info(f"Processing sheet music to file: {input_path} (engine: {engine})")
+async def _present_recognition(result: dict, mode, image_paths: list[str]) -> CallToolResult:
+    """content as before plus the Recognition Review's structuredContent; errors are isError."""
+    if "error" in result:
+        return _error(_deliver_recognized(result, mode))
+    # The per-page detail is for structuredContent only; content must stay what it was.
+    text_result = {key: value for key, value in result.items() if key != "_pages"}
+    content = _deliver_recognized(text_result, mode)
+    previews, estimates = await asyncio.to_thread(_prepare_review, image_paths)
+    job_id = source_previews.register(artifact_store, previews)
+    content, structured = present_recognition(
+        result,
+        content,
+        job_id=job_id,
+        previews=source_previews.available_pages(job_id),
+        staff_estimates=estimates,
+    )
+    return CallToolResult(content=content, structured_content=structured)
 
-        try:
-            result = await _run_with_progress(
-                recognize_image_to_file,
-                input_path,
-                output_path,
-                engine=engine,
-                ctx=ctx,
-                message_prefix="Running OMR recognition",
-            )
-            # docs/conventions.md, Result Content. The engine returns (not raises) error dicts.
-            written = result.get("output_path") if "error" not in result else None
-            if "error" not in result:
-                result = {**result, "score_summary": _written_score_summary(written)}
-            content = [TextContent(type="text", text=json.dumps(result, indent=2))]
-            if written and os.path.isfile(written):
-                content.append(file_link(written, MUSICXML_MIME_TYPE))
-            return content
-        except Exception as e:
-            logger.error(f"Error processing image: {str(e)}")
-            return error_content(f"Failed to process image: {str(e)}", "PROCESSING_FAILED")
-    
-    elif name == "recognize_sheets":
-        images = arguments.get("images", [])
-        engine = arguments.get("engine", "oemer")
-        if not isinstance(images, list):
-            return error_content("'images' must be a list", "INVALID_PARAMETER")
 
-        logger.info(f"Processing {len(images)} sheet music page(s) (engine: {engine})")
+async def _recognize_sheet(arguments: dict, ctx) -> CallToolResult:
+    image = arguments["image"]
+    format_hint = arguments.get("format")
+    engine = arguments.get("engine", "oemer")
+    input_format = _detect_input_format(image, format_hint)
 
-        # Resolve any base64 inputs to temp files
-        resolved_paths = []
-        resolution_error = None
-        for img in images:
-            input_format = _detect_input_format(img, None)
-            if input_format == "base64":
-                success, path_or_error = decode_base64_image(img)
-                if not success:
-                    resolution_error = path_or_error
-                    break
-                resolved_paths.append(path_or_error)
-            else:
-                resolved_paths.append(img)
+    logger.info(f"Processing sheet music recognition (format: {input_format}, engine: {engine})")
 
-        if resolution_error:
-            return error_content(resolution_error, "INVALID_INPUT")
+    try:
+        if input_format == "base64":
+            # Decode base64 to temporary file
+            success, path_or_error = decode_base64_image(image)
+            if not success:
+                return _error(error_content(path_or_error, "INVALID_INPUT"))
+            image_path = path_or_error
+        else:
+            image_path = image
 
-        try:
-            result = await _run_with_progress(
-                recognize_images,
-                resolved_paths,
-                engine=engine,
-                ctx=ctx,
-                message_prefix=f"Running OMR recognition on {len(resolved_paths)} page(s)",
-            )
-            return _deliver_recognized(result, arguments.get("return"))
-        except ProcessingError as e:
-            return processing_error_content(e)
-        except Exception as e:
-            logger.error(f"Error processing images: {str(e)}")
-            return error_content(f"Failed to process images: {str(e)}", "PROCESSING_FAILED")
+        result = await _run_with_progress(
+            recognize_image, image_path, engine=engine, ctx=ctx, message_prefix="Running OMR recognition"
+        )
+        return await _present_recognition(result, arguments.get("return"), [image_path])
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error(f"Error processing image: {str(e)}")
+        return _error(error_content(f"Failed to process image: {str(e)}", "PROCESSING_FAILED"))
 
-    elif name in ("list_capabilities", "list_supported_formats"):
+
+async def _recognize_sheet_to_file(arguments: dict, ctx) -> CallToolResult:
+    input_path = arguments["input_path"]
+    output_path = arguments.get("output_path")
+    engine = arguments.get("engine", "oemer")
+
+    logger.info(f"Processing sheet music to file: {input_path} (engine: {engine})")
+
+    try:
+        result = await _run_with_progress(
+            recognize_image_to_file,
+            input_path,
+            output_path,
+            engine=engine,
+            ctx=ctx,
+            message_prefix="Running OMR recognition",
+        )
+        # docs/conventions.md, Result Content. The engine returns (not raises) error dicts.
+        failed = "error" in result
+        written = None if failed else result.get("output_path")
+        if not failed:
+            result = {**result, "score_summary": _written_score_summary(written)}
+        content = [TextContent(type="text", text=json.dumps(result, indent=2))]
+        if written and os.path.isfile(written):
+            content.append(file_link(written, MUSICXML_MIME_TYPE))
+        return CallToolResult(content=content, is_error=failed)
+    except Exception as e:
+        logger.error(f"Error processing image: {str(e)}")
+        return _error(error_content(f"Failed to process image: {str(e)}", "PROCESSING_FAILED"))
+
+
+async def _recognize_sheets(arguments: dict, ctx) -> CallToolResult:
+    images = arguments.get("images", [])
+    engine = arguments.get("engine", "oemer")
+    if not isinstance(images, list):
+        return _error(error_content("'images' must be a list", "INVALID_PARAMETER"))
+
+    logger.info(f"Processing {len(images)} sheet music page(s) (engine: {engine})")
+
+    # Resolve any base64 inputs to temp files
+    resolved_paths = []
+    resolution_error = None
+    for img in images:
+        input_format = _detect_input_format(img, None)
+        if input_format == "base64":
+            success, path_or_error = decode_base64_image(img)
+            if not success:
+                resolution_error = path_or_error
+                break
+            resolved_paths.append(path_or_error)
+        else:
+            resolved_paths.append(img)
+
+    if resolution_error:
+        return _error(error_content(resolution_error, "INVALID_INPUT"))
+
+    try:
+        result = await _run_with_progress(
+            recognize_images,
+            resolved_paths,
+            engine=engine,
+            ctx=ctx,
+            message_prefix=f"Running OMR recognition on {len(resolved_paths)} page(s)",
+        )
+        return await _present_recognition(result, arguments.get("return"), resolved_paths)
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error(f"Error processing images: {str(e)}")
+        return _error(error_content(f"Failed to process images: {str(e)}", "PROCESSING_FAILED"))
+
+
+async def _get_source_preview(arguments: dict, ctx) -> CallToolResult:
+    job_id = arguments.get("job_id")
+    page = arguments.get("page", 1)
+    try:
+        artifact_id = source_previews.artifact_id(job_id, page)
+        chunk = chunk_payload(
+            artifact_store, artifact_id, arguments.get("offset", 0), arguments.get("length", MAX_CHUNK_BYTES)
+        )
+        content, structured = present_preview(job_id, page, chunk)
+        return CallToolResult(content=content, structured_content=structured)
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+
+
+_RESULT_TOOLS = {
+    "recognize_sheet": _recognize_sheet,
+    "recognize_sheet_to_file": _recognize_sheet_to_file,
+    "recognize_sheets": _recognize_sheets,
+    "get_source_preview": _get_source_preview,
+}
+
+
+async def call_tool(name: str, arguments: dict, ctx=None) -> list:
+    """The tool's content blocks: what every client sees, structured content aside."""
+    return (await call_tool_result(name, arguments, ctx)).content
+
+
+async def call_tool_result(name: str, arguments: dict, ctx=None) -> CallToolResult:
+    """The full result the server sends, ``structuredContent`` and ``isError`` included."""
+    if name in _RESULT_TOOLS:
+        return await _RESULT_TOOLS[name](arguments, ctx)
+    return CallToolResult(content=await _plain_tool(name, arguments, ctx))
+
+
+async def _plain_tool(name: str, arguments: dict, ctx=None) -> list:
+    if name in ("list_capabilities", "list_supported_formats"):
         try:
             from importlib.metadata import version as pkg_version
             backend_version = pkg_version("oemer")
@@ -394,13 +523,26 @@ async def call_tool(name: str, arguments: dict, ctx=None):
 
     raise ValueError(f"Unknown tool: {name}")
 
-_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, pass_context=True, logger=logger)
+class _CurrentUiRegistry:
+    """Serves whichever registry ``ui_registry`` holds at request time, so tests can swap it."""
+
+    def list_resources(self):
+        return ui_registry.list_resources()
+
+    def read(self, uri: str):
+        return ui_registry.read(uri)
+
+
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool_result, pass_context=True, logger=logger)
+_on_list_resources, _on_read_resource = make_resource_handlers(_CurrentUiRegistry(), logger=logger)
 
 app = Server(
     "omr-mcp",
     instructions=INSTRUCTIONS,
     on_list_tools=_on_list_tools,
     on_call_tool=_on_call_tool,
+    on_list_resources=_on_list_resources,
+    on_read_resource=_on_read_resource,
 )
 
 

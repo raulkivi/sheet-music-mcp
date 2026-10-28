@@ -7,7 +7,7 @@ in-process) and `audiveris` (opt-in via `engine="audiveris"`, subprocess). Entry
 pipeline — all other servers consume MusicXML produced here.
 
 **Status:** Phases 1–4 code complete, including the Audiveris backend option (shipped 2026-08-16).
-UX Wave 2 (score references) done. 164 unit tests pass (+48 skipped). Integration tests run
+UX Wave 2 (score references) done. 240 unit tests pass (+89 skipped). MCP Apps Recognition Review server side done (`structuredContent`, app-only `get_source_preview`, `staff_systems_estimate`); the page is not built yet. Integration tests run
 against real oemer for the first time (2026-08-15): fixing a 100%-blocking API bug plus pinning
 `onnxruntime` and `opencv-python-headless` took the suite from 0/41 to 20/41 passing. **oemer's default output is not usable for SATB scores** — it
 reads multi-staff systems sequentially instead of simultaneously, so a 4-voice choir score comes
@@ -26,7 +26,7 @@ both root-caused 2026-08-16 (one is the SATB bug itself manifesting as a hard cr
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v                # 164 unit tests (+48 skipped; fast; all subprocess/network calls mocked)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v                # 240 unit tests (+89 skipped; fast; all subprocess/network calls mocked)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration # invokes real oemer (~3–5 min/page)
 ```
 
@@ -40,6 +40,9 @@ Install dependencies: `uv sync`
 |------|---------|
 | `src/omr_mcp/server.py` | MCP tool definitions and handlers |
 | `src/omr_mcp/omr_engine.py` | oemer + Audiveris wrappers, `_ENGINE_RUNNERS` dispatch table (no MCP imports) |
+| `src/omr_mcp/presenter.py` | `structuredContent` and output schemas for the Recognition Review |
+| `src/omr_mcp/previews.py` | Source-preview JPEG and the job-id table |
+| `src/omr_mcp/staff_estimate.py` | Staff count from the image (`staff_systems_estimate`) |
 | `src/omr_mcp/utils.py` | Image validation, base64 helpers |
 | `tests/test_omr.py` | Unit + integration tests |
 | `test_samples/pdmx_satb_samples/` | 10 SATB PNG + MXL ground-truth fixtures |
@@ -57,6 +60,7 @@ Install dependencies: `uv sync`
 | `recognize_sheet` | Image path or base64; optional `engine` ("oemer"\|"audiveris"), `return` ("auto"\|"path"\|"inline") | MusicXML string + metadata; large results (`auto`) as `musicxml_path` + `score_summary` |
 | `recognize_sheet_to_file` | Image path; optional `engine` | MusicXML file path + metadata + `score_summary` |
 | `recognize_sheets` | List of image paths/base64; optional `engine`, `return` | Single merged MusicXML (multi-page); large results as `musicxml_path` + `score_summary` |
+| `get_source_preview` | `job_id`, optional `page`, `offset`, `length` (app-only) | Chunk of a downscaled JPEG of an input page, by opaque id |
 | `list_capabilities` | — | Server capabilities incl. per-engine availability |
 | `list_supported_formats` | — | Deprecated alias for `list_capabilities` |
 | `health_check` | — | Runtime dependency status incl. oemer/model cache/Audiveris |
@@ -131,6 +135,14 @@ asyncio.run(_run())
   so nothing is written to the working directory. Both tools are therefore `WRITES_FILE_DOWNLOADS`.
   Delivery uses `sheet_music_mcp_core.references.deliver_score`; `confine_output_path` in
   `utils.py` is a re-export of the core one.
+
+- **MCP Apps Recognition Review.** `recognize_sheet` / `recognize_sheets` link
+  `ui://omr/recognition-review` only when `omr_mcp/ui/assets/recognition-review.html` is packaged
+  (gitignored, shipped via hatch `artifacts`); tests use the `packaged_ui` and in-memory artifact
+  store fixtures in `conftest.py`. `content` is pinned by `tests/golden/omr_content.json`
+  (`OMR_GOLDEN_UPDATE=1` re-records it). `staff_systems_estimate` lives in `structuredContent` only,
+  never in `content`. `get_source_preview` never takes a path; every input image is re-encoded into
+  the output root first. `pytest` runs with `asyncio_mode = "auto"`.
 
 ---
 

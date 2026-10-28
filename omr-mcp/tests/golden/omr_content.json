@@ -1,0 +1,77 @@
+{
+  "sheet_audiveris": [
+    {
+      "text": "{\n  \"musicxml\": \"<score-partwise><part id='P1'/></score-partwise>\",\n  \"metadata\": {\n    \"source\": \"<TMP>/page.png\",\n    \"staves_detected\": 1,\n    \"measures\": 8,\n    \"processing_time_ms\": 12,\n    \"engine\": \"audiveris\"\n  }\n}",
+      "type": "text"
+    }
+  ],
+  "sheet_auto_path": [
+    {
+      "text": "{\n  \"musicxml_path\": \"<TMP>/scores/recognized-<STAMP>.musicxml\",\n  \"metadata\": {\n    \"source\": \"<TMP>/page.png\",\n    \"staves_detected\": 1,\n    \"measures\": 8,\n    \"processing_time_ms\": 12,\n    \"engine\": \"oemer\"\n  },\n  \"score_summary\": {\n    \"title\": null,\n    \"parts\": [],\n    \"measures\": 0,\n    \"key\": null,\n    \"time\": null,\n    \"tempo_bpm\": null\n  }\n}",
+      "type": "text"
+    },
+    {
+      "mimeType": "application/vnd.recordare.musicxml+xml",
+      "name": "recognized-<STAMP>.musicxml",
+      "size": 21033,
+      "type": "resource_link",
+      "uri": "file://<TMP>/scores/recognized-<STAMP>.musicxml"
+    }
+  ],
+  "sheet_bad_return": [
+    {
+      "text": "{\"error\": \"Unknown return mode 'bogus'.\", \"error_code\": \"INVALID_PARAMETER\", \"choices\": [\"auto\", \"path\", \"inline\"]}",
+      "type": "text"
+    }
+  ],
+  "sheet_engine_error": [
+    {
+      "text": "{\n  \"error\": \"File not found: x\",\n  \"error_code\": \"FILE_NOT_FOUND\"\n}",
+      "type": "text"
+    }
+  ],
+  "sheet_inline": [
+    {
+      "text": "{\n  \"musicxml\": \"<score-partwise><part id='P1'/></score-partwise>\",\n  \"metadata\": {\n    \"source\": \"<TMP>/page.png\",\n    \"staves_detected\": 1,\n    \"measures\": 8,\n    \"processing_time_ms\": 12,\n    \"engine\": \"oemer\"\n  }\n}",
+      "type": "text"
+    }
+  ],
+  "sheets_auto_path": [
+    {
+      "text": "{\n  \"musicxml_path\": \"<TMP>/scores/recognized-<STAMP>.musicxml\",\n  \"metadata\": {\n    \"page_count\": 2,\n    \"staves_detected\": 2,\n    \"measures\": 16,\n    \"processing_time_ms\": 30,\n    \"engine\": \"oemer\"\n  },\n  \"score_summary\": {\n    \"title\": null,\n    \"parts\": [],\n    \"measures\": 0,\n    \"key\": null,\n    \"time\": null,\n    \"tempo_bpm\": null\n  }\n}",
+      "type": "text"
+    },
+    {
+      "mimeType": "application/vnd.recordare.musicxml+xml",
+      "name": "recognized-<STAMP>.musicxml",
+      "size": 21033,
+      "type": "resource_link",
+      "uri": "file://<TMP>/scores/recognized-<STAMP>.musicxml"
+    }
+  ],
+  "sheets_inline": [
+    {
+      "text": "{\n  \"musicxml\": \"<score-partwise><part id='P1'/></score-partwise>\",\n  \"metadata\": {\n    \"page_count\": 2,\n    \"staves_detected\": 2,\n    \"measures\": 16,\n    \"processing_time_ms\": 30,\n    \"engine\": \"oemer\"\n  }\n}",
+      "type": "text"
+    }
+  ],
+  "sheets_not_list": [
+    {
+      "text": "{\"error\": \"'images' must be a list\", \"error_code\": \"INVALID_PARAMETER\"}",
+      "type": "text"
+    }
+  ],
+  "to_file": [
+    {
+      "text": "{\n  \"output_path\": \"<TMP>/out.musicxml\",\n  \"metadata\": {\n    \"source\": \"<TMP>/page.png\",\n    \"staves_detected\": 4,\n    \"measures\": 8,\n    \"processing_time_ms\": 5,\n    \"engine\": \"oemer\"\n  },\n  \"score_summary\": {\n    \"title\": null,\n    \"parts\": [\n      {\n        \"id\": \"P1\",\n        \"name\": null,\n        \"range\": null\n      }\n    ],\n    \"measures\": 0,\n    \"key\": null,\n    \"time\": null,\n    \"tempo_bpm\": null\n  }\n}",
+      "type": "text"
+    },
+    {
+      "mimeType": "application/vnd.recordare.musicxml+xml",
+      "name": "out.musicxml",
+      "size": 48,
+      "type": "resource_link",
+      "uri": "file://<TMP>/out.musicxml"
+    }
+  ]
+}
