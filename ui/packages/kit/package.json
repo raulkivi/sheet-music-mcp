@@ -1,0 +1,21 @@
+{
+  "name": "@sheet-music-mcp/ui-kit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./host/HostBridge": "./src/host/HostBridge.ts",
+    "./host/ExtAppsBridge": "./src/host/ExtAppsBridge.ts",
+    "./host/FakeBridge": "./src/host/FakeBridge.ts",
+    "./theme": "./src/theme.ts",
+    "./score/ScoreView": "./src/score/ScoreView.ts",
+    "./score/paging": "./src/score/paging.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.3.1",
+    "@modelcontextprotocol/core": "2.3.1",
+    "@modelcontextprotocol/ext-apps": "2.0.3",
+    "verovio": "6.3.0",
+    "zod": "4.6.6"
+  }
+}

@@ -1,0 +1,110 @@
+/* Colours and fonts come from theme.ts custom properties (host values or fallbacks). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--color-background-secondary);
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.group.end {
+  margin-left: auto;
+}
+
+button {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--color-ring-primary);
+  outline-offset: 1px;
+}
+
+#page-label,
+#zoom-label {
+  min-width: 4.5em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+#score {
+  padding: 12px;
+  overflow-x: auto;
+}
+
+#score svg {
+  display: block;
+  margin: 0 auto;
+  fill: currentColor;
+}
+
+/* Verovio sets color="black" here; the CSS property wins over the presentation attribute,
+   while notes carrying their own colour attribute (comparer diffs) keep it. */
+#score svg.definition-scale {
+  color: var(--color-text-primary);
+}
+
+#notice,
+#fallback,
+#saved {
+  margin: 12px;
+  color: var(--color-text-secondary);
+}
+
+#fallback {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+#fallback[hidden],
+#notice[hidden],
+#saved[hidden],
+#score[hidden] {
+  display: none;
+}
+
+code {
+  overflow-wrap: anywhere;
+}

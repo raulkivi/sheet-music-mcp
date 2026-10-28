@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Score Viewer</title>
+  </head>
+  <body>
+    <div class="toolbar" role="toolbar" aria-label="Score controls">
+      <div class="group">
+        <button id="prev" type="button" aria-label="Previous page" disabled>&#8249; Prev</button>
+        <span id="page-label" aria-live="polite">Page – / –</span>
+        <button id="next" type="button" aria-label="Next page" disabled>Next &#8250;</button>
+      </div>
+      <div class="group">
+        <button id="zoom-out" type="button" aria-label="Zoom out" disabled>&minus;</button>
+        <span id="zoom-label">100%</span>
+        <button id="zoom-in" type="button" aria-label="Zoom in" disabled>+</button>
+      </div>
+      <div class="group end">
+        <button id="download" type="button" disabled>Download SVG</button>
+        <button id="fullscreen" type="button" aria-pressed="false" hidden>Fullscreen</button>
+      </div>
+    </div>
+    <main id="score" aria-label="Score page"></main>
+    <p id="notice" role="status" hidden></p>
+    <div id="fallback" hidden>
+      <span>If the download did not start, the rendered file is saved on your computer.</span>
+      <button id="ask" type="button">Ask the assistant to open it</button>
+    </div>
+    <footer id="saved" hidden>Saved file: <code id="saved-path"></code></footer>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
