@@ -18,10 +18,9 @@
 
 ### Owner actions before any release
 
-1. Add a PyPI pending publisher for `sheet-music-mcp-core` (workflow `publish.yml`, environment `pypi`).
-2. Tag `sheet-music-mcp-core/v0.2.0` (0.1.0 was never published; skip it).
-3. Bump and tag the servers (one per push): omr 0.3.0, render 0.3.0, synth 0.3.0, musicxml-abc 0.3.0,
-   pitch 0.4.0, comparer 0.3.0. These carry Waves 1 and 2. Changelog notes: [wave 2 §7](ux-wave2-plan.md#7-outcome-and-follow-ups).
+Superseded: Waves 1–3 ship together on core 0.3.0, so 0.2.0 is skipped. See
+[ux-wave3-plan.md §6](ux-wave3-plan.md#6-release-sequencing) for the release order.
+Changelog notes: [wave 2 §7](ux-wave2-plan.md#7-outcome-and-follow-ups).
 
 ### Open items carried over
 

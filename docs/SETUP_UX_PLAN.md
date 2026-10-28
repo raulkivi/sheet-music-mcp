@@ -46,7 +46,7 @@ These are handled by a small per-server `install.sh` that has nothing to do with
 
 | Blocker | Severity | Resolution |
 |---------|----------|------------|
-| ~~No PyPI packages — users must clone the repo and manage paths manually~~ | High | ✅ All five servers published to PyPI; `uvx` handles install |
+| ~~No PyPI packages — users must clone the repo and manage paths manually~~ | High | ✅ All six servers published to PyPI; `uvx` handles install |
 | ~~Must install `uv` manually — not a standard tool~~ | High | ✅ `install.sh` per server installs `uv` |
 | ~~System libs (`libfluidsynth`, `libcairo`, `libportaudio2`) require `apt` commands~~ | High | ✅ `install.sh` per server installs required packages |
 | ~~Must download a soundfont and know the path (synth-mcp)~~ | High | ✅ `install.sh` auto-downloads TimGM6mb.sf2; `soundfonts.md` documents alternatives |
