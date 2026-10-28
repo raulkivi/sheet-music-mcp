@@ -10,7 +10,7 @@ status while a singer sings.
 complete, plus UX Wave 2 (score references: `musicxml_path`, `describe_score`) and UX Wave 3
 (`measures` ranges, `start_practice`, `highlights`), the MCP Apps Practice Coach server side
 (`structuredContent`, app-only `get_score_for_session`) and its browser-microphone mode
-(`start_monitoring` `source: "pushed"`, app-only `push_audio_chunk`). 408 unit
+(`start_monitoring` `source: "pushed"`, app-only `push_audio_chunk`). 438 unit
 (+6 skipped) + 4 integration tests pass (`-m integration`); 2 manual mic tests (`-m manual`)
 require real hardware.
 
@@ -20,7 +20,7 @@ require real hardware.
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v                 # 408 unit tests (integration/manual skipped by default)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v                 # 438 unit tests (integration/manual skipped by default)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration   # offline analysis against the committed fixture pair
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m manual        # real mic tests — skip in CI
 ```

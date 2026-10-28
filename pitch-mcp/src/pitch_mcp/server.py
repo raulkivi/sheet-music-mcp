@@ -8,6 +8,7 @@ from mcp.server import Server
 from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, SESSION_STATE
 from sheet_music_mcp_core.content import error_content, processing_error_content
+from sheet_music_mcp_core.health import HEALTH_OUTPUT_SCHEMA, setup_doctor_resource
 from sheet_music_mcp_core.measures import MEASURES_PROPERTY
 from sheet_music_mcp_core.params import aliased
 from sheet_music_mcp_core.references import (
@@ -21,6 +22,7 @@ from sheet_music_mcp_core.ui import PackageAssetSource, UiRegistry, UiResource
 from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 
 from . import __version__
+from .health import build_health_report
 from .engine import (
     AUDIO_SOURCES,
     MAX_PUSH_SAMPLE_RATE,
@@ -80,9 +82,11 @@ PRACTICE_COACH = UiResource(
     permissions={"microphone": {}},
 )
 
+SETUP_DOCTOR = setup_doctor_resource("pitch")
+
 # Reads the HTML packaged under pitch_mcp/ui/assets/; tests replace ui_registry with in-memory
 # assets. Without a UI build the coach is hidden and the tools carry no _meta.ui.
-DEFAULT_UI_REGISTRY = UiRegistry([PRACTICE_COACH], PackageAssetSource("pitch_mcp"))
+DEFAULT_UI_REGISTRY = UiRegistry([PRACTICE_COACH, SETUP_DOCTOR], PackageAssetSource("pitch_mcp"))
 ui_registry = DEFAULT_UI_REGISTRY
 
 
@@ -349,6 +353,8 @@ async def list_tools():
                 "properties": {},
                 "required": [],
             },
+            output_schema=HEALTH_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(SETUP_DOCTOR),
         ),
     ]
 
@@ -404,10 +410,6 @@ async def _plain_tool(name: str, arguments: dict, ctx=None) -> list:
             "pitch_backend_version": pitch_backend_version,
             "microphone_available": mic_available,
         }
-        return [TextContent(type="text", text=json.dumps(result, indent=2))]
-
-    elif name == "health_check":
-        result = health_check()
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
     raise ValueError(f"Unknown tool: {name}")
@@ -561,6 +563,22 @@ async def _list_sessions(arguments: dict, ctx) -> CallToolResult:
     return _text_result("list_sessions", list_sessions)
 
 
+async def _health_check(arguments: dict, ctx) -> CallToolResult:
+    try:
+        raw = health_check()
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("health_check unexpected error: %s", e)
+        return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
+
+    # The text stays the raw engine dict, byte for byte; the report is added as structured.
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(raw, indent=2))],
+        structured_content=build_health_report(raw),
+    )
+
+
 async def _push_audio_chunk(arguments: dict, ctx) -> CallToolResult:
     session_id = arguments.get("session_id", "")
 
@@ -588,6 +606,7 @@ _RESULT_TOOLS = {
     "start_monitoring": _start_monitoring,
     "stop_monitoring": _stop_monitoring,
     "list_sessions": _list_sessions,
+    "health_check": _health_check,
 }
 
 
