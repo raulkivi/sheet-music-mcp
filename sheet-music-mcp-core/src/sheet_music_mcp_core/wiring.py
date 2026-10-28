@@ -29,6 +29,7 @@ from mcp.types import (
 
 from .content import error_content, processing_error_content
 from .errors import ProcessingError, error_payload
+from .ui import client_supports_ui, is_app_only
 
 _logger = logging.getLogger(__name__)
 
@@ -63,11 +64,17 @@ def make_handlers(
     With ``pass_context=True`` it is called as ``call_tool(name, arguments, ctx)``, for tools that
     need the request context (progress notifications). Failures are logged to ``logger``, the
     server's own logger (docs/conventions.md: logger name = package name).
+
+    App-only tools (``ui.is_app_only``) are listed only for clients that support MCP Apps, so
+    other clients' models never see them (proposal §6.5); ``tools/call`` still finds them.
     """
     log = logger or _logger
 
     async def on_list_tools(ctx, params) -> ListToolsResult:
-        return ListToolsResult(tools=await list_tools())
+        tools = await list_tools()
+        if not client_supports_ui(ctx):
+            tools = [tool for tool in tools if not is_app_only(tool)]
+        return ListToolsResult(tools=tools)
 
     async def on_call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
         arguments = params.arguments or {}

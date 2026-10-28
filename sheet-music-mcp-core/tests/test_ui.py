@@ -6,7 +6,7 @@ import pytest
 from mcp import Client
 from mcp.client import advertise
 from mcp.server import Server
-from mcp.types import ListToolsResult
+from mcp.types import ListToolsResult, Tool
 
 from sheet_music_mcp_core.errors import ProcessingError
 from sheet_music_mcp_core.ui import (
@@ -19,6 +19,7 @@ from sheet_music_mcp_core.ui import (
     UiResource,
     UiResourceNotFound,
     client_supports_ui,
+    is_app_only,
 )
 
 HTML = "<!doctype html><title>viewer</title>"
@@ -37,6 +38,13 @@ def test_constants_follow_the_ext_apps_spec():
 
 def test_tool_meta_points_at_the_resource():
     assert VIEWER.tool_meta() == {"ui": {"resourceUri": "ui://test/viewer"}}
+
+
+def test_app_only_tool_meta_adds_the_visibility():
+    # Proposal §6.5: callable by the app, hidden from the model.
+    assert VIEWER.tool_meta(app_only=True) == {
+        "ui": {"resourceUri": "ui://test/viewer", "visibility": ["app"]}
+    }
 
 
 def test_ui_resource_is_immutable():
@@ -78,6 +86,37 @@ def test_meta_for_a_packaged_asset():
 def test_meta_for_a_missing_asset_is_none():
     # The spec requires the referenced resource to exist, so the tool carries no UI link.
     assert _registry().meta_for(PLAYER) is None
+
+
+def test_app_only_meta_for_a_packaged_asset():
+    assert _registry().meta_for(VIEWER, app_only=True) == VIEWER.tool_meta(app_only=True)
+
+
+def test_app_only_meta_without_the_asset_keeps_the_tool_hidden():
+    # A source checkout must not hand the model a tool meant only for an app; resourceUri is
+    # optional in McpUiToolMeta, so the link alone is dropped.
+    assert _registry().meta_for(PLAYER, app_only=True) == {"ui": {"visibility": ["app"]}}
+
+
+def _tool(meta):
+    return Tool(name="t", input_schema={"type": "object"}, meta=meta)
+
+
+@pytest.mark.parametrize(
+    "meta, expected",
+    [
+        (None, False),
+        ({}, False),
+        ({"ui": {"resourceUri": "ui://test/viewer"}}, False),
+        ({"ui": {"visibility": ["model", "app"]}}, False),
+        ({"ui": {"visibility": ["model"]}}, False),
+        ({"ui": {"visibility": ["app"]}}, True),
+        ({"ui": {"resourceUri": "ui://test/viewer", "visibility": ["app"]}}, True),
+        ({"ui": "not a mapping"}, False),
+    ],
+)
+def test_is_app_only(meta, expected):
+    assert is_app_only(_tool(meta)) is expected
 
 
 def test_meta_for_an_unregistered_resource_is_a_programming_error():

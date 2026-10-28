@@ -6,11 +6,12 @@ import json
 import logging
 
 from mcp import Client, MCPError
+from mcp.client import advertise
 from mcp.server import Server
 from mcp.types import INTERNAL_ERROR, INVALID_PARAMS, CallToolResult, TextContent, Tool
 
 from sheet_music_mcp_core.errors import ProcessingError
-from sheet_music_mcp_core.ui import UI_MIME, InMemoryAssetSource, UiRegistry, UiResource
+from sheet_music_mcp_core.ui import UI_EXTENSION, UI_MIME, InMemoryAssetSource, UiRegistry, UiResource
 from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 
 ECHO = Tool(
@@ -385,3 +386,64 @@ def test_logs_resource_failures_under_the_core_logger_by_default(caplog):
 
     [record] = [r for r in caplog.records if "failed" in r.getMessage()]
     assert record.name == "sheet_music_mcp_core.wiring"
+
+
+# --- App-only tools (proposal §6.5) -------------------------------------------------------------
+
+PAGE_SVG = Tool(
+    name="page_svg",
+    description="Called by the viewer only",
+    input_schema={"type": "object", "properties": {"page": {"type": "integer"}}, "required": ["page"]},
+    meta=VIEWER.tool_meta(app_only=True),
+)
+SHARED = Tool(
+    name="shared",
+    description="Model and app",
+    input_schema={"type": "object"},
+    meta={"ui": {"resourceUri": VIEWER.uri, "visibility": ["model", "app"]}},
+)
+UI_CLIENT = {"extensions": [advertise(UI_EXTENSION, {"mimeTypes": [UI_MIME]})]}
+
+
+def _app_server():
+    async def list_tools():
+        return [ECHO, PAGE_SVG, SHARED]
+
+    async def call_tool(name, arguments):
+        return [TextContent(type="text", text=f"{name} {arguments}")]
+
+    on_list_tools, on_call_tool = make_handlers(list_tools, call_tool)
+    return Server("test", on_list_tools=on_list_tools, on_call_tool=on_call_tool)
+
+
+def _with(server, call, **client_kwargs):
+    async def _go():
+        async with Client(server, **client_kwargs) as client:
+            return await call(client)
+
+    return asyncio.run(_go())
+
+
+def test_app_only_tools_are_hidden_from_clients_without_ui():
+    result = _with(_app_server(), lambda c: c.list_tools())
+
+    assert [t.name for t in result.tools] == ["echo", "shared"]
+
+
+def test_app_only_tools_are_listed_for_ui_clients():
+    result = _with(_app_server(), lambda c: c.list_tools(), **UI_CLIENT)
+
+    assert [t.name for t in result.tools] == ["echo", "page_svg", "shared"]
+    tool = next(t for t in result.tools if t.name == "page_svg")
+    assert tool.meta["ui"]["visibility"] == ["app"]
+
+
+def test_a_hidden_app_only_tool_is_still_validated_and_called():
+    # Hiding is a listing concern; tools/call still finds the tool and checks its schema.
+    rejected = _with(_app_server(), lambda c: c.call_tool("page_svg", {"page": "one"}))
+    called = _with(_app_server(), lambda c: c.call_tool("page_svg", {"page": 2}))
+
+    assert rejected.is_error
+    assert json.loads(rejected.content[0].text)["error_code"] == "INVALID_PARAMETER"
+    assert not called.is_error
+    assert called.content[0].text == "page_svg {'page': 2}"

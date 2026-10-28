@@ -1,7 +1,8 @@
 """MCP Apps UI resources: ``ui://`` HTML apps a tool links to through ``_meta.ui.resourceUri``.
 
 A server registers its apps in a ``UiRegistry``, links tools with ``meta=registry.meta_for(app)``
-and serves the registry through ``wiring.make_resource_handlers()``. The HTML is built from ``ui/``
+and serves the registry through ``wiring.make_resource_handlers()``. Tools only an app calls take
+``meta_for(app, app_only=True)``; ``wiring.make_handlers()`` hides them from clients without UI. The HTML is built from ``ui/``
 and packaged with the server, so a source checkout may lack it; the registry then hides the app.
 """
 
@@ -12,12 +13,15 @@ from importlib.resources import files
 from typing import Iterable, Protocol
 
 from mcp.server.apps import APP_MIME_TYPE, EXTENSION_ID, client_supports_apps
-from mcp.types import ReadResourceResult, Resource, TextResourceContents
+from mcp.types import ReadResourceResult, Resource, TextResourceContents, Tool
 
 from .errors import ProcessingError
 
 UI_MIME = APP_MIME_TYPE
 UI_EXTENSION = EXTENSION_ID
+
+# McpUiToolMeta.visibility for a tool the app calls and the model never sees.
+_APP_ONLY = ["app"]
 
 _BUILD_HINT = "Build the UI: run `npm run build` in ui/, then reinstall the server."
 
@@ -61,9 +65,12 @@ class UiResource:
     name: str
     description: str | None = None
 
-    def tool_meta(self) -> dict:
-        """The ``_meta`` a tool carries to open this app."""
-        return {"ui": {"resourceUri": self.uri}}
+    def tool_meta(self, *, app_only: bool = False) -> dict:
+        """The ``_meta`` a tool carries to open this app, or, ``app_only``, to serve only it."""
+        ui: dict = {"resourceUri": self.uri}
+        if app_only:
+            ui["visibility"] = list(_APP_ONLY)
+        return {"ui": ui}
 
 
 class UiAssetMissing(ProcessingError):
@@ -96,15 +103,18 @@ class UiRegistry:
         self._source = source
         self._packaged_uris: dict[str, bool] = {}
 
-    def meta_for(self, resource: UiResource) -> dict | None:
+    def meta_for(self, resource: UiResource, *, app_only: bool = False) -> dict | None:
         """The tool ``_meta`` linking to ``resource``, or None when its HTML is not packaged.
 
         The spec requires a linked resource to exist, so a missing build drops the link rather
-        than pointing hosts at a read that fails.
+        than pointing hosts at a read that fails. An ``app_only`` tool keeps its visibility
+        without the link, so a source checkout never shows the model a tool meant for an app.
         """
         if self._resources.get(resource.uri) != resource:
             raise ValueError(f"UI resource {resource.uri} is not registered")
-        return resource.tool_meta() if self._packaged(resource) else None
+        if self._packaged(resource):
+            return resource.tool_meta(app_only=app_only)
+        return {"ui": {"visibility": list(_APP_ONLY)}} if app_only else None
 
     def list_resources(self) -> list[Resource]:
         """The apps whose HTML is packaged."""
@@ -130,6 +140,15 @@ class UiRegistry:
         if resource.uri not in self._packaged_uris:
             self._packaged_uris[resource.uri] = self._source.read(resource.asset) is not None
         return self._packaged_uris[resource.uri]
+
+
+def is_app_only(tool: Tool) -> bool:
+    """Whether ``tool`` is visible to apps only (``_meta.ui.visibility`` without "model")."""
+    ui = (tool.meta or {}).get("ui")
+    if not isinstance(ui, dict):
+        return False
+    visibility = ui.get("visibility")
+    return isinstance(visibility, list) and "app" in visibility and "model" not in visibility
 
 
 def client_supports_ui(ctx) -> bool:
