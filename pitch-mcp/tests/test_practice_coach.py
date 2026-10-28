@@ -27,6 +27,7 @@ from .test_engine import MINIMAL_MUSICXML
 from .test_practice import SIX_BARS, mic  # noqa: F401  (mic is a fixture)
 
 COACH_URI = "ui://pitch/practice-coach"
+DOCTOR_URI = "ui://pitch/setup-doctor"
 OPENERS = ("load_score", "start_practice")
 LINKED = (*OPENERS, "analyze_recording")
 SESSION_FIELDS = {"session_id", "part_id", "part_name", "measure_count", "duration_seconds", "tempo_bpm"}
@@ -54,7 +55,12 @@ class TestToolLinking:
         assert (await _tools())[name].meta is None
 
     async def test_other_model_facing_tools_are_not_linked(self, packaged_ui):
-        others = [t for n, t in (await _tools()).items() if n not in LINKED and not is_app_only(t)]
+        # health_check links the Setup Doctor, its own app, not the coach.
+        others = [
+            t
+            for n, t in (await _tools()).items()
+            if n not in (*LINKED, "health_check") and not is_app_only(t)
+        ]
 
         assert others
         assert all(t.meta is None or "resourceUri" not in t.meta.get("ui", {}) for t in others)
@@ -68,12 +74,25 @@ class TestToolLinking:
 
 
 class TestResources:
-    def test_lists_the_coach_when_packaged(self, packaged_ui):
+    def test_lists_the_apps_when_packaged(self, packaged_ui):
         result = _with_client(lambda c: c.list_resources())
 
         assert [(r.uri, r.name, r.mime_type) for r in result.resources] == [
-            (COACH_URI, "Practice Coach", UI_MIME)
+            (COACH_URI, "Practice Coach", UI_MIME),
+            (DOCTOR_URI, "Setup Doctor", UI_MIME),
         ]
+
+    def test_listing_asks_for_the_microphone(self, packaged_ui):
+        resource = next(
+            r for r in _with_client(lambda c: c.list_resources()).resources if r.uri == COACH_URI
+        )
+
+        assert resource.meta["ui"]["permissions"] == {"microphone": {}}
+
+    def test_reading_asks_for_the_microphone(self, packaged_ui):
+        [contents] = _with_client(lambda c: c.read_resource(COACH_URI)).contents
+
+        assert contents.meta["ui"]["permissions"] == {"microphone": {}}
 
     def test_lists_nothing_without_a_ui_build(self):
         assert _with_client(lambda c: c.list_resources()).resources == []

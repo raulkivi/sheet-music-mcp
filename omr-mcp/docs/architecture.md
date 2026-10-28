@@ -350,7 +350,7 @@ omr-mcp/
 | Module | Role |
 |---|---|
 | `presenter.py` | `present_recognition` / `present_score` / `present_preview`: `content` plus `structuredContent`; the output schemas |
-| `previews.py` | `write_source_preview()` (JPEG of at most 1600 px into the output root) and `ReviewJobs` (job id to the score and per-page artifact ids; bounded, with a TTL) |
+| `previews.py` | `write_source_preview()` (JPEG of at most 1600 px into the output root) and `ReviewJobs` (job id to the score and per-page artifact ids; a core `ExpiringTable`: bounded, with a TTL) |
 | `staff_estimate.py` | `estimate_staves()`: counts staff lines in the image with numpy; no engine run |
 | `server.py` | `ui_registry`, `artifact_store`, `review_jobs`; `call_tool_result` returns `CallToolResult` |
 

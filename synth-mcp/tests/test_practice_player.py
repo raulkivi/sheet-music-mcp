@@ -87,8 +87,13 @@ class TestToolLinking:
     async def test_no_link_without_a_ui_build(self):
         assert (await _tools())["synthesize"].meta is None
 
-    async def test_other_model_facing_tools_are_not_linked(self, packaged_ui):
-        others = [t for n, t in (await _tools()).items() if n != "synthesize" and not is_app_only(t)]
+    async def test_other_model_facing_tools_are_not_linked_to_the_player(self, packaged_ui):
+        # synthesize links the player, health_check the Setup Doctor; the rest stay unlinked.
+        others = [
+            t
+            for n, t in (await _tools()).items()
+            if n not in ("synthesize", "health_check") and not is_app_only(t)
+        ]
 
         assert others
         assert all(t.meta is None or "resourceUri" not in t.meta.get("ui", {}) for t in others)
@@ -130,11 +135,12 @@ class TestToolLinking:
 
 
 class TestResources:
-    def test_lists_the_player_when_packaged(self, packaged_ui):
+    def test_lists_the_apps_when_packaged(self, packaged_ui):
         result = _with_client(lambda c: c.list_resources())
 
         assert [(r.uri, r.name, r.mime_type) for r in result.resources] == [
-            (PLAYER_URI, "Practice Player", UI_MIME)
+            (PLAYER_URI, "Practice Player", UI_MIME),
+            ("ui://synth/setup-doctor", "Setup Doctor", UI_MIME),
         ]
 
     def test_lists_nothing_without_a_ui_build(self):

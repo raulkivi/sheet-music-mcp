@@ -5,6 +5,7 @@ from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE_DOWNLOADS
 from sheet_music_mcp_core.artifacts import MAX_CHUNK_BYTES, FileArtifactStore, chunk_payload
 from sheet_music_mcp_core.content import error_content, file_link, processing_error_content
 from sheet_music_mcp_core.errors import ProcessingError
+from sheet_music_mcp_core.health import HEALTH_OUTPUT_SCHEMA, setup_doctor_resource
 from sheet_music_mcp_core.paths import max_score_bytes
 from sheet_music_mcp_core.references import RETURN_PROPERTY, SCORE_MIME_TYPE, deliver_score
 from sheet_music_mcp_core.scores import read_score_file, score_summary
@@ -17,6 +18,7 @@ import os
 import time
 
 from . import __version__
+from .health import build_health_report
 from .omr_engine import recognize_image, recognize_image_to_file, recognize_images, health_check as _engine_health_check
 from .presenter import (
     PREVIEW_OUTPUT_SCHEMA,
@@ -56,9 +58,11 @@ RECOGNITION_REVIEW = UiResource(
     "Shows the photographed page next to the recognised score and warns when a choir score was flattened.",
 )
 
+SETUP_DOCTOR = setup_doctor_resource("omr")
+
 # Reads the HTML packaged under omr_mcp/ui/assets/; tests replace ui_registry with in-memory
 # assets. Without a UI build the app is hidden and the tools carry no _meta.ui.
-DEFAULT_UI_REGISTRY = UiRegistry([RECOGNITION_REVIEW], PackageAssetSource("omr_mcp"))
+DEFAULT_UI_REGISTRY = UiRegistry([RECOGNITION_REVIEW, SETUP_DOCTOR], PackageAssetSource("omr_mcp"))
 ui_registry = DEFAULT_UI_REGISTRY
 
 # Source previews live in the output root and are served by opaque id (never by path).
@@ -253,7 +257,9 @@ async def list_tools():
                 "type": "object",
                 "properties": {},
                 "required": []
-            }
+            },
+            output_schema=HEALTH_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(SETUP_DOCTOR),
         ),
     ]
 
@@ -485,12 +491,44 @@ async def _get_source_preview(arguments: dict, ctx) -> CallToolResult:
         return _error(processing_error_content(e))
 
 
+async def _health_check(arguments: dict, ctx) -> CallToolResult:
+    """Text content byte-identical to the old plain-text result, plus the standard
+    structured report for the Setup Doctor."""
+    result = _engine_health_check()
+    lines = [f"omr-mcp health status: {result['status'].upper()}", ""]
+    for dep, info in result["checks"].items():
+        if info["status"] == "ok":
+            status_icon = "✓"
+        elif info["status"] == "not_installed":
+            # Optional dependency (e.g. audiveris) in its expected default state — not an error.
+            status_icon = "○"
+        else:
+            status_icon = "✗"
+        line = f"  {status_icon} {dep}: {info['status']}"
+        if info.get("version"):
+            line += f" (v{info['version']})"
+        if info.get("path"):
+            line += f"\n      path: {info['path']}"
+        if info.get("note"):
+            line += f"\n      {info['note']}"
+        if info.get("error"):
+            line += f"\n      error: {info['error']}"
+        if info.get("hint"):
+            line += f"\n      hint: {info['hint']}"
+        lines.append(line)
+    return CallToolResult(
+        content=[TextContent(type="text", text="\n".join(lines))],
+        structured_content=build_health_report(result),
+    )
+
+
 _RESULT_TOOLS = {
     "recognize_sheet": _recognize_sheet,
     "recognize_sheet_to_file": _recognize_sheet_to_file,
     "recognize_sheets": _recognize_sheets,
     "get_recognized_score": _get_recognized_score,
     "get_source_preview": _get_source_preview,
+    "health_check": _health_check,
 }
 
 
@@ -544,31 +582,6 @@ async def _plain_tool(name: str, arguments: dict, ctx=None) -> list:
             },
         }
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
-
-    elif name == "health_check":
-        result = _engine_health_check()
-        lines = [f"omr-mcp health status: {result['status'].upper()}", ""]
-        for dep, info in result["checks"].items():
-            if info["status"] == "ok":
-                status_icon = "✓"
-            elif info["status"] == "not_installed":
-                # Optional dependency (e.g. audiveris) in its expected default state — not an error.
-                status_icon = "○"
-            else:
-                status_icon = "✗"
-            line = f"  {status_icon} {dep}: {info['status']}"
-            if info.get("version"):
-                line += f" (v{info['version']})"
-            if info.get("path"):
-                line += f"\n      path: {info['path']}"
-            if info.get("note"):
-                line += f"\n      {info['note']}"
-            if info.get("error"):
-                line += f"\n      error: {info['error']}"
-            if info.get("hint"):
-                line += f"\n      hint: {info['hint']}"
-            lines.append(line)
-        return [TextContent(type="text", text="\n".join(lines))]
 
     raise ValueError(f"Unknown tool: {name}")
 

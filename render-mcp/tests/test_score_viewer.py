@@ -19,6 +19,7 @@ from .test_result_content import TINY_PNG, _fake_render_to_image, _fake_render_t
 from .test_server import VALID_MUSICXML
 
 VIEWER_URI = "ui://render/score-viewer"
+SETUP_DOCTOR_URI = "ui://render/setup-doctor"
 LINKED = ("render_to_pdf", "render_to_image")
 
 
@@ -68,7 +69,12 @@ class TestToolLinking:
         assert (await _tools())[name].meta is None
 
     async def test_other_model_facing_tools_are_not_linked(self, packaged_ui):
-        others = [t for name, t in (await _tools()).items() if name not in LINKED and not is_app_only(t)]
+        # health_check is the second app: it links the Setup Doctor, not the viewer.
+        others = [
+            t
+            for name, t in (await _tools()).items()
+            if name not in (*LINKED, "health_check") and not is_app_only(t)
+        ]
 
         assert others
         assert all(t.meta is None or "resourceUri" not in t.meta.get("ui", {}) for t in others)
@@ -92,7 +98,8 @@ class TestResources:
         result = _with_client(lambda c: c.list_resources())
 
         assert [(r.uri, r.name, r.mime_type) for r in result.resources] == [
-            (VIEWER_URI, "Score Viewer", UI_MIME)
+            (VIEWER_URI, "Score Viewer", UI_MIME),
+            (SETUP_DOCTOR_URI, "Setup Doctor", UI_MIME),
         ]
 
     def test_lists_nothing_without_a_ui_build(self):

@@ -7,7 +7,7 @@ in-process) and `audiveris` (opt-in via `engine="audiveris"`, subprocess). Entry
 pipeline — all other servers consume MusicXML produced here.
 
 **Status:** Phases 1–4 code complete, including the Audiveris backend option (shipped 2026-08-16).
-UX Wave 2 (score references) done. 267 unit tests pass (+89 skipped). MCP Apps Recognition Review server side done (`structuredContent`, app-only `get_source_preview`, `staff_systems_estimate`); the page is not built yet. Integration tests run
+UX Wave 2 (score references) done. 299 unit tests pass (+89 skipped). MCP Apps Recognition Review server side done (`structuredContent`, app-only `get_source_preview`, `staff_systems_estimate`); the page is not built yet. Integration tests run
 against real oemer for the first time (2026-08-15): fixing a 100%-blocking API bug plus pinning
 `onnxruntime` and `opencv-python-headless` took the suite from 0/41 to 20/41 passing. **oemer's default output is not usable for SATB scores** — it
 reads multi-staff systems sequentially instead of simultaneously, so a 4-voice choir score comes
@@ -26,7 +26,7 @@ both root-caused 2026-08-16 (one is the SATB bug itself manifesting as a hard cr
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v                # 267 unit tests (+89 skipped; fast; all subprocess/network calls mocked)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v                # 299 unit tests (+89 skipped; fast; all subprocess/network calls mocked)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration # invokes real oemer (~3–5 min/page)
 ```
 

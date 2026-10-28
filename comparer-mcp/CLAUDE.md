@@ -10,7 +10,7 @@ version/arrangement comparison, OMR quality evaluation, round-trip fidelity test
 (score references) complete. UX Wave 3: `options.measure_range` renamed to `options.measures`
 (and `list_changes`'s `measure_range` to `measures`), old names kept as deprecated aliases.
 MCP Apps Diff Viewer server side done (`ui://comparer/diff-viewer`, `structuredContent`, output schemas); the page is not built yet.
-314 unit tests pass (+7 integration, which need the omr-mcp `.mxl` samples). `server.py` exposes
+341 unit tests pass (+7 integration, which need the omr-mcp `.mxl` samples). `server.py` exposes
 all 9 tools; engine.py/models.py/part_matcher.py/note_aligner.py/measure_comparator.py/report.py/
 annotator.py/utils.py are all implemented and independently usable.
 
