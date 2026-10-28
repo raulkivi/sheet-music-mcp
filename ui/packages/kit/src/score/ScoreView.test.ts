@@ -109,4 +109,15 @@ describe("ScoreView", () => {
   it("throws the shared ScoreLoadError", () => {
     expect(ScoreLoadError).toBe(RendererScoreLoadError);
   });
+
+  it("keeps Verovio's embedded SMuFL text font, as render_page_svg does", () => {
+    // Tempo-mark notes are text glyphs in that font. Under the MCP Apps default CSP (no
+    // font-src) no smuflTextFont mode shows them: "embedded" is a data: font, "linked" imports
+    // from verovio.org, "none" needs the font installed. docs/architecture.md, Score Viewer.
+    view.load(SATB);
+    view.layout(1000);
+    const svg = view.svg(1);
+    expect(svg).toContain("@font-face");
+    expect(svg).toMatch(/font-family="Leipzig"/);
+  });
 });
