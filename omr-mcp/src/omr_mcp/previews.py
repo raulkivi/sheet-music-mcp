@@ -8,10 +8,7 @@ No MCP imports.
 from __future__ import annotations
 
 import logging
-import secrets
-import threading
 import time
-from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -19,6 +16,7 @@ from typing import Callable
 from PIL import Image, ImageOps
 from sheet_music_mcp_core.artifacts import DEFAULT_TTL_SECONDS, ArtifactStore
 from sheet_music_mcp_core.errors import ProcessingError
+from sheet_music_mcp_core.expiring import EntryNotFound, ExpiringTable
 from sheet_music_mcp_core.paths import new_output_path
 
 logger = logging.getLogger(__name__)
@@ -62,7 +60,6 @@ def _on_white(image: Image.Image) -> Image.Image:
 
 @dataclass(frozen=True)
 class _Job:
-    created: float
     musicxml: str
     artifact_ids: list[str | None]
 
@@ -81,25 +78,14 @@ class ReviewJobs:
         ttl_seconds: float = DEFAULT_TTL_SECONDS,
         clock: Callable[[], float] = time.monotonic,
     ):
-        if max_jobs < 1:
-            raise ValueError("max_jobs must be at least 1")
-        self._max = max_jobs
-        self._ttl = ttl_seconds
-        self._clock = clock
-        self._jobs: OrderedDict[str, _Job] = OrderedDict()
-        self._lock = threading.Lock()
+        self._jobs: ExpiringTable[str, _Job] = ExpiringTable(
+            ttl_seconds=ttl_seconds, max_entries=max_jobs, clock=clock
+        )
 
     def register(self, store: ArtifactStore, musicxml: str, previews: list[Path | None]) -> str:
         """Store each page's preview file (None: no preview), keep the score, return the job id."""
         artifact_ids = [self._store_page(store, path) for path in previews]
-        job_id = secrets.token_urlsafe(16)
-        with self._lock:
-            now = self._clock()
-            self._purge(now)
-            self._jobs[job_id] = _Job(now, musicxml, artifact_ids)
-            while len(self._jobs) > self._max:
-                self._jobs.popitem(last=False)
-        return job_id
+        return self._jobs.put(_Job(musicxml, artifact_ids))
 
     def musicxml(self, job_id: object) -> str:
         """The recognised score of the job; INVALID_PARAMETER if the job is unknown or expired."""
@@ -123,18 +109,11 @@ class ReviewJobs:
         return artifact_id
 
     def _job(self, job_id: object) -> _Job:
-        with self._lock:
-            self._purge(self._clock())
-            job = self._jobs.get(job_id) if isinstance(job_id, str) else None
-        if job is None:
+        try:
+            return self._jobs.get(job_id)
+        except EntryNotFound:
             # The id is not echoed: it is caller-chosen text and may be crafted to look like a path.
-            raise ProcessingError("Unknown or expired job_id", "INVALID_PARAMETER", hint=_UNKNOWN_JOB_HINT)
-        return job
-
-    def _purge(self, now: float) -> None:
-        # Insertion order is creation order, so expired jobs are all at the front.
-        while self._jobs and now - next(iter(self._jobs.values())).created >= self._ttl:
-            self._jobs.popitem(last=False)
+            raise ProcessingError("Unknown or expired job_id", "INVALID_PARAMETER", hint=_UNKNOWN_JOB_HINT) from None
 
     @staticmethod
     def _store_page(store: ArtifactStore, path: Path | None) -> str | None:

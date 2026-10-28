@@ -450,7 +450,7 @@ class TestClientsWithoutApps:
 
         asyncio.run(_call_tool_result("recognize_sheet", {"image": str(_page_image(tmp_path))}, _ctx(ui=False)))
 
-        assert srv.review_jobs._jobs == {}
+        assert len(srv.review_jobs._jobs) == 0
         assert list(output_root.rglob("*.jpg")) == []
 
     def test_a_client_with_the_app_does_get_preview_files_and_a_job(self, tmp_path, monkeypatch, output_root):
@@ -515,4 +515,4 @@ class TestErrors:
 
         asyncio.run(call_tool_result("recognize_sheet", {"image": str(_page_image(tmp_path))}))
 
-        assert srv.review_jobs._jobs == {}
+        assert len(srv.review_jobs._jobs) == 0
