@@ -47,7 +47,7 @@ sheet-music-mcp/
 ├── musicxml-abc-mcp/           # MusicXML ↔ ABC            ✅ Phase 1 COMPLETE
 ├── pitch-mcp/                  # Mic audio → score pos/accuracy  ✅ Phase A+B COMPLETE
 ├── comparer-mcp/               # Two MusicXML → structured diff  ✅ Phase 4 COMPLETE
-└── sheet-music-mcp-core/       # Shared library (errors, parts, annotations, wiring, score paths) — not a server
+└── sheet-music-mcp-core/       # Shared library (errors, parts, annotations, content, wiring, score references, measures) — not a server
 ```
 
 Each `*-mcp/` directory is a self-contained Python package deployable independently.
@@ -68,7 +68,7 @@ Each `*-mcp/` directory is a self-contained Python package deployable independen
 - **All tool handlers must be `async def`**
 - **All error responses:** `{"error": "...", "error_code": "..."}` — see [docs/conventions.md](../docs/conventions.md) for all codes
 - **Integration tests** must be `@pytest.mark.integration` and must not run in the default `pytest` invocation
-- **Shared code** (errors, part selection, deprecated parameter names, tool annotations, result content, handler wiring) comes from `sheet-music-mcp-core/`, not from per-server copies. Engines may import only its MCP-free modules
+- **Shared code** (errors, part selection, deprecated parameter names, tool annotations, result content, handler wiring, score references, `describe_score`, measure ranges) comes from `sheet-music-mcp-core/`, not from per-server copies. Engines may import only its MCP-free modules
 - **Every tool** sets a `title` and an annotation preset; **every part parameter** (`part` / `parts`) uses the shared resolver. See [docs/conventions.md](../docs/conventions.md)
 - **Every score input** has a path sibling (`musicxml_path`, exactly one of the pair required) read through `references.load_score()`; score producers return a path plus `score_summary` for large scores. See [docs/conventions.md](../docs/conventions.md#score-references)
 

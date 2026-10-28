@@ -171,7 +171,10 @@ System libraries for local development:
 
 Free SF2 soundfonts are listed in [synth-mcp/README.md](synth-mcp/README.md).
 
-Releases: bump the version in `pyproject.toml`, `__init__.py`, `uv.lock` and `server.json`, then push a `<server>/vX.Y.Z` tag. [publish.yml](.github/workflows/publish.yml) publishes to PyPI and the MCP Registry.
+Releases: [publish.yml](.github/workflows/publish.yml) publishes each tag to PyPI, and server tags to the MCP Registry too. Push one tag per push.
+
+1. If the servers need a new core version, release `sheet-music-mcp-core` first: bump `pyproject.toml`, `__init__.py` and `uv.lock`, push a `sheet-music-mcp-core/vX.Y.Z` tag, and wait until the version is on PyPI. A server released before its core version cannot be installed.
+2. For each server, bump `pyproject.toml`, `__init__.py`, `uv.lock` and `server.json`, then push a `<server>/vX.Y.Z` tag.
 
 ---
 
