@@ -4,6 +4,12 @@
 
 render-mcp is a stateless MCP server that renders MusicXML scores to PDF or PNG/SVG images. It uses Verovio for music engraving (MusicXML → SVG) and a cairosvg + pypdf pipeline for PDF and PNG output. All rendering runs in-process; no external tools are required.
 
+Hosts that support MCP Apps also get the **Score Viewer** (`ui://render/score-viewer`), an HTML
+page built in `ui/` and packaged with the server. It pages and zooms the score inline. It renders
+with Verovio WebAssembly in the page where the host allows it, and otherwise asks the app-only
+`render_page_svg` tool for each page ([Score Viewer](#score-viewer-mcp-apps)). The only server
+state is that tool's cache of the last score it parsed.
+
 ---
 
 ## Component Diagram
@@ -13,23 +19,37 @@ render-mcp is a stateless MCP server that renders MusicXML scores to PDF or PNG/
 │                      MCP Client                           │
 └──────────────────────────┬────────────────────────────────┘
                            │  stdio (JSON-RPC)
-┌──────────────────────────▼────────────────────────────────┐
-│                       server.py                           │
-│                                                           │
-│  list_tools()   → 5 tool definitions                      │
-│  call_tool()    → load_score(), then dispatches to engine │
-└──────────┬────────────────────────────────────────────────┘
-           │
-┌──────────▼──────────────┐  ┌──────────────────────────────┐
+┌──────────────────────────▼────────────────────────────────┐   ┌──────────────────────────┐
+│                       server.py                           │   │ sheet_music_mcp_core     │
+│                                                           │   │                          │
+│  list_tools()        → 6 tools (render_page_svg app-only) │──►│ wiring.make_handlers()   │
+│  call_tool_result()  → load_score(), engine, presenter    │   │  hides app-only tools    │
+│  call_tool()         → the same result's content only     │   │  from non-UI clients     │
+│  ui_registry         → ui://render/score-viewer           │──►│ wiring.make_resource_    │
+│  resources/list, resources/read                           │   │  handlers()              │
+└──────┬─────────────────────────┬──────────────────────────┘   │ ui.UiRegistry,           │
+       │                         │                              │  PackageAssetSource      │
+       │                 ┌───────▼─────────┐                    └────────────┬─────────────┘
+       │                 │  presenter.py   │                                 │ reads
+       │                 │                 │                    ┌────────────▼─────────────┐
+       │                 │ present_pdf()   │                    │ render_mcp/ui/assets/    │
+       │                 │ present_image() │                    │   score-viewer.html      │
+       │                 │ present_page_   │                    │ built in ui/, gitignored,│
+       │                 │   svg()         │                    │ packaged by hatch        │
+       │                 │ *_OUTPUT_SCHEMA │                    │ artifacts                │
+       │                 └─────────────────┘                    └──────────────────────────┘
+┌──────▼──────────────────┐  ┌──────────────────────────────┐
 │       engine.py         │  │          utils.py            │
 │                         │  │                              │
 │  detect_backend()       │  │  validate_musicxml()         │
 │  render_to_pdf()        │  │  validate_dpi()              │
 │  render_to_image()      │  │  validate_page()             │
-│  _render_pdf_verovio()  │  │  validate_image_format()     │
-│  _render_image_verovio()│  │  generate_pdf_path()         │
-│  _render_pdf_musescore()│  │  generate_image_path()       │
-│  _render_image_musescore│  └──────────────────────────────┘
+│  page_layout()          │  │  validate_image_format()     │
+│  SvgPageRenderer        │  │  generate_pdf_path()         │
+│  _render_pdf_verovio()  │  │  generate_image_path()       │
+│  _render_image_verovio()│  └──────────────────────────────┘
+│  _render_pdf_musescore()│
+│  _render_image_musescore│
 │  _get_pdf_page_count()  │
 │  _get_image_dimensions()│
 └──────────┬──────────────┘
@@ -58,8 +78,14 @@ render-mcp is a stateless MCP server that renders MusicXML scores to PDF or PNG/
 
 MCP protocol layer. Contains no rendering logic.
 
-- Registers five tools: `render_to_pdf`, `render_to_image`, `list_capabilities`, `health_check`
-  and the shared `describe_score` (`sheet_music_mcp_core.references.DESCRIBE_SCORE_TOOL`)
+- Registers six tools: `render_to_pdf`, `render_to_image`, `list_capabilities`, `health_check`,
+  the shared `describe_score` (`sheet_music_mcp_core.references.DESCRIBE_SCORE_TOOL`) and the
+  app-only `render_page_svg`
+- Registers the Score Viewer (`SCORE_VIEWER`) in `ui_registry`, a `UiRegistry` over
+  `PackageAssetSource("render_mcp")` (tests swap in `InMemoryAssetSource`). `render_to_pdf` and
+  `render_to_image` carry `meta=ui_registry.meta_for(SCORE_VIEWER)`, so `_meta.ui.resourceUri`
+  appears only when the HTML is packaged. `resources/list` and `resources/read` come from the
+  core `make_resource_handlers`, through a small delegate that reads `ui_registry` per request
 - Gets the score with `references.load_score(arguments, ctx)`: inline `musicxml` as is, or
   `musicxml_path` confined to the read roots and read (`.mxl` too). The handlers are wired with
   `make_handlers(..., pass_context=True)` so `load_score` can ask the client for its roots.
@@ -67,11 +93,21 @@ MCP protocol layer. Contains no rendering logic.
 - Validates all parameters (via `utils.py`) before calling the engine; passes `measures` on
   only when the caller gave it (`_measures_argument`), so default calls are unchanged
 - Returns a raised `ProcessingError` with `processing_error_content`, keeping its `hint`
-- Converts engine results and exceptions to `TextContent` JSON (always `content[0]`)
-- On success appends result blocks for the written file via `sheet_music_mcp_core.content`
-  (`_file_blocks`): a PNG of at most 1 MB as an inline `image` block (`png_block`), then a
-  `resource_link` with a `file://` URI and MIME type (`file_link`). SVG and PDF get only the link.
+- `call_tool_result()` is what the server wires: the render tools return a `CallToolResult`
+  whose `content` and `structuredContent` come from `presenter.py`; render errors are `isError`
+  results with only the error JSON (clients skip output-schema checks for them). `call_tool()`
+  returns the same result's `content`, which is byte-identical to before MCP Apps
+  (`tests/test_content_golden.py`)
 - Entry point via `mcp.server.stdio.stdio_server()`
+
+### `presenter.py`
+
+Engine result → `(content, structured_content)`. `content[0]` is the JSON text, followed on
+success by the file blocks from `sheet_music_mcp_core.content`: a PNG of at most 1 MB as an inline
+`image` block (`png_block`), then a `resource_link` with a `file://` URI and MIME type
+(`file_link`); SVG and PDF get only the link. `structuredContent` is the same data as the JSON
+text. `present_page_svg` returns a one-line text (no SVG, so the markup never reaches a model)
+and `{svg, page, page_count}`. The module also holds the three tools' `output_schema`s.
 
 ### `engine.py`
 
@@ -84,6 +120,8 @@ All rendering logic. No MCP imports.
 | `verovio_available()` | True if verovio importable |
 | `render_to_pdf(musicxml, output_path, measures=None)` | Cut to `measures` (`select_measures`), then dispatch to MuseScore or Verovio PDF pipeline |
 | `render_to_image(musicxml, page, fmt, dpi, output_path, measures=None)` | Cut to `measures`, then dispatch to MuseScore or Verovio image pipeline |
+| `page_layout(container_width, zoom)` | Verovio `scale`, `pageWidth`, `pageHeight` for a viewer width and zoom; mirrors `ui/packages/kit/src/score/paging.ts` `layoutFor()` (JavaScript rounding) |
+| `SvgPageRenderer.render(musicxml, page, width_px, zoom)` | One page as SVG for the Score Viewer; keeps the last score parsed (see below) |
 | `_render_pdf_verovio(musicxml, output_path)` | Verovio → SVG per page → cairosvg PDF → pypdf merge |
 | `_render_image_verovio(musicxml, page, fmt, dpi, output_path)` | Verovio → SVG → PNG or SVG file |
 | `_render_pdf_musescore(musicxml, output_path)` | MuseScore CLI subprocess → PDF |
@@ -99,6 +137,13 @@ dispatch. The `_render_*` backend functions never see a range: MuseScore and Ver
 same cut score, which keeps the key, time, clef, divisions and tempo in force at `start`.
 `measures=None` returns the text unchanged. A bad range raises `MeasureRangeError`
 (`INVALID_PARAMETER`, hint "This score has measures A–B.") before any backend runs.
+
+**Viewer pages (`SvgPageRenderer`).** `server.page_renderer` keeps one Verovio toolkit and the
+SHA-256 of the score it loaded. A call with the same score and layout only renders; a new width
+or zoom re-applies the options and calls `redoLayout()`; a new score loads afresh (a failed load
+clears the cache). The options are `ScoreView`'s: `page_layout()` plus `adjustPageHeight`,
+`breaks: "auto"`, `footer: "none"`. A page past the end raises `INVALID_PARAMETER` with the hint
+"This score has pages 1–N at this width and zoom."
 
 ### `utils.py`
 
@@ -178,6 +223,60 @@ call_tool("render_to_image", {musicxml, page=2, format="png", dpi=150})
         │
         └─ return {image_path, format, width_px, height_px, page, total_pages, backend}
 ```
+
+---
+
+## Score Viewer (MCP Apps)
+
+```
+ Host (Claude, VS Code, …)                      render-mcp
+ ─────────────────────────                      ──────────
+ tools/list ──────────────────────────────────► render_to_pdf / render_to_image
+                                                  _meta.ui.resourceUri = ui://render/score-viewer
+                                                render_page_svg  (only for UI clients;
+                                                  _meta.ui.visibility = ["app"])
+ resources/read ui://render/score-viewer ─────► score-viewer.html (text/html;profile=mcp-app)
+ tools/call render_to_pdf {musicxml} ─────────► content (unchanged) + structuredContent
+        │
+        ▼  sandboxed iframe: tool-input = {musicxml}, tool-result = structuredContent
+ ┌────────────────────────────────────────────────────────────────────────────────┐
+ │ Score Viewer   openScore(): first renderer that starts and loads wins         │
+ │                                                                                │
+ │  1. ScoreView (Verovio WASM in the page)                                       │
+ │       needs 'wasm-unsafe-eval' in the host CSP                                 │
+ │            │ CompileError (CSP refused) / RendererUnavailable                  │
+ │            ▼                                                                   │
+ │  2. ServerScoreRenderer ── tools/call render_page_svg ─────────────────────────┼──► SvgPageRenderer
+ │       {musicxml, page, width_px, zoom}  ◄── {svg, page, page_count} ───────────┼─── (cache by hash)
+ │            │ RendererUnavailable                                               │
+ │            ▼                                                                   │
+ │  3. notice: "could not start the notation engine" + saved file path            │
+ │                                                                                │
+ │  #engine line under the score: data-engine="wasm" | "server"                   │
+ └────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Why two paths.** The MCP Apps spec's default CSP for a resource without `_meta.ui.csp` has no
+`'wasm-unsafe-eval'`, and `McpUiResourceCsp` only lets a server declare domains, so a server cannot
+ask for it. Verovio's npm package ships only a WASM build. A host that enforces the default
+therefore refuses to compile Verovio; the viewer then pages through server-rendered SVG. Both
+paths use the same layout (`layoutFor` / `page_layout`, checked against
+`ui/packages/kit/src/score/layout-cases.json` by Vitest and pytest), so pages look alike.
+
+**Visibility.** `render_page_svg` carries `_meta.ui.visibility: ["app"]` (with the resource URI
+when the HTML is packaged, without it otherwise). The core's `make_handlers` drops it from
+`tools/list` for clients that do not advertise the `io.modelcontextprotocol/ui` extension, so the
+model in Claude Code CLI or Cursor never sees it; `tools/call` still validates and runs it. It
+takes inline MusicXML only (`additionalProperties: false`), never a path.
+
+**Text font limitation.** Tempo-mark notes (♩ = 90) are glyphs from Verovio's SMuFL text font.
+No `smuflTextFont` mode renders them under the default CSP: `embedded` (the default) is a
+`data:` font, blocked because the policy has no `font-src`; `linked` imports a stylesheet from
+verovio.org; `none` needs the font installed. Both paths keep `embedded`, so hosts that allow
+`data:` fonts show the glyph, and pages match. Under the strict default the note vanishes and
+"= 90" remains. Showing the SVG as `<img src="data:image/svg+xml,…">` would render it (an image
+document loads its own fonts outside the page's CSP) but loses the SVG DOM that voice
+highlighting needs; this is left for the findings report.
 
 ---
 
@@ -280,6 +379,13 @@ MuseScore names output files as `render.png` (single page) or `render-N.png` for
 | No backend available | `PROCESSING_FAILED` |
 | Verovio rendering error | `PROCESSING_FAILED` |
 | MuseScore subprocess failure | `PROCESSING_FAILED` |
+| `render_page_svg` page past the end of the layout | `INVALID_PARAMETER` with `hint` (page range) |
+| `render_page_svg` with a path or unknown argument | `INVALID_PARAMETER` (schema) |
+| `resources/read` of the viewer without a UI build | JSON-RPC `-32603`, `data.error_code` `UI_ASSET_MISSING` |
+| `resources/read` of an unknown URI | JSON-RPC `-32602`, `data.error_code` `RESOURCE_NOT_FOUND` |
+
+Render-tool errors are `isError` results; their `content` is the error JSON and they carry no
+`structuredContent`.
 
 ---
 
@@ -292,7 +398,7 @@ MuseScore names output files as `render.png` (single page) or `render-N.png` for
 | `pypdf` ≥4.0 | PDF page count reading, multi-page PDF assembly |
 | `Pillow` | PNG dimension reading |
 | `mcp` | MCP protocol SDK |
-| `sheet-music-mcp-core` ≥0.2 | Shared error envelope, `ProcessingError`, handler wiring (input validation, error results), score references (`load_score`, `describe_score`) and output path confinement; see [docs/conventions.md](../../docs/conventions.md#shared-core-library) |
+| `sheet-music-mcp-core` ≥0.3 | Shared error envelope, `ProcessingError`, handler wiring (input validation, error results, app-only tool visibility), MCP Apps UI resources (`ui`, `make_resource_handlers`; 0.3.1), score references (`load_score`, `describe_score`) and output path confinement; see [docs/conventions.md](../../docs/conventions.md#shared-core-library) |
 
 **System library:** `libcairo2` must be installed. Standard on Ubuntu desktop; no sudo required.
 
@@ -317,14 +423,23 @@ render-mcp/
 ├── src/
 │   └── render_mcp/
 │       ├── __init__.py
-│       ├── server.py     ← MCP layer (tool registration, dispatch)
-│       ├── engine.py     ← Rendering logic (Verovio, cairosvg, pypdf, MuseScore)
-│       └── utils.py      ← Validation, path generation
+│       ├── server.py     ← MCP layer (tool registration, dispatch, UI registry)
+│       ├── presenter.py  ← content + structuredContent, output schemas
+│       ├── engine.py     ← Rendering logic (Verovio, cairosvg, pypdf, MuseScore, viewer pages)
+│       ├── utils.py      ← Validation, path generation
+│       └── ui/assets/score-viewer.html   ← built by ui/ (npm run copy-assets), gitignored
 └── tests/
+    ├── conftest.py                ← swaps ui_registry for in-memory assets (unbuilt by default)
     ├── test_server.py
     ├── test_engine.py
     ├── test_utils.py
     ├── test_score_references.py   ← musicxml_path, describe_score
     ├── test_measures.py           ← measures: backend spies, errors, a real Verovio cut
+    ├── test_content_golden.py     ← render tools' content byte for byte (golden/render_content.json)
+    ├── test_presenter.py
+    ├── test_score_viewer.py       ← _meta.ui, resources, structuredContent
+    ├── test_page_svg.py           ← page_layout parity, SvgPageRenderer cache (real Verovio)
+    ├── test_render_page_svg.py    ← app-only tool: visibility, contract, errors
+    ├── test_packaging.py          ← integration: wheel ships the viewer, AC-R1
     └── fixtures/
 ```

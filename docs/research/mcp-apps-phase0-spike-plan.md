@@ -1,6 +1,8 @@
 # MCP Apps Phase 0 spike: Score Viewer on render-mcp
 
-**Status:** Plan, awaiting approval. No code has been written.
+**Status:** Steps 1–9 and the code side of 12 done on `mcp-apps/phase0` (core 0.3.1 UI module and
+app-only visibility, render-mcp linking and `render_page_svg`, `ui/` kit and Score Viewer with both
+render paths, wheel packaging). Open: CI (step 10), measurements report (11), manual host checks (§6).
 **Date:** 2026-10-27
 **Parent:** [mcp-apps-ux-proposal.md](mcp-apps-ux-proposal.md) (roadmap phase 0; decisions D1–D7)
 **Server:** `render-mcp` only, plus the shared `ui` module in `sheet-music-mcp-core` (0.3.1). The other five servers are untouched.
@@ -139,10 +141,44 @@ resource to exist), and `resources/read` returns an error naming the fix:
 **`structuredContent`**
 
 - `render_to_pdf`: `{"pdf_path", "page_count", "backend"}`, the same data as `content`.
-- `render_to_image`: `{"image_path", "format", "page", "width_px", "height_px"}`.
+- `render_to_image`: `{"image_path", "format", "page", "width_px", "height_px"}`. As built it is
+  the same data as the JSON text, so it also holds `total_pages` and `backend`; `width_px` and
+  `height_px` are PNG only.
 
 The Score Viewer renders from the MusicXML in `tool-input`, so it does not need file bytes. The
 paths are there for the D6 fallback, which shows where the file was saved.
+
+### 3.1a Finding: the default CSP refuses WebAssembly; build both render paths
+
+**Finding (phase 0b, 2026-10-28).** The ext-apps spec's default CSP for a resource without
+`_meta.ui.csp` (`default-src 'none'; script-src 'self' 'unsafe-inline'; …`) has no
+`'wasm-unsafe-eval'`, and `McpUiResourceCsp` only lets a server declare domains
+(`connectDomains`, `resourceDomains`, …), so there is no way to ask for it. The `verovio` npm
+package ships only a WASM build. In a host that enforces the spec default, client-side Verovio
+cannot start (`WebAssembly.CompileError`). What Claude Desktop and VS Code enforce is unknown
+until the manual checks.
+
+**Decision (2026-10-28): build both paths**, so one manual run is conclusive:
+
+1. **WASM first** (option A): `ScoreView`, unchanged.
+2. **Server-side SVG fallback** (option B): render-mcp's app-only tool
+   `render_page_svg {musicxml, page, width_px, zoom} → structuredContent {svg, page, page_count}`.
+   It is hidden from `tools/list` for clients without MCP Apps (core `make_handlers`, proposal
+   §6.5), takes inline MusicXML only (proposal §7), uses the viewer's layout (`page_layout()`
+   mirrors `paging.ts` `layoutFor()`, both checked against `layout-cases.json`) and keeps the last
+   score parsed by content hash so paging does not re-parse.
+3. Only if both fail does the viewer show "could not start the notation engine".
+
+The kit's `ScoreRenderer` interface has two implementations (`ScoreView`, `ServerScoreRenderer`);
+`openScore()` takes the first that starts and loads. The viewer names the active engine under the
+score (`#engine`, `data-engine="wasm"|"server"`), which the manual checklist records.
+
+**Related: tempo note glyphs.** Verovio draws tempo-mark notes with its SMuFL text font. No
+`smuflTextFont` mode works under the default CSP: `embedded` is a `data:` font (no `font-src`),
+`linked` imports from verovio.org, `none` needs the font installed. Both paths keep `embedded`;
+the glyph shows only in hosts that allow `data:` fonts. An SVG shown through
+`<img src="data:image/svg+xml,…">` does render it (checked in Chromium), at the cost of the SVG
+DOM; left for the findings report.
 
 ### 3.2 TypeScript (`ui/`)
 
@@ -238,7 +274,11 @@ The findings report recommends one of the following:
   starts.
 - **Go with option B (server-side SVG):** the hosts reject or struggle with the inlined WASM. The
   plan for Phase 1 changes to app-only `render_page_svg` tools, and the proposal's §6.2 is
-  updated.
+  updated. render-mcp's `render_page_svg` already exists (§3.1a); the other servers would need
+  their own or a route through the model. The manual checks read the active engine off the
+  viewer's `#engine` line.
+- **Go with both:** some hosts allow WASM and others do not. Keep the WASM-first viewer with the
+  server fallback as built, and decide per app whether a server-side tool is worth adding.
 - **Pause:** a target host lacks MCP Apps features we rely on (resource reads, tool calls from
   the app, display modes). Record the gap and re-check host releases before continuing.
 
@@ -253,6 +293,9 @@ The findings report recommends one of the following:
 | Verovio WASM does not load in Node for Vitest. | Move the `ScoreView` tests to Playwright component tests (step 7 note). |
 | Node in the release path adds supply-chain surface. | Committed lockfile, `npm ci`, SHA-pinned actions, Dependabot, and the unicode guard on `ui/`. The built HTML is checked for off-origin references (AC-R1). |
 | The asset is not packaged because hatch skips gitignored files. | `artifacts` setting plus the step 9 wheel test. |
+| **Hosts enforce the spec's default CSP, which refuses WebAssembly** (found in phase 0b; a server cannot request `'wasm-unsafe-eval'`). | Both render paths (§3.1a): WASM first, app-only `render_page_svg` second. The manual checks record which one each host uses. |
+| The server fallback costs a round trip per page and zoom, and re-sends the inline score each call. | One parsed score cached by hash on the server; the viewer skips page turns superseded while waiting and reuses the page it already has for downloads. Measure in step 11. |
+| Tempo-mark note glyphs vanish under the default CSP (Verovio's `data:` text font). | Documented (§3.1a); `<img>` rendering is a known workaround to weigh in the findings. |
 
 ---
 

@@ -60,6 +60,28 @@ The server MUST expose a tool that returns:
 - Active rendering backend name and version
 - List of available tools
 
+### FR-5 — Score Viewer UI resource (MCP Apps)
+
+The server MUST serve the Score Viewer as the `ui://` resource `ui://render/score-viewer`
+(MIME type `text/html;profile=mcp-app`) when its HTML is packaged
+(`render_mcp/ui/assets/score-viewer.html`, built in `ui/`, decision D1):
+
+- `resources/list` lists it, and `resources/read` returns one text item with the HTML.
+- `render_to_pdf` and `render_to_image` carry `_meta.ui.resourceUri = "ui://render/score-viewer"`.
+- Without the HTML (a source checkout without a UI build) the resource is not listed, the tools
+  carry no `_meta.ui`, and `resources/read` fails with `UI_ASSET_MISSING` naming
+  `npm run build` in `ui/`.
+- The page is self-contained: no `<script src>` or `<link href>` off-origin (AC-R1).
+- What a text-only client sees MUST NOT change: the tools' `content` stays byte-identical.
+
+### FR-6 — Server-side page rendering for the viewer
+
+The viewer renders with Verovio WebAssembly in the page. The MCP Apps default CSP has no
+`'wasm-unsafe-eval'` and a server cannot request it, so the server MUST also offer the app-only
+tool `render_page_svg` (IR-7), which renders one page as SVG with the same layout as the viewer.
+It MUST be hidden from `tools/list` for clients that do not advertise MCP Apps, and MUST NOT
+accept a file path.
+
 ---
 
 ## Non-Functional Requirements
@@ -135,7 +157,10 @@ Output:
 
 Content blocks: `content[0]` is the JSON text above. On success it is followed by a
 `resource_link` to the PDF (`file://` URI of the resolved path, MIME type `application/pdf`).
-Errors return only the error JSON.
+Errors return only the error JSON, as an `isError` result.
+
+`structuredContent` (IR-6): the output above. `_meta.ui.resourceUri`: `ui://render/score-viewer`
+when the viewer is packaged (FR-5).
 
 ### IR-3 — Tool: `render_to_image`
 
@@ -168,7 +193,11 @@ Content blocks: `content[0]` is the JSON text above. On success, extra blocks fo
 | `png`, file > 1 MB | `resource_link` (`file://`, `image/png`) | — |
 | `svg` | `resource_link` (`file://`, `image/svg+xml`) | — |
 
-SVG gets no image block because many hosts cannot display SVG. Errors return only the error JSON.
+SVG gets no image block because many hosts cannot display SVG. Errors return only the error JSON,
+as an `isError` result.
+
+`structuredContent` (IR-6): the output above (`width_px` / `height_px` only for PNG).
+`_meta.ui.resourceUri`: `ui://render/score-viewer` when the viewer is packaged (FR-5).
 
 ### IR-3a — Tool: `describe_score`
 
@@ -213,6 +242,48 @@ Output:
 | `FILE_NOT_FOUND` | `musicxml_path` inside the roots does not exist |
 | `FILE_TOO_LARGE` | `musicxml_path` larger than `SHEET_MUSIC_MAX_SCORE_BYTES` (default 16 MiB) |
 | `PROCESSING_FAILED` | No backend available; rendering error |
+| `UI_ASSET_MISSING` | `resources/read` of the Score Viewer without a UI build (JSON-RPC `-32603`, envelope in `data`) |
+| `RESOURCE_NOT_FOUND` | `resources/read` of an unknown URI (JSON-RPC `-32602`, envelope in `data`) |
+
+### IR-6 — Structured content
+
+`render_to_pdf`, `render_to_image` and `render_page_svg` declare an `output_schema`
+(`presenter.py`) and return `structuredContent` that validates against it. For the two render
+tools it holds the same data as the JSON text in `content[0]`. Error results are `isError`, keep
+the `{error, error_code}` content and carry no `structuredContent`, so clients do not validate
+them against the schema.
+
+### IR-7 — Tool: `render_page_svg` (app-only)
+
+Title "Render score page as SVG", annotation preset `READ_ONLY`.
+`_meta.ui = {resourceUri: "ui://render/score-viewer", visibility: ["app"]}`; without a UI build
+only `{visibility: ["app"]}`. Listed only for clients whose `initialize` capabilities advertise
+the `io.modelcontextprotocol/ui` extension with the `text/html;profile=mcp-app` MIME type;
+`tools/call` works for any client.
+
+```
+Input (all required; no other properties, so never a path):
+  musicxml  string   MusicXML document as a string
+  page      integer  ≥ 1; page of the layout below
+  width_px  integer  1–10000; viewer width in CSS pixels
+  zoom      number   0.1–10; 1 = 100 %
+
+structuredContent:
+  svg         string   the page as an SVG document
+  page        integer
+  page_count  integer  pages at this width and zoom
+
+content: one text block, e.g. "Page 2 of 5 rendered as SVG (84 kB) for the Score Viewer."
+```
+
+Layout: Verovio `scale`, `pageWidth`, `pageHeight` from `engine.page_layout(width_px, zoom)`,
+which mirrors the UI's `paging.ts` `layoutFor()`, plus `adjustPageHeight`, `breaks: "auto"` and
+`footer: "none"`. The last score is kept parsed (by SHA-256), so paging re-renders without
+re-parsing and a new width or zoom only re-flows.
+
+Errors: not MusicXML → `INVALID_INPUT`; a page past the end → `INVALID_PARAMETER`, message
+"Page N is out of range.", hint "This score has pages 1–M at this width and zoom."; schema
+failures → `INVALID_PARAMETER`.
 
 ---
 
@@ -257,7 +328,14 @@ Unit tests MUST cover:
   content blocks), `.mxl` paths, both/neither through the protocol, paths outside the roots
   (absolute, `../`, symlink) with no file content in the error, `describe_score`
 
-Unit tests MUST mock Verovio and cairosvg. They MUST NOT produce real output files.
+- MCP Apps: `_meta.ui` with and without a UI build, `resources/list` and `resources/read`,
+  `structuredContent` against the output schemas, `content` unchanged (golden file),
+  `render_page_svg` visibility for UI and non-UI clients, its contract and errors
+
+Unit tests MUST mock Verovio and cairosvg for the file-writing tools. They MUST NOT produce real
+output files. The `render_page_svg` engine tests (`tests/test_page_svg.py`) run real Verovio in
+process, since the contract is Verovio's page count and re-flow; they write no files and take
+well under a second.
 
 ### TR-2 — Integration tests
 
@@ -267,6 +345,8 @@ Integration tests MUST:
 - Produce a non-empty PDF file and verify it is readable by pypdf
 - Produce a non-empty PNG file and verify its dimensions are plausible (width > 100, height > 100)
 - Test multi-page output (score with 2+ pages)
+- Check the built wheel ships `render_mcp/ui/assets/score-viewer.html` with no off-origin
+  references (`tests/test_packaging.py`; skipped with the build command when the UI is not built)
 
 ### TR-3 — Test fixtures
 
