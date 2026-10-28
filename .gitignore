@@ -44,6 +44,7 @@ ui/playwright-report/
 render-mcp/src/render_mcp/ui/assets/*.html
 pitch-mcp/src/pitch_mcp/ui/assets/*.html
 comparer-mcp/src/comparer_mcp/ui/assets/*.html
+omr-mcp/src/omr_mcp/ui/assets/*.html
 
 # Snyk Security Extension - AI Rules (auto-generated)
 .github/instructions/snyk_rules.instructions.md
