@@ -12,17 +12,15 @@ from __future__ import annotations
 
 import base64
 import os
-import secrets
 import stat
-import threading
 import time
-from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Generic, Protocol, TypeVar, runtime_checkable
+from typing import Any, Callable, Protocol, runtime_checkable
 
 from . import paths
 from .errors import ProcessingError
+from .expiring import EntryNotFound, ExpiringTable
 
 __all__ = [
     "MAX_CHUNK_BYTES",
@@ -113,82 +111,43 @@ def _check_range(offset: object, length: object) -> tuple[int, int]:
     return offset, length
 
 
-R = TypeVar("R")
+class _BaseStore:
+    """Shared lookup and range checks; subclasses decide how bytes are kept and read.
 
-
-class _Registry(Generic[R]):
-    """Ids to records with a fixed TTL from ``add`` and a size cap; oldest go first.
-
-    Reads do not extend the TTL, so an id's lifetime is predictable. Thread-safe because servers
-    may produce artifacts from worker threads.
+    Ids live in an ``ExpiringTable``: a fixed TTL from ``put`` (reads do not extend it, so an id's
+    lifetime is predictable) and a size cap, oldest first.
     """
 
     def __init__(self, ttl_seconds: float, max_entries: int, clock: Callable[[], float]):
-        if not ttl_seconds > 0:
-            raise ValueError("ttl_seconds must be positive")
-        if max_entries < 1:
-            raise ValueError("max_entries must be at least 1")
-        self._ttl = ttl_seconds
-        self._max = max_entries
-        self._clock = clock
-        self._entries: OrderedDict[str, tuple[float, R]] = OrderedDict()
-        self._lock = threading.Lock()
-
-    def add(self, record: R) -> str:
-        artifact_id = secrets.token_urlsafe(24)
-        with self._lock:
-            now = self._clock()
-            self._purge(now)
-            self._entries[artifact_id] = (now, record)
-            while len(self._entries) > self._max:
-                self._entries.popitem(last=False)
-        return artifact_id
-
-    def get(self, artifact_id: object) -> R:
-        if not isinstance(artifact_id, str):
-            raise _unknown()
-        with self._lock:
-            self._purge(self._clock())
-            entry = self._entries.get(artifact_id)
-        if entry is None:
-            raise _unknown()
-        return entry[1]
-
-    def drop(self, artifact_id: str) -> None:
-        with self._lock:
-            self._entries.pop(artifact_id, None)
-
-    def _purge(self, now: float) -> None:
-        # Insertion order is creation order, so expired entries are all at the front.
-        while self._entries:
-            created, _ = next(iter(self._entries.values()))
-            if now - created < self._ttl:
-                return
-            self._entries.popitem(last=False)
-
-
-class _BaseStore:
-    """Shared lookup and range checks; subclasses decide how bytes are kept and read."""
-
-    def __init__(self, ttl_seconds: float, max_entries: int, clock: Callable[[], float]):
-        self._registry: _Registry = _Registry(ttl_seconds, max_entries, clock)
+        self._records: ExpiringTable[str, Any] = ExpiringTable(
+            ttl_seconds=ttl_seconds, max_entries=max_entries, clock=clock
+        )
 
     def info(self, artifact_id: str) -> ArtifactInfo:
-        record = self._registry.get(artifact_id)
+        record = self._record(artifact_id)
         return ArtifactInfo(artifact_id, record.kind, record.byte_length)
 
     def read_chunk(self, artifact_id: str, offset: int, length: int) -> bytes:
-        record = self._registry.get(artifact_id)
+        record = self._record(artifact_id)
         offset, length = _check_range(offset, length)
         length = min(length, max(record.byte_length - offset, 0))
         try:
             return self._read(record, offset, length)
         except _Vanished:
-            self._registry.drop(artifact_id)
+            self._records.discard(artifact_id)
             raise _gone() from None
 
+    def _record(self, artifact_id: object):
+        # Ids are always tokens; anything else (a number, a list) is just an unknown id.
+        if not isinstance(artifact_id, str):
+            raise _unknown()
+        try:
+            return self._records.get(artifact_id)
+        except EntryNotFound:
+            raise _unknown() from None
+
     def _add(self, record) -> str:
-        return self._registry.add(record)
+        return self._records.put(record)
 
     def _read(self, record, offset: int, length: int) -> bytes:
         raise NotImplementedError

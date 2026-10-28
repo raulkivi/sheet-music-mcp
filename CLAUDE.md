@@ -18,7 +18,7 @@ Six independent MCP servers for choir practice. Each server lives in its own dir
 | comparer-mcp | `comparer-mcp/` | Two MusicXML → structured diff | Score comparison |
 
 Shared code (errors, part selection, deprecated parameter names, tool annotations, result content,
-handler wiring, score paths, `describe_score`, measure ranges, MCP Apps UI resources and artifact handles) lives in the library [`sheet-music-mcp-core/`](sheet-music-mcp-core/), which every
+handler wiring, score paths, `describe_score`, measure ranges, MCP Apps UI resources, artifact handles and expiring handle tables) lives in the library [`sheet-music-mcp-core/`](sheet-music-mcp-core/), which every
 server depends on. It is not an MCP server; its tests run from its own directory like a server's.
 
 See [README.md](README.md) for the full vision and data flow.
@@ -79,7 +79,7 @@ UX deliverables (all servers): PyPI packaging, `install.sh`, `SETUP.md`, `exampl
 - **All tool handlers must be `async def`**
 - **All error responses** must use `{"error": "...", "error_code": "..."}` — see [docs/conventions.md](docs/conventions.md) for the full code list
 - **Integration tests** must be marked `@pytest.mark.integration` and must not run in the default `pytest` invocation
-- **Shared code lives in `sheet-music-mcp-core/`**. Use it for errors, part selection, deprecated parameter names, tool annotations, result content and handler wiring; don't copy that code into a server. Engines may import only its MCP-free modules (`errors`, `parts`, `params`, `annotations`, `paths`, `scores`, `measures`, `artifacts`). See [docs/conventions.md](docs/conventions.md#shared-core-library)
+- **Shared code lives in `sheet-music-mcp-core/`**. Use it for errors, part selection, deprecated parameter names, tool annotations, result content, handler wiring and expiring id tables (`expiring.ExpiringTable`); don't copy that code into a server. Engines may import only its MCP-free modules (`errors`, `parts`, `params`, `annotations`, `paths`, `scores`, `measures`, `artifacts`, `expiring`). See [docs/conventions.md](docs/conventions.md#shared-core-library)
 - **Every tool** sets a `title` and an annotation preset; **every part parameter** uses the shared resolver (see [docs/conventions.md](docs/conventions.md#part-selection))
 - **Every score input** has a path sibling (`musicxml` / `musicxml_path`, exactly one required) loaded with `references.load_score()`; never open a score path yourself. Score producers take `return: auto|path|inline` via `references.deliver_score()` (see [docs/conventions.md](docs/conventions.md#score-references))
 
