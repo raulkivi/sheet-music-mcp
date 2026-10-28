@@ -105,6 +105,24 @@ def test_list_resources_is_empty_without_assets():
     assert _registry(assets={}).list_resources() == []
 
 
+def test_packaged_check_reads_each_asset_once():
+    # Tool listings run on every call and a built app is several MB, so the check is cached.
+    class CountingSource(InMemoryAssetSource):
+        reads = 0
+
+        def read(self, name):
+            CountingSource.reads += 1
+            return super().read(name)
+
+    registry = UiRegistry((VIEWER, PLAYER), CountingSource({"viewer.html": HTML}))
+    for _ in range(3):
+        registry.meta_for(VIEWER)
+        registry.meta_for(PLAYER)
+        registry.list_resources()
+
+    assert CountingSource.reads == 2
+
+
 def test_read_returns_the_html_with_the_app_mime_type():
     result = _registry().read("ui://test/viewer")
 

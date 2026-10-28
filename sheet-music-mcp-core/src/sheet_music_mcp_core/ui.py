@@ -94,6 +94,7 @@ class UiRegistry:
                 raise ValueError(f"UI resource {resource.uri} is registered twice")
             self._resources[resource.uri] = resource
         self._source = source
+        self._packaged_uris: dict[str, bool] = {}
 
     def meta_for(self, resource: UiResource) -> dict | None:
         """The tool ``_meta`` linking to ``resource``, or None when its HTML is not packaged.
@@ -124,7 +125,11 @@ class UiRegistry:
         return ReadResourceResult(contents=[TextResourceContents(uri=uri, mime_type=UI_MIME, text=html)])
 
     def _packaged(self, resource: UiResource) -> bool:
-        return self._source.read(resource.asset) is not None
+        # Cached: every tools/list and tools/call asks, and a built app is several MB. Packaged
+        # assets do not change while the server runs.
+        if resource.uri not in self._packaged_uris:
+            self._packaged_uris[resource.uri] = self._source.read(resource.asset) is not None
+        return self._packaged_uris[resource.uri]
 
 
 def client_supports_ui(ctx) -> bool:

@@ -54,7 +54,7 @@ before writing any code.
 | pitch-mcp | ✅ Phase A+B + UX complete (audio-driven position tracking, DTW via dtaidistance) | 293 unit (+2 skipped) + 4 integration |
 | comparer-mcp | ✅ Phase 4 (Advanced features) complete — all originally-scoped phases done | 279 unit + 7 integration |
 
-| sheet-music-mcp-core | ✅ 0.3.1 shared library: Wave 1 helpers, score references (`paths`, `scores`, `references`), measure ranges (`measures`) and MCP Apps UI resources (`ui`, `wiring.make_resource_handlers`). Not yet on PyPI — publish before the next server release | 440 unit |
+| sheet-music-mcp-core | ✅ 0.3.1 shared library: Wave 1 helpers, score references (`paths`, `scores`, `references`), measure ranges (`measures`) and MCP Apps UI resources (`ui`, `wiring.make_resource_handlers`). Not yet on PyPI — publish before the next server release | 441 unit |
 
 Unit counts are the default `pytest` run (`-m "not integration"`). UX Wave 1 (all servers): tool titles
 and annotations, server instructions, part selection by ID/name/voice, inline PNG and file links,
