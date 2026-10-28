@@ -5,7 +5,7 @@ from sheet_music_mcp_core.artifacts import InMemoryArtifactStore
 from sheet_music_mcp_core.ui import InMemoryAssetSource, UiRegistry
 
 import omr_mcp.server as server
-from omr_mcp.previews import SourcePreviews
+from omr_mcp.previews import ReviewJobs
 
 REVIEW_HTML = "<!doctype html><title>Recognition Review</title>"
 
@@ -33,7 +33,7 @@ def artifact_store(monkeypatch):
     """Previews go to memory and every test starts with no jobs."""
     store = InMemoryArtifactStore()
     monkeypatch.setattr(server, "artifact_store", store)
-    monkeypatch.setattr(server, "source_previews", SourcePreviews())
+    monkeypatch.setattr(server, "review_jobs", ReviewJobs())
     return store
 
 

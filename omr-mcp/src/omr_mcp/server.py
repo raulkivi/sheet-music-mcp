@@ -8,7 +8,7 @@ from sheet_music_mcp_core.errors import ProcessingError
 from sheet_music_mcp_core.paths import max_score_bytes
 from sheet_music_mcp_core.references import RETURN_PROPERTY, SCORE_MIME_TYPE, deliver_score
 from sheet_music_mcp_core.scores import read_score_file, score_summary
-from sheet_music_mcp_core.ui import PackageAssetSource, UiRegistry, UiResource
+from sheet_music_mcp_core.ui import PackageAssetSource, UiRegistry, UiResource, client_supports_ui
 from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 import asyncio
 import json
@@ -18,8 +18,15 @@ import time
 
 from . import __version__
 from .omr_engine import recognize_image, recognize_image_to_file, recognize_images, health_check as _engine_health_check
-from .presenter import PREVIEW_OUTPUT_SCHEMA, RECOGNITION_OUTPUT_SCHEMA, present_preview, present_recognition
-from .previews import SourcePreviews, write_source_preview
+from .presenter import (
+    PREVIEW_OUTPUT_SCHEMA,
+    RECOGNITION_OUTPUT_SCHEMA,
+    SCORE_OUTPUT_SCHEMA,
+    present_preview,
+    present_recognition,
+    present_score,
+)
+from .previews import ReviewJobs, write_source_preview
 from .staff_estimate import estimate_staves
 from .utils import decode_base64_image, SUPPORTED_IMAGE_FORMATS
 
@@ -56,7 +63,7 @@ ui_registry = DEFAULT_UI_REGISTRY
 
 # Source previews live in the output root and are served by opaque id (never by path).
 artifact_store = FileArtifactStore()
-source_previews = SourcePreviews()
+review_jobs = ReviewJobs()
 
 
 async def list_tools():
@@ -161,6 +168,26 @@ async def list_tools():
             },
             output_schema=RECOGNITION_OUTPUT_SCHEMA,
             meta=ui_registry.meta_for(RECOGNITION_REVIEW),
+        ),
+        Tool(
+            name="get_recognized_score",
+            title="Recognised score",
+            annotations=ToolAnnotations(**READ_ONLY),
+            description=(
+                "For the Recognition Review app only: the MusicXML an earlier recognition produced, "
+                "so the app can draw it. Takes the job_id from recognize_sheet or recognize_sheets, "
+                "never a path."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "job_id": {"type": "string", "description": "job_id from a recognition result"},
+                },
+                "required": ["job_id"],
+                "additionalProperties": False,
+            },
+            output_schema=SCORE_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(RECOGNITION_REVIEW, app_only=True),
         ),
         Tool(
             name="get_source_preview",
@@ -304,20 +331,32 @@ def _prepare_review(image_paths: list[str]) -> tuple[list, list[int | None]]:
     return previews, estimates
 
 
-async def _present_recognition(result: dict, mode, image_paths: list[str]) -> CallToolResult:
-    """content as before plus the Recognition Review's structuredContent; errors are isError."""
+def _shows_app(ctx) -> bool:
+    # ctx is None when call_tool() is invoked directly, as in unit tests: nobody to show an app to.
+    return ctx is not None and client_supports_ui(ctx)
+
+
+async def _present_recognition(result: dict, mode, image_paths: list[str], ctx) -> CallToolResult:
+    """content as before plus structuredContent; errors are isError.
+
+    Preview files, the job and the staff count are only prepared for clients that can show the
+    Recognition Review.
+    """
     if "error" in result:
         return _error(_deliver_recognized(result, mode))
     # The per-page detail is for structuredContent only; content must stay what it was.
     text_result = {key: value for key, value in result.items() if key != "_pages"}
     content = _deliver_recognized(text_result, mode)
+    if not _shows_app(ctx):
+        content, structured = present_recognition(result, content)
+        return CallToolResult(content=content, structured_content=structured)
     previews, estimates = await asyncio.to_thread(_prepare_review, image_paths)
-    job_id = source_previews.register(artifact_store, previews)
+    job_id = review_jobs.register(artifact_store, result["musicxml"], previews)
     content, structured = present_recognition(
         result,
         content,
         job_id=job_id,
-        previews=source_previews.available_pages(job_id),
+        previews=review_jobs.available_pages(job_id),
         staff_estimates=estimates,
     )
     return CallToolResult(content=content, structured_content=structured)
@@ -344,7 +383,7 @@ async def _recognize_sheet(arguments: dict, ctx) -> CallToolResult:
         result = await _run_with_progress(
             recognize_image, image_path, engine=engine, ctx=ctx, message_prefix="Running OMR recognition"
         )
-        return await _present_recognition(result, arguments.get("return"), [image_path])
+        return await _present_recognition(result, arguments.get("return"), [image_path], ctx)
     except ProcessingError as e:
         return _error(processing_error_content(e))
     except Exception as e:
@@ -415,7 +454,7 @@ async def _recognize_sheets(arguments: dict, ctx) -> CallToolResult:
             ctx=ctx,
             message_prefix=f"Running OMR recognition on {len(resolved_paths)} page(s)",
         )
-        return await _present_recognition(result, arguments.get("return"), resolved_paths)
+        return await _present_recognition(result, arguments.get("return"), resolved_paths, ctx)
     except ProcessingError as e:
         return _error(processing_error_content(e))
     except Exception as e:
@@ -423,11 +462,20 @@ async def _recognize_sheets(arguments: dict, ctx) -> CallToolResult:
         return _error(error_content(f"Failed to process images: {str(e)}", "PROCESSING_FAILED"))
 
 
+async def _get_recognized_score(arguments: dict, ctx) -> CallToolResult:
+    job_id = arguments.get("job_id")
+    try:
+        content, structured = present_score(job_id, review_jobs.musicxml(job_id))
+        return CallToolResult(content=content, structured_content=structured)
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+
+
 async def _get_source_preview(arguments: dict, ctx) -> CallToolResult:
     job_id = arguments.get("job_id")
     page = arguments.get("page", 1)
     try:
-        artifact_id = source_previews.artifact_id(job_id, page)
+        artifact_id = review_jobs.artifact_id(job_id, page)
         chunk = chunk_payload(
             artifact_store, artifact_id, arguments.get("offset", 0), arguments.get("length", MAX_CHUNK_BYTES)
         )
@@ -441,6 +489,7 @@ _RESULT_TOOLS = {
     "recognize_sheet": _recognize_sheet,
     "recognize_sheet_to_file": _recognize_sheet_to_file,
     "recognize_sheets": _recognize_sheets,
+    "get_recognized_score": _get_recognized_score,
     "get_source_preview": _get_source_preview,
 }
 

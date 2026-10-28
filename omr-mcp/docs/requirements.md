@@ -268,24 +268,32 @@ All error responses MUST follow this structure:
 when the HTML is packaged under `omr_mcp/ui/assets/`; without a UI build the tools carry no link and
 the resource is not listed. `recognize_sheet_to_file` stays text-only.
 
-- `content` is byte-identical to the pre-Apps output (golden test `tests/test_content_golden.py`).
-- `structuredContent` (declared as the tools' `output_schema`):
-  `{job_id, musicxml, metadata, pages: [{index, staves_detected, measures, has_preview}]}`.
-  `musicxml` is always the full score, also when `content` holds a `musicxml_path`.
-  `metadata` is the engine metadata plus `staff_systems_estimate` (staves counted on the busiest
-  input page image, `estimate_staves()`); the field is absent when no image could be read. It counts
-  staves, not parts, so it is a hint for the SATB warning, not proof. `pages[].index` is 1-based;
-  `staves_detected` and `measures` are null when the engine gave no per-page detail.
+- `content` is byte-identical to the pre-Apps output for every client (golden test
+  `tests/test_content_golden.py`).
+- `structuredContent` (declared as the tools' `output_schema`) never carries the MusicXML; the app
+  fetches it with `get_recognized_score`.
+  - Every client: `{metadata, pages: [{index, staves_detected, measures}]}`. `pages[].index` is
+    1-based; `staves_detected` and `measures` are null when the engine gave no per-page detail.
+  - Clients that advertise MCP Apps (`client_supports_ui(ctx)`) also get `job_id`,
+    `pages[].has_preview` and `metadata.staff_systems_estimate` (staves counted on the busiest input
+    page image, `estimate_staves()`; absent when no image was readable). It counts staves, not
+    parts, so it hints at a flattened SATB score without proving it. A direct call without a
+    context counts as a client without apps.
+  - Only these clients cause work: preview JPEGs, the staff count and a job table entry are
+    prepared for them alone.
 - Errors keep the `{"error", "error_code"}` content, set `isError: true` and carry no
   `structuredContent`.
-- App-only `get_source_preview(job_id, page=1, offset=0, length<=1 MiB)` (visibility `["app"]`,
-  `additionalProperties: false`) returns the shared `chunk_payload` shape plus `job_id` and `page`:
-  a JPEG of at most 1600 px on its long side, base64 in `data_b64`. It takes no path. An unknown or
-  expired `job_id`, a page outside the job or a page without a preview returns `INVALID_PARAMETER`.
-- At recognition time each input image is rewritten as a downscaled JPEG under
-  `<SHEET_MUSIC_OUTPUT_ROOT>/previews/` and stored in the shared `FileArtifactStore`; `job_id` is a
-  random token mapping to those artifact ids. Artifacts expire after an hour (store TTL), jobs
-  after 64 newer ones, and both are lost on restart. A page whose image cannot be read still
+- App-only `get_recognized_score(job_id)` (visibility `["app"]`, `additionalProperties: false`)
+  returns `{job_id, musicxml}`; its text is one short line.
+- App-only `get_source_preview(job_id, page=1, offset=0, length<=1 MiB)` (same visibility rules)
+  returns the shared `chunk_payload` shape plus `job_id` and `page`: a JPEG of at most 1600 px on its
+  long side, base64 in `data_b64`. It takes no path.
+- For both, an unknown or expired `job_id` returns `INVALID_PARAMETER`; so do a page outside the job
+  and a page without a preview.
+- The job table (`ReviewJobs`) keeps the score and the per-page artifact ids. Each input image is
+  rewritten as a downscaled JPEG under `<SHEET_MUSIC_OUTPUT_ROOT>/previews/` and stored in the
+  shared `FileArtifactStore`. Jobs and artifacts expire after an hour; the table holds at most 16
+  jobs (each a whole score); both are lost on restart. A page whose image cannot be read still
   recognises, with `has_preview: false`.
 
 ## Constraints

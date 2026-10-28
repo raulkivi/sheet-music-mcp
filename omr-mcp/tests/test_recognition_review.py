@@ -6,17 +6,36 @@ import base64
 import io
 import json
 
+from types import SimpleNamespace
+
 import jsonschema
 import pytest
 from mcp import Client
+from mcp.client import advertise
 from PIL import Image
-from sheet_music_mcp_core.ui import UI_MIME, is_app_only
+from sheet_music_mcp_core.ui import UI_EXTENSION, UI_MIME, is_app_only
 
 import omr_mcp.server as srv
 from omr_mcp.previews import MAX_PREVIEW_SIDE
-from omr_mcp.server import app, call_tool_result, list_tools
+from omr_mcp.server import app, list_tools
+from omr_mcp.server import call_tool_result as _call_tool_result
 
 from .conftest import REVIEW_HTML
+
+UI_CLIENT = {"extensions": [advertise(UI_EXTENSION, {"mimeTypes": [UI_MIME]})]}
+
+
+def _ctx(*, ui: bool):
+    """What the server sees as ctx when a client does or does not advertise MCP Apps."""
+    extensions = {UI_EXTENSION: {"mimeTypes": [UI_MIME]}} if ui else {}
+    capabilities = SimpleNamespace(extensions=extensions)
+    return SimpleNamespace(meta=None, session=SimpleNamespace(client_capabilities=capabilities))
+
+
+async def call_tool_result(name, arguments, ctx=_ctx(ui=True)):
+    """The server's result for a client that can show the app, unless a test says otherwise."""
+    return await _call_tool_result(name, arguments, ctx)
+
 
 REVIEW_URI = "ui://omr/recognition-review"
 LINKED = ("recognize_sheet", "recognize_sheets")
@@ -87,7 +106,9 @@ class TestToolLinking:
         schema = _tools()[name].output_schema
 
         assert schema["type"] == "object"
-        assert {"job_id", "musicxml", "metadata", "pages"} <= set(schema["required"])
+        # job_id is for the app, so a client that cannot show it gets a result without one.
+        assert set(schema["required"]) == {"metadata", "pages"}
+        assert "musicxml" not in schema["properties"]
 
     def test_get_source_preview_is_app_only_even_without_a_build(self):
         tool = _tools()["get_source_preview"]
@@ -99,6 +120,18 @@ class TestToolLinking:
         tool = _tools()["get_source_preview"]
 
         assert tool.meta == {"ui": {"resourceUri": REVIEW_URI, "visibility": ["app"]}}
+
+    def test_get_recognized_score_is_app_only_and_takes_only_a_job_id(self, packaged_ui):
+        tool = _tools()["get_recognized_score"]
+
+        assert tool.meta == {"ui": {"resourceUri": REVIEW_URI, "visibility": ["app"]}}
+        assert tool.input_schema["additionalProperties"] is False
+        assert tool.input_schema["required"] == ["job_id"]
+        assert set(tool.input_schema["properties"]) == {"job_id"}
+        assert set(tool.output_schema["required"]) == {"job_id", "musicxml"}
+
+    def test_get_recognized_score_is_app_only_even_without_a_build(self):
+        assert is_app_only(_tools()["get_recognized_score"])
 
     def test_get_source_preview_takes_no_path_and_no_extras(self):
         schema = _tools()["get_source_preview"].input_schema
@@ -150,8 +183,7 @@ class TestRecognizeSheetStructure:
         result = asyncio.run(call_tool_result("recognize_sheet", {"image": str(_page_image(tmp_path))}))
         sc = result.structured_content
 
-        assert set(sc) == {"job_id", "musicxml", "metadata", "pages"}
-        assert sc["musicxml"] == XML
+        assert set(sc) == {"job_id", "metadata", "pages"}
         assert sc["metadata"]["engine"] == "oemer"
         assert sc["metadata"]["staves_detected"] == 1
         assert sc["pages"] == [{"index": 1, "staves_detected": 1, "measures": 8, "has_preview": True}]
@@ -165,15 +197,16 @@ class TestRecognizeSheetStructure:
         assert result.structured_content["job_id"] not in result.content[0].text
         assert "staff_systems_estimate" not in result.content[0].text
 
-    def test_structured_content_keeps_the_score_when_content_holds_a_path(self, tmp_path, monkeypatch):
+    @pytest.mark.parametrize("mode", ["inline", "path"])
+    def test_structured_content_never_carries_the_score(self, tmp_path, monkeypatch, mode):
         _stub_single(monkeypatch)
 
         result = asyncio.run(
-            call_tool_result("recognize_sheet", {"image": str(_page_image(tmp_path)), "return": "path"})
+            call_tool_result("recognize_sheet", {"image": str(_page_image(tmp_path)), "return": mode})
         )
 
-        assert "musicxml_path" in json.loads(result.content[0].text)
-        assert result.structured_content["musicxml"] == XML
+        assert "musicxml" not in result.structured_content
+        assert XML not in json.dumps(result.structured_content)
 
     def test_staff_systems_estimate_is_in_the_metadata(self, tmp_path, monkeypatch):
         _stub_single(monkeypatch, staves=1)
@@ -339,6 +372,126 @@ class TestGetSourcePreview:
         assert second["page"] == 2
 
 
+class TestGetRecognizedScore:
+    def _job(self, tmp_path, monkeypatch):
+        _stub_single(monkeypatch)
+        result = asyncio.run(call_tool_result("recognize_sheet", {"image": str(_page_image(tmp_path))}))
+        return result.structured_content["job_id"]
+
+    def test_returns_the_score_of_the_job(self, tmp_path, monkeypatch):
+        job_id = self._job(tmp_path, monkeypatch)
+
+        result = asyncio.run(call_tool_result("get_recognized_score", {"job_id": job_id}))
+
+        assert not result.is_error
+        assert result.structured_content == {"job_id": job_id, "musicxml": XML}
+        jsonschema.validate(result.structured_content, _tools()["get_recognized_score"].output_schema)
+
+    def test_the_text_block_is_one_short_line_without_the_xml(self, tmp_path, monkeypatch):
+        job_id = self._job(tmp_path, monkeypatch)
+
+        result = asyncio.run(call_tool_result("get_recognized_score", {"job_id": job_id}))
+
+        assert len(result.content) == 1
+        assert XML not in result.content[0].text
+        assert "\n" not in result.content[0].text
+        assert len(result.content[0].text) < 200
+
+    @pytest.mark.parametrize("job_id", ["nope", "", "../../etc/passwd", "/etc/passwd"])
+    def test_unknown_job_is_invalid_parameter(self, job_id):
+        result = asyncio.run(call_tool_result("get_recognized_score", {"job_id": job_id}))
+
+        assert result.is_error
+        assert result.structured_content is None
+        assert json.loads(result.content[0].text)["error_code"] == "INVALID_PARAMETER"
+
+    def test_the_score_expires_with_the_job(self, tmp_path, monkeypatch):
+        job_id = self._job(tmp_path, monkeypatch)
+        monkeypatch.setattr(srv, "review_jobs", srv.ReviewJobs())  # a restart forgets every job
+
+        result = asyncio.run(call_tool_result("get_recognized_score", {"job_id": job_id}))
+
+        assert result.is_error
+
+    def test_a_path_argument_is_rejected_through_the_protocol(self):
+        async def call():
+            async with Client(app, **UI_CLIENT) as client:
+                return await client.call_tool("get_recognized_score", {"job_id": "x", "path": "/etc/passwd"})
+
+        assert asyncio.run(call()).is_error
+
+
+class TestClientsWithoutApps:
+    """A client that cannot show the app gets no preview files and no job; content is unchanged."""
+
+    def _both(self, tmp_path, monkeypatch, **extra):
+        _stub_single(monkeypatch)
+        args = {"image": str(_page_image(tmp_path, staves=4)), **extra}
+        text_only = asyncio.run(_call_tool_result("recognize_sheet", args, _ctx(ui=False)))
+        with_ui = asyncio.run(_call_tool_result("recognize_sheet", args, _ctx(ui=True)))
+        return text_only, with_ui
+
+    def test_content_is_byte_identical_for_both_kinds(self, tmp_path, monkeypatch):
+        text_only, with_ui = self._both(tmp_path, monkeypatch)
+
+        assert [b.model_dump() for b in text_only.content] == [b.model_dump() for b in with_ui.content]
+
+    def test_no_job_no_estimate_no_preview_flag(self, tmp_path, monkeypatch):
+        text_only, _ = self._both(tmp_path, monkeypatch)
+        sc = text_only.structured_content
+
+        assert set(sc) == {"metadata", "pages"}
+        assert "staff_systems_estimate" not in sc["metadata"]
+        assert sc["pages"] == [{"index": 1, "staves_detected": 1, "measures": 8}]
+        jsonschema.validate(sc, _tools()["recognize_sheet"].output_schema)
+
+    def test_nothing_is_written_or_remembered(self, tmp_path, monkeypatch, output_root):
+        _stub_single(monkeypatch)
+
+        asyncio.run(_call_tool_result("recognize_sheet", {"image": str(_page_image(tmp_path))}, _ctx(ui=False)))
+
+        assert srv.review_jobs._jobs == {}
+        assert list(output_root.rglob("*.jpg")) == []
+
+    def test_a_client_with_the_app_does_get_preview_files_and_a_job(self, tmp_path, monkeypatch, output_root):
+        _stub_single(monkeypatch)
+
+        asyncio.run(_call_tool_result("recognize_sheet", {"image": str(_page_image(tmp_path))}, _ctx(ui=True)))
+
+        assert len(srv.review_jobs._jobs) == 1
+        assert len(list(output_root.rglob("*.jpg"))) == 1
+
+    def test_a_direct_call_without_a_context_counts_as_no_ui(self, tmp_path, monkeypatch):
+        _stub_single(monkeypatch)
+
+        result = asyncio.run(_call_tool_result("recognize_sheet", {"image": str(_page_image(tmp_path))}))
+
+        assert "job_id" not in result.structured_content
+
+    def test_through_the_protocol_both_kinds_are_served(self, tmp_path, monkeypatch):
+        _stub_single(monkeypatch)
+        args = {"image": str(_page_image(tmp_path))}
+
+        async def call(**client):
+            async with Client(app, **client) as c:
+                return await c.call_tool("recognize_sheet", args)
+
+        text_only, with_ui = asyncio.run(call()), asyncio.run(call(**UI_CLIENT))
+
+        assert "job_id" not in text_only.structured_content
+        assert "job_id" in with_ui.structured_content
+
+    def test_sheets_follow_the_same_rule(self, tmp_path, monkeypatch):
+        _stub_pages(monkeypatch, [(1, 4), (1, 4)])
+        images = [str(_page_image(tmp_path, f"p{i}.png", (500, 300))) for i in range(2)]
+
+        result = asyncio.run(_call_tool_result("recognize_sheets", {"images": images}, _ctx(ui=False)))
+
+        assert set(result.structured_content) == {"metadata", "pages"}
+        assert all("has_preview" not in p for p in result.structured_content["pages"])
+        assert "_pages" not in json.dumps(result.structured_content)
+
+
 class TestErrors:
     def test_engine_error_keeps_its_content_and_sets_is_error(self, tmp_path, monkeypatch):
         error = {"error": "File not found: x", "error_code": "FILE_NOT_FOUND"}
@@ -362,4 +515,4 @@ class TestErrors:
 
         asyncio.run(call_tool_result("recognize_sheet", {"image": str(_page_image(tmp_path))}))
 
-        assert srv.source_previews._jobs == {}
+        assert srv.review_jobs._jobs == {}

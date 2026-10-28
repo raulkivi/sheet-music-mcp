@@ -47,7 +47,7 @@ before writing any code.
 
 | Server | Status | Tests |
 |--------|--------|-------|
-| omr-mcp | ⚠️ Phase 1-4 complete; default (oemer) engine loses SATB voice structure — fixed via opt-in `engine="audiveris"`, not yet the default (see omr-mcp/docs/HANDOVER.md) | 240 unit (+89 skipped) + 41 integration; MCP Apps Recognition Review server side done (`structuredContent`, app-only `get_source_preview`), page not built yet |
+| omr-mcp | ⚠️ Phase 1-4 complete; default (oemer) engine loses SATB voice structure — fixed via opt-in `engine="audiveris"`, not yet the default (see omr-mcp/docs/HANDOVER.md) | 267 unit (+89 skipped) + 41 integration; MCP Apps Recognition Review server side done (`structuredContent`, app-only `get_recognized_score` / `get_source_preview`), page not built yet |
 | synth-mcp | ✅ Phase 1 + UX complete | 306 unit + 10 integration |
 | render-mcp | ✅ Phase 1 + UX complete; MCP Apps spike 0c (Score Viewer, app-only `render_page_svg`) awaiting manual host checks | 234 unit + 12 integration |
 | musicxml-abc-mcp | ✅ Phase 1 + UX complete | 161 unit + 4 integration |
