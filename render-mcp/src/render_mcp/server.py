@@ -21,6 +21,7 @@ from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 from . import __version__
 from .engine import (
     ProcessingError,
+    SvgPageRenderer,
     cairosvg_available,
     detect_backend,
     get_health_status,
@@ -29,7 +30,14 @@ from .engine import (
     render_to_pdf,
     verovio_available,
 )
-from .presenter import IMAGE_OUTPUT_SCHEMA, PDF_OUTPUT_SCHEMA, present_image, present_pdf
+from .presenter import (
+    IMAGE_OUTPUT_SCHEMA,
+    PAGE_SVG_OUTPUT_SCHEMA,
+    PDF_OUTPUT_SCHEMA,
+    present_image,
+    present_page_svg,
+    present_pdf,
+)
 from .utils import (
     DPI_DEFAULT,
     PAGE_DEFAULT,
@@ -66,6 +74,9 @@ SCORE_VIEWER = UiResource(
 # assets. Without a UI build the viewer is hidden and the tools carry no _meta.ui.
 DEFAULT_UI_REGISTRY = UiRegistry([SCORE_VIEWER], PackageAssetSource("render_mcp"))
 ui_registry = DEFAULT_UI_REGISTRY
+
+# Keeps the last score the viewer paged through parsed (engine.SvgPageRenderer).
+page_renderer = SvgPageRenderer()
 
 
 def _score_properties() -> dict:
@@ -171,6 +182,39 @@ async def list_tools():
             },
         ),
         DESCRIBE_SCORE_TOOL,
+        Tool(
+            name="render_page_svg",
+            title="Render score page as SVG",
+            annotations=ToolAnnotations(**READ_ONLY),
+            description=(
+                "For the Score Viewer only: one page of an inline MusicXML score as SVG, laid out "
+                "for the viewer's width and zoom. Used when the host blocks client-side rendering."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    # Inline only: an app-only tool never reads a path (proposal §7).
+                    "musicxml": {"type": "string", "description": "MusicXML document as a string"},
+                    "page": {"type": "integer", "minimum": 1, "description": "Page number, 1-indexed"},
+                    "width_px": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10000,
+                        "description": "Viewer width in CSS pixels; the page is laid out to fill it",
+                    },
+                    "zoom": {
+                        "type": "number",
+                        "minimum": 0.1,
+                        "maximum": 10,
+                        "description": "Zoom factor, 1 = 100 %",
+                    },
+                },
+                "required": ["musicxml", "page", "width_px", "zoom"],
+                "additionalProperties": False,
+            },
+            output_schema=PAGE_SVG_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(SCORE_VIEWER, app_only=True),
+        ),
     ]
 
 
@@ -242,7 +286,24 @@ async def _render_image(arguments: dict, ctx) -> CallToolResult:
     return CallToolResult(content=content, structured_content=structured)
 
 
-_RESULT_TOOLS = {"render_to_pdf": _render_pdf, "render_to_image": _render_image}
+async def _render_page_svg(arguments: dict, ctx) -> CallToolResult:
+    musicxml = arguments["musicxml"]
+    ok, err = validate_musicxml(musicxml)
+    if not ok:
+        return _error(error_content(err, "INVALID_INPUT"))
+    try:
+        page = page_renderer.render(musicxml, arguments["page"], arguments["width_px"], arguments["zoom"])
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    content, structured = present_page_svg(page)
+    return CallToolResult(content=content, structured_content=structured)
+
+
+_RESULT_TOOLS = {
+    "render_to_pdf": _render_pdf,
+    "render_to_image": _render_image,
+    "render_page_svg": _render_page_svg,
+}
 
 
 async def call_tool(name: str, arguments: dict, ctx=None) -> list:

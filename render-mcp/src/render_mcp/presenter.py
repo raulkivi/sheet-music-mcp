@@ -39,6 +39,16 @@ IMAGE_OUTPUT_SCHEMA = {
     "required": ["image_path", "format", "page"],
 }
 
+PAGE_SVG_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "svg": {"type": "string", "description": "The page as an SVG document"},
+        "page": {"type": "integer", "minimum": 1},
+        "page_count": {"type": "integer", "minimum": 1, "description": "Pages at this width and zoom"},
+    },
+    "required": ["svg", "page", "page_count"],
+}
+
 
 def present_pdf(pdf_path: str, page_count: int, backend: str | None) -> tuple[list, dict]:
     """``(content, structured_content)`` for a rendered PDF."""
@@ -70,3 +80,14 @@ def _file_blocks(path: str, mime_type: str) -> list:
             blocks.append(image)
     blocks.append(file_link(path, mime_type))
     return blocks
+
+
+def present_page_svg(page: dict) -> tuple[list, dict]:
+    """``(content, structured_content)`` for one viewer page.
+
+    Only the app reads the SVG, so the text block just says what was rendered and keeps the
+    markup out of any model context.
+    """
+    size_kb = max(1, round(len(page["svg"].encode("utf-8")) / 1024))
+    text = f"Page {page['page']} of {page['page_count']} rendered as SVG ({size_kb} kB) for the Score Viewer."
+    return [TextContent(type="text", text=text)], dict(page)

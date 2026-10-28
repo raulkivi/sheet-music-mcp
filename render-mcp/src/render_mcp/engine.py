@@ -11,15 +11,20 @@ Pipeline:
 Both first cut the score to an optional ``measures=[start, end]`` with the core's
 ``select_measures`` and only then dispatch to MuseScore or Verovio, so the backends see the
 same cut score and know nothing of ranges.
+
+    MusicXML string + page, width, zoom
+        → SvgPageRenderer.render() → one page's SVG for the Score Viewer (Verovio only)
 """
 
+import hashlib
 import io
 import logging
+import math
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 from sheet_music_mcp_core.errors import ProcessingError  # re-exported for server.py
 from sheet_music_mcp_core.measures import select_measures
@@ -408,6 +413,105 @@ def _render_image_verovio(
         result_dict["height_px"] = h
 
     return result_dict
+
+
+# ---------------------------------------------------------------------------
+# Page SVG for the Score Viewer (render_page_svg)
+# ---------------------------------------------------------------------------
+
+# Mirrors ui/packages/kit/src/score/paging.ts so a server-rendered page looks like one the
+# viewer renders with Verovio WASM; both are checked against ui/.../layout-cases.json.
+_BASE_SCALE = 40
+_MIN_LAYOUT_WIDTH = 1500
+_PAGE_ASPECT = 1.414
+_MIN_SCALE = 1
+_MAX_SCALE = 1000
+
+
+def _js_round(value: float) -> int:
+    """JavaScript's Math.round: halves go up (Python's round() goes to even)."""
+    return math.floor(value + 0.5)
+
+
+def _fit_width_scale(container_width: float, page_width: float) -> int:
+    if not container_width > 0 or not page_width > 0:
+        return 100
+    return min(_MAX_SCALE, max(_MIN_SCALE, _js_round(container_width / page_width * 100)))
+
+
+def page_layout(container_width: float, zoom: float) -> dict:
+    """Verovio ``scale``, ``pageWidth`` and ``pageHeight`` for a viewer width and zoom (paging.ts layoutFor)."""
+    scale = _js_round(zoom * _BASE_SCALE)
+    wanted = _js_round((container_width * 100) / scale)
+    if wanted >= _MIN_LAYOUT_WIDTH:
+        page_width = wanted
+    else:
+        scale = min(scale, _fit_width_scale(container_width, _MIN_LAYOUT_WIDTH))
+        page_width = _MIN_LAYOUT_WIDTH
+    return {"scale": scale, "pageWidth": page_width, "pageHeight": _js_round(page_width * _PAGE_ASPECT)}
+
+
+def _viewer_options(layout: dict) -> dict:
+    # Same as ScoreView.applyLayout(); smuflTextFont stays Verovio's "embedded" default (see
+    # docs/architecture.md: no mode shows tempo note glyphs under the spec's default CSP).
+    return {**layout, "adjustPageHeight": True, "breaks": "auto", "footer": "none"}
+
+
+def _verovio_toolkit():
+    import verovio
+
+    return verovio.toolkit()
+
+
+class SvgPageRenderer:
+    """Renders single pages of the last score it was given, re-parsing only a new score.
+
+    The viewer pages and zooms through one score with a call per page, so the parsed score is
+    kept by content hash and a new width or zoom only re-flows it. One score at a time keeps
+    memory flat; a second viewer showing another score just reloads.
+    """
+
+    def __init__(self, toolkit_factory: Callable[[], object] = _verovio_toolkit):
+        self._toolkit_factory = toolkit_factory
+        self._toolkit = None
+        self._score_hash: str | None = None
+        self._layout: dict | None = None
+
+    def render(self, musicxml: str, page: int, width_px: int, zoom: float) -> dict:
+        """``{"svg", "page", "page_count"}`` for ``page`` laid out at ``width_px`` and ``zoom``.
+
+        Raises:
+            ProcessingError: INVALID_INPUT if Verovio cannot read the score, INVALID_PARAMETER
+                (hint: the page range) if ``page`` is past the last page of this layout.
+        """
+        layout = page_layout(width_px, zoom)
+        toolkit = self._toolkit_for(musicxml, layout)
+        page_count = toolkit.getPageCount()
+        if page_count < 1:
+            raise ProcessingError("Score has no renderable pages", "PROCESSING_FAILED")
+        if not 1 <= page <= page_count:
+            raise ProcessingError(
+                f"Page {page} is out of range.",
+                "INVALID_PARAMETER",
+                hint=f"This score has pages 1–{page_count} at this width and zoom.",
+            )
+        return {"svg": toolkit.renderToSVG(page), "page": page, "page_count": page_count}
+
+    def _toolkit_for(self, musicxml: str, layout: dict):
+        score_hash = hashlib.sha256(musicxml.encode("utf-8")).hexdigest()
+        if score_hash != self._score_hash:
+            # Forget the old score first, so a failed load never leaves a stale one cached.
+            self._toolkit = self._score_hash = None
+            toolkit = self._toolkit_factory()
+            toolkit.setOptions(_viewer_options(layout))
+            if not toolkit.loadData(musicxml):
+                raise ProcessingError("Verovio failed to load MusicXML", "INVALID_INPUT")
+            self._toolkit, self._score_hash, self._layout = toolkit, score_hash, layout
+        elif layout != self._layout:
+            self._toolkit.setOptions(_viewer_options(layout))
+            self._toolkit.redoLayout()
+            self._layout = layout
+        return self._toolkit
 
 
 # ---------------------------------------------------------------------------

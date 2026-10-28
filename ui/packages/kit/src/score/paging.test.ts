@@ -8,6 +8,7 @@ import {
   layoutFor,
   stepZoom,
 } from "./paging.ts";
+import layoutCases from "./layout-cases.json" with { type: "json" };
 
 describe("clampPage", () => {
   it("keeps a page inside 1..pageCount", () => {
@@ -90,5 +91,12 @@ describe("layoutFor", () => {
     const layout = layoutFor(300, 1);
     expect(layout.pageWidth).toBe(MIN_LAYOUT_WIDTH);
     expect(layout.scale).toBe(20);
+  });
+});
+
+describe("layout parity with render-mcp", () => {
+  // render-mcp's page_layout() reads the same cases, so server-rendered pages match these.
+  it.each(layoutCases.cases)("layoutFor($containerWidth, $zoom)", ({ containerWidth, zoom, layout }) => {
+    expect(layoutFor(containerWidth, zoom)).toEqual(layout);
   });
 });

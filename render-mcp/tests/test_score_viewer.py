@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from mcp import Client, MCPError
 from mcp.types import INTERNAL_ERROR, INVALID_PARAMS
-from sheet_music_mcp_core.ui import UI_MIME
+from sheet_music_mcp_core.ui import UI_MIME, is_app_only
 
 import render_mcp.server as server
 from render_mcp.engine import ProcessingError
@@ -67,8 +67,8 @@ class TestToolLinking:
     async def test_no_link_without_a_ui_build(self, name):
         assert (await _tools())[name].meta is None
 
-    async def test_other_tools_are_not_linked(self, packaged_ui):
-        others = [t for name, t in (await _tools()).items() if name not in LINKED]
+    async def test_other_model_facing_tools_are_not_linked(self, packaged_ui):
+        others = [t for name, t in (await _tools()).items() if name not in LINKED and not is_app_only(t)]
 
         assert others
         assert all(t.meta is None or "resourceUri" not in t.meta.get("ui", {}) for t in others)
