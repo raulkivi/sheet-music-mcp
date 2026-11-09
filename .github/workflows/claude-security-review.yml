@@ -4,6 +4,9 @@ on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
 
+# Jobs declare their own permissions.
+permissions: {}
+
 jobs:
   security-review:
     # Dependabot and fork PRs get no repository secrets, so the token would be empty.
