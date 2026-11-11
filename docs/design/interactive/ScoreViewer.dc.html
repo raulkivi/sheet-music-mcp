@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Score Viewer</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width:100%;min-height:820px;box-sizing:border-box;background:{{t.bg}};color:{{t.text}};font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;display:flex;flex-direction:column">
+  <div style="height:3px;background:linear-gradient(#0072ce 0 33.33%,#15171c 33.33% 66.66%,{{t.flagWhite}} 66.66% 100%)"></div>
+  <header style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 16px;background:{{t.panel}};border-bottom:1px solid {{t.border}}">
+    <strong style="font-size:16px">Score Viewer</strong>
+    <span style="font-size:12px;color:{{t.muted}}">Sample: Ave verum, SATB</span>
+    <span style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:999px;background:{{t.tint}};color:{{t.accentText}}">Engine: in page</span>
+  </header>
+  <div role="toolbar" aria-label="Score controls" style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:8px 16px;border-bottom:1px solid {{t.border}}">
+    <button type="button" aria-label="Previous page" onClick="{{ prevPage }}" disabled="{{ atFirst }}" style="min-width:40px;min-height:40px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">&#8249;</button>
+    <span aria-live="polite" style="min-width:104px;text-align:center;font-variant-numeric:tabular-nums">Page {{page}} of 12</span>
+    <button type="button" aria-label="Next page" onClick="{{ nextPage }}" disabled="{{ atLast }}" style="min-width:40px;min-height:40px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">&#8250;</button>
+    <span style="width:1px;align-self:stretch;background:{{t.border}}"></span>
+    <button type="button" aria-label="Zoom out" onClick="{{ zoomOut }}" style="min-width:40px;min-height:40px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">&minus;</button>
+    <span style="min-width:56px;text-align:center;font-variant-numeric:tabular-nums">{{zoom}}%</span>
+    <button type="button" aria-label="Zoom in" onClick="{{ zoomIn }}" style="min-width:40px;min-height:40px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">+</button>
+    <div style="margin-left:auto;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <button type="button" aria-pressed="{{ dark }}" onClick="{{ toggleDark }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">{{darkLabel}}</button>
+      <button type="button" onClick="{{ download }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">Download SVG</button>
+      <button type="button" aria-pressed="{{ fullscreen }}" onClick="{{ toggleFull }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">{{fullLabel}}</button>
+    </div>
+  </div>
+  <main style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;padding:16px;align-items:start">
+    <section aria-label="Score page" style="min-width:0;padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px;overflow-x:auto">
+      <svg viewBox="0 0 600 300" role="img" aria-label="Sample page {{page}}" style="display:block;width:{{zoom}}%;max-width:none;height:auto;margin:0 auto;color:{{t.text}}">
+        <path d="M20 30H580M20 40H580M20 50H580M20 60H580M20 70H580M20 120H580M20 130H580M20 140H580M20 150H580M20 160H580" stroke="currentColor" stroke-width="1" fill="none"/>
+        <g fill="currentColor">
+          <ellipse cx="90" cy="70" rx="6" ry="4.5"/><ellipse cx="144" cy="60" rx="6" ry="4.5"/><ellipse cx="200" cy="55" rx="6" ry="4.5"/><ellipse cx="256" cy="50" rx="6" ry="4.5"/>
+          <ellipse cx="90" cy="160" rx="6" ry="4.5"/><ellipse cx="144" cy="150" rx="6" ry="4.5"/><ellipse cx="200" cy="140" rx="6" ry="4.5"/><ellipse cx="256" cy="130" rx="6" ry="4.5"/>
+          <ellipse cx="324" cy="70" rx="6" ry="4.5"/><ellipse cx="378" cy="60" rx="6" ry="4.5"/><ellipse cx="434" cy="55" rx="6" ry="4.5"/><ellipse cx="490" cy="50" rx="6" ry="4.5"/>
+        </g>
+        <g stroke="currentColor" stroke-width="1.2">
+          <path d="M96 70V40M150 60V30M206 55V25M262 50V20M96 160V130M150 150V120M206 140V110M262 130V100M330 70V40M384 60V30M440 55V25M496 50V20"/>
+        </g>
+        <text x="84" y="190" font-size="9" fill="{{t.muted}}">{{lyricA}}</text>
+        <text x="194" y="190" font-size="9" fill="{{t.muted}}">{{lyricB}}</text>
+      </svg>
+      <p style="margin:8px 0 0;font-size:12px;color:{{t.muted}}">{{pageNote}}</p>
+    </section>
+    <aside aria-label="About this page" style="padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
+      <h2 style="margin:0 0 8px;font-size:14px">This page</h2>
+      <p style="margin:0 0 6px;font-size:14px"><span style="font-size:12px;padding:2px 8px;border-radius:999px;background:{{t.okTint}};color:{{t.okText}}">Loaded</span> Bars {{bars}}</p>
+      <p style="margin:0 0 12px;font-size:14px"><span style="font-size:12px;padding:2px 8px;border-radius:999px;background:{{t.tint}};color:{{t.accentText}}">{{savedLabel}}</span> <span style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px">{{savedFile}}</span></p>
+      <p style="margin:0;font-size:12px;color:{{t.muted}}">Tab reaches every control. Arrow keys turn the page. Zoom is limited to 60% to 200%.</p>
+    </aside>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const s = this.state || {};
+    const page = s.page || 3;
+    const zoom = s.zoom || 100;
+    const dark = !!s.dark;
+    const fullscreen = !!s.fullscreen;
+    const downloaded = !!s.downloaded;
+    const LIGHT = { bg: '#ffffff', panel: '#f4f6fa', text: '#15171c', muted: '#4b5563', border: '#d5dce6', accentText: '#005fae', tint: '#eaf2fb', okTint: '#e4f2e8', okText: '#1e6b3a', flagWhite: '#ffffff' };
+    const DARK = { bg: '#101217', panel: '#1a1e27', text: '#eef2f7', muted: '#b4bdcb', border: '#2e3645', accentText: '#7fbcf5', tint: '#1b2b40', okTint: '#17301f', okText: '#8fd3a4', flagWhite: '#101217' };
+    const bars = ['1 to 4', '5 to 8', '9 to 12', '13 to 16', '17 to 20', '21 to 24', '25 to 28', '29 to 32', '33 to 36', '37 to 40', '41 to 44', '45 to 48'];
+    const lyrics = ['A-ve ve-rum', 'cor-pus na-tum', 'vere pas-sum', 'im-mo-la-tum'];
+    return {
+      t: dark ? DARK : LIGHT,
+      page,
+      zoom,
+      dark,
+      darkLabel: dark ? 'Light theme' : 'Dark theme',
+      fullscreen,
+      fullLabel: fullscreen ? 'Exit fullscreen' : 'Fullscreen',
+      atFirst: page <= 1,
+      atLast: page >= 12,
+      bars: bars[page - 1],
+      lyricA: lyrics[page % 4],
+      lyricB: lyrics[(page + 1) % 4],
+      pageNote: 'Page ' + page + ' · zoom ' + zoom + '% · notes and staff lines use the text colour, so both themes keep 3:1 marks.',
+      savedLabel: downloaded ? 'Saved' : 'Not saved',
+      savedFile: downloaded ? 'Ave_verum_p' + page + '.svg' : '(download to save)',
+      prevPage: () => this.setState({ page: Math.max(1, page - 1) }),
+      nextPage: () => this.setState({ page: Math.min(12, page + 1) }),
+      zoomOut: () => this.setState({ zoom: Math.max(60, zoom - 20) }),
+      zoomIn: () => this.setState({ zoom: Math.min(200, zoom + 20) }),
+      toggleDark: () => this.setState({ dark: !dark }),
+      toggleFull: () => this.setState({ fullscreen: !fullscreen }),
+      download: () => this.setState({ downloaded: true }),
+    };
+  }
+}
+</script>
+</body>
+</html>

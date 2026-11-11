@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Practice Coach</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width:100%;min-height:820px;box-sizing:border-box;background:{{t.bg}};color:{{t.text}};font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;display:flex;flex-direction:column">
+  <div style="height:3px;background:linear-gradient(#0072ce 0 33.33%,#15171c 33.33% 66.66%,{{t.flagWhite}} 66.66% 100%)"></div>
+  <header style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 16px;background:{{t.panel}};border-bottom:1px solid {{t.border}}">
+    <strong style="font-size:16px">Practice Coach</strong>
+    <span style="font-size:12px;color:{{t.muted}}">Alto · bars 9 to 12 · {{statusWord}}</span>
+    <span style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:999px;background:{{listenBg}};color:{{listenText}}">{{listenLabel}}</span>
+    <button type="button" aria-pressed="{{ dark }}" onClick="{{ toggleDark }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">{{darkLabel}}</button>
+  </header>
+  <div role="toolbar" aria-label="Session controls" style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:8px 16px;border-bottom:1px solid {{t.border}}">
+    <button type="button" onClick="{{ toggleListen }}" style="min-width:150px;min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.accent}};background:{{t.accent}};color:#ffffff;font-weight:600">{{listenButton}}</button>
+    <button type="button" onClick="{{ stopAndSummarise }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.muted}};background:{{t.bg}};color:{{t.text}}">Stop and see summary</button>
+    <span style="width:1px;align-self:stretch;background:{{t.border}}"></span>
+    <div role="group" aria-label="Part" style="display:flex;flex-wrap:wrap;gap:8px">
+      <sc-for list="{{parts}}" as="p">
+        <button type="button" aria-pressed="{{ p.on }}" onClick="{{ p.pick }}" style="min-height:40px;padding:6px 12px;border-radius:999px;border:1px solid {{t.muted}};background:{{p.bg}};color:{{t.text}}">{{p.name}}</button>
+      </sc-for>
+    </div>
+  </div>
+  <main style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;padding:16px;align-items:start">
+    <section aria-label="Score with singing cursor" style="min-width:0;padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
+      <svg viewBox="0 0 600 170" role="img" aria-label="Bars 9 to 12, cursor at bar {{cursorBar}}" style="display:block;width:100%;height:auto;color:{{t.text}}">
+        <path d="M20 40H580M20 50H580M20 60H580M20 70H580M20 80H580" stroke="currentColor" stroke-width="1" fill="none"/>
+        <path d="M96 80V50M150 70V40M206 65V35M262 60V30M340 80V50M396 70V40M452 65V35M508 60V30" stroke="currentColor" stroke-width="1.2" fill="none"/>
+        <g fill="currentColor">
+          <ellipse cx="90" cy="80" rx="6" ry="4.5"/><ellipse cx="144" cy="70" rx="6" ry="4.5"/><ellipse cx="200" cy="65" rx="6" ry="4.5"/><ellipse cx="256" cy="60" rx="6" ry="4.5"/>
+          <ellipse cx="334" cy="80" rx="6" ry="4.5"/><ellipse cx="390" cy="70" rx="6" ry="4.5"/><ellipse cx="446" cy="65" rx="6" ry="4.5"/><ellipse cx="502" cy="60" rx="6" ry="4.5"/>
+        </g>
+        <path d="{{cursorPath}}" stroke="{{t.marker}}" stroke-width="2.5" fill="none"/>
+      </svg>
+      <p style="margin:8px 0 0;font-size:12px;color:{{t.muted}};font-variant-numeric:tabular-nums">Bar {{cursorBar}} · beat {{beat}} · expected {{expected}} · held {{held}}</p>
+    </section>
+    <aside aria-label="Pitch now" style="padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12px;color:{{t.muted}}">You sang</span>
+        <span style="font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:{{statusBg}};color:{{statusText}}">{{statusBadge}}</span>
+      </div>
+      <p style="margin:8px 0 2px;font-size:32px;font-weight:700;line-height:1.1">{{noteName}} <span style="font-size:14px;font-weight:400;color:{{t.muted}}">{{hz}} Hz</span></p>
+      <p style="margin:0 0 12px;font-size:14px;color:{{t.muted}};font-variant-numeric:tabular-nums">{{centsLabel}}</p>
+      <div role="img" aria-label="Pitch meter: {{centsLabel}}" style="position:relative;height:56px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}}">
+        <span style="position:absolute;top:0;bottom:0;left:40%;width:20%;background:{{t.tint}}"></span>
+        <span style="position:absolute;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;background:{{t.marker}}"></span>
+        <span style="position:absolute;top:6px;bottom:6px;left:{{needle}}%;width:4px;margin-left:-2px;background:{{t.text}};border-radius:2px"></span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:{{t.muted}};margin-top:4px"><span>−50</span><span>0</span><span>+50</span></div>
+      <h2 style="margin:16px 0 8px;font-size:14px">Last 3 bars</h2>
+      <ul style="list-style:none;margin:0;padding:0">
+        <sc-for list="{{history}}" as="h">
+          <li style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid {{t.border}}">
+            <span style="min-width:56px;font-variant-numeric:tabular-nums">Bar {{h.bar}}</span>
+            <span style="font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:{{h.bg}};color:{{h.text}}">{{h.label}}</span>
+          </li>
+        </sc-for>
+      </ul>
+      <p style="margin:12px 0 0;font-size:12px;color:{{t.muted}}">Cents and status are read aloud when they change, not on every update.</p>
+    </aside>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+class Component extends DCLogic {
+  componentDidMount() {
+    this.timer = setInterval(() => {
+      const s = this.state || {};
+      if (!s.listening) return;
+      this.setState({ tick: (s.tick || 0) + 1 });
+    }, 700);
+  }
+  componentWillUnmount() {
+    clearInterval(this.timer);
+  }
+  renderVals() {
+    const s = this.state || {};
+    const dark = !!s.dark;
+    const listening = !!s.listening;
+    const tick = s.tick || 0;
+    const part = s.part || 'A';
+    const LIGHT = { bg: '#ffffff', panel: '#f4f6fa', text: '#15171c', muted: '#4b5563', border: '#d5dce6', accent: '#0072ce', marker: '#b7850f', tint: '#eaf2fb', flagWhite: '#ffffff', okTint: '#e4f2e8', okText: '#1e6b3a', warnTint: '#fbf0d2', warnText: '#7a5300', badTint: '#f9e3e1', badText: '#a8322d' };
+    const DARK = { bg: '#101217', panel: '#1a1e27', text: '#eef2f7', muted: '#b4bdcb', border: '#2e3645', accent: '#0072ce', marker: '#f2c14e', tint: '#1b2b40', flagWhite: '#101217', okTint: '#17301f', okText: '#8fd3a4', warnTint: '#3a2d0c', warnText: '#f2c14e', badTint: '#3a1c1a', badText: '#f09a94' };
+    const t = dark ? DARK : LIGHT;
+    // Simulated singing: a fixed cycle of cents offsets, so the prototype behaves the same each time.
+    const cycle = [6, -4, 12, -18, 2, 9, -34, 4];
+    const cents = listening ? cycle[tick % cycle.length] : 0;
+    const bars = [9, 9, 10, 10, 10, 11, 11, 12];
+    const cursorBar = bars[tick % bars.length];
+    const beat = 1 + (tick % 4);
+    const status = !listening ? 'idle' : Math.abs(cents) <= 10 ? 'ok' : Math.abs(cents) <= 25 ? 'flat' : 'slip';
+    const statusMap = {
+      idle: { word: 'Stopped', badge: 'Stopped', bg: t.tint, text: t.muted },
+      ok: { word: 'Listening', badge: 'In tune', bg: t.okTint, text: t.okText },
+      flat: { word: 'Listening', badge: cents < 0 ? 'Flat' : 'Sharp', bg: t.warnTint, text: t.warnText },
+      slip: { word: 'Listening', badge: 'Octave slip', bg: t.badTint, text: t.badText },
+    };
+    const st = statusMap[status];
+    const names = [['S', 'Soprano'], ['A', 'Alto'], ['T', 'Tenor'], ['B', 'Bass']];
+    const parts = names.map(([id, name]) => ({
+      name,
+      on: part === id,
+      bg: part === id ? t.tint : 'transparent',
+      pick: () => this.setState({ part: id }),
+    }));
+    const history = [
+      { bar: 9, label: 'On pitch', bg: t.okTint, text: t.okText },
+      { bar: 10, label: 'Flat on beat 3', bg: t.warnTint, text: t.warnText },
+      { bar: 11, label: 'Octave slip', bg: t.badTint, text: t.badText },
+    ];
+    const hz = Math.round(311.13 * Math.pow(2, cents / 1200) * 10) / 10;
+    const needle = 50 + Math.max(-50, Math.min(50, cents)) / 50 * 20;
+    return {
+      t,
+      flagWhite: t.flagWhite,
+      dark,
+      darkLabel: dark ? 'Light theme' : 'Dark theme',
+      toggleDark: () => this.setState({ dark: !dark }),
+      listening,
+      listenLabel: listening ? 'Listening' : 'Not listening',
+      listenBg: listening ? t.okTint : t.tint,
+      listenText: listening ? t.okText : t.muted,
+      listenButton: listening ? 'Pause' : 'Start listening',
+      toggleListen: () => this.setState({ listening: !listening }),
+      stopAndSummarise: () => this.setState({ listening: false }),
+      statusWord: st.word,
+      statusBadge: st.badge,
+      statusBg: st.bg,
+      statusText: st.text,
+      parts,
+      history,
+      cursorBar,
+      beat,
+      expected: 'E♭4',
+      held: '0.6 s',
+      cursorPath: 'M' + (20 + (cursorBar - 9) * 120 + (beat - 1) * 25 + 40) + ' 26V92',
+      noteName: 'E♭4',
+      hz: listening ? hz : 0,
+      cents,
+      centsLabel: listening ? (cents >= 0 ? '+' : '') + cents + ' cents · ' + (Math.abs(cents) <= 10 ? 'in tune' : cents < 0 ? 'flat' : 'sharp') : 'Not listening',
+      needle,
+    };
+  }
+}
+</script>
+</body>
+</html>

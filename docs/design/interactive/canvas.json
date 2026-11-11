@@ -1,0 +1,31 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-11-11T09:00:00Z" },
+  "title": "Kannel Interactive Mockups",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 1280, "h": 820, "title": "Start here", "is_interactive": true },
+    "ScoreViewer.dc.html": { "x": 1360, "y": 0, "w": 1280, "h": 820, "title": "Score Viewer", "is_interactive": true },
+    "PracticePlayer.dc.html": { "x": 2720, "y": 0, "w": 1280, "h": 820, "title": "Practice Player", "is_interactive": true },
+    "RecognitionReview.dc.html": { "x": 0, "y": 940, "w": 1280, "h": 820, "title": "Recognition Review", "is_interactive": true },
+    "AbcWorkbench.dc.html": { "x": 1360, "y": 940, "w": 1280, "h": 820, "title": "ABC Workbench", "is_interactive": true },
+    "PracticeCoach.dc.html": { "x": 2720, "y": 940, "w": 1280, "h": 820, "title": "Practice Coach", "is_interactive": true },
+    "DiffViewer.dc.html": { "x": 0, "y": 1880, "w": 1280, "h": 820, "title": "Diff Viewer", "is_interactive": true },
+    "SetupDoctor.dc.html": { "x": 1360, "y": 1880, "w": 1280, "h": 820, "title": "Setup Doctor", "is_interactive": true }
+  },
+  "order": [
+    "Main.dc.html",
+    "ScoreViewer.dc.html",
+    "PracticePlayer.dc.html",
+    "RecognitionReview.dc.html",
+    "AbcWorkbench.dc.html",
+    "PracticeCoach.dc.html",
+    "DiffViewer.dc.html",
+    "SetupDoctor.dc.html"
+  ],
+  "notes": {
+    "title": { "x": 0, "y": -260, "text": "Kannel: interactive mockups for the MCP Apps", "kind": "title1", "maxW": 4000 }
+  },
+  "designSystems": []
+}

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Practice Player</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button,input{font:inherit}
+button{cursor:pointer}
+</style>
+</helmet>
+<div style="width:100%;min-height:820px;box-sizing:border-box;background:{{t.bg}};color:{{t.text}};font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;display:flex;flex-direction:column">
+  <div style="height:3px;background:linear-gradient(#0072ce 0 33.33%,#15171c 33.33% 66.66%,{{t.flagWhite}} 66.66% 100%)"></div>
+  <header style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 16px;background:{{t.panel}};border-bottom:1px solid {{t.border}}">
+    <strong style="font-size:16px">Practice Player</strong>
+    <span style="font-size:12px;color:{{t.muted}}">Ave verum · bars 17 to 24</span>
+    <button type="button" aria-pressed="{{ dark }}" onClick="{{ toggleDark }}" style="margin-left:auto;min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">{{darkLabel}}</button>
+    <span style="font-size:12px;padding:2px 8px;border-radius:999px;background:{{t.okTint}};color:{{t.okText}}">Ready</span>
+  </header>
+  <div role="toolbar" aria-label="Playback controls" style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:8px 16px;border-bottom:1px solid {{t.border}}">
+    <button type="button" onClick="{{ togglePlay }}" style="min-width:110px;min-height:40px;padding:6px 14px;border:1px solid {{t.accent}};border-radius:6px;background:{{t.accent}};color:#ffffff;font-weight:600">{{playLabel}}</button>
+    <button type="button" onClick="{{ restart }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">Restart</button>
+    <span style="width:1px;align-self:stretch;background:{{t.border}}"></span>
+    <span style="font-size:12px;color:{{t.muted}}">Speed</span>
+    <input type="range" min="50" max="120" value="{{tempo}}" aria-label="Tempo in BPM" onInput="{{ setTempo }}" style="width:180px;min-height:40px;accent-color:{{t.accent}}">
+    <span style="font-variant-numeric:tabular-nums;min-width:80px">{{tempo}} BPM</span>
+    <button type="button" aria-pressed="{{ countIn }}" onClick="{{ toggleCountIn }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{countInBg}};color:{{t.text}}">Count-in {{countInLabel}}</button>
+    <button type="button" aria-pressed="{{ loop }}" onClick="{{ toggleLoop }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{loopBg}};color:{{t.text}}">Loop bars 17 to 24 {{loopLabel}}</button>
+  </div>
+  <main style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:16px;align-items:start">
+    <section aria-label="Score with playhead" style="min-width:0;padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
+      <svg viewBox="0 0 600 190" role="img" aria-label="Bars 17 to 20, playhead at {{barLabel}}" style="display:block;width:100%;height:auto;color:{{t.text}}">
+        <path d="M20 30H580M20 40H580M20 50H580M20 60H580M20 70H580M20 110H580M20 120H580M20 130H580M20 140H580M20 150H580" stroke="currentColor" stroke-width="1" fill="none"/>
+        <path d="M20 30V70M20 110V150M300 30V70M300 110V150" stroke="currentColor" stroke-width="2" fill="none"/>
+        <g fill="currentColor">
+          <ellipse cx="90" cy="70" rx="6" ry="4.5"/><ellipse cx="144" cy="60" rx="6" ry="4.5"/><ellipse cx="200" cy="55" rx="6" ry="4.5"/><ellipse cx="256" cy="50" rx="6" ry="4.5"/>
+          <ellipse cx="334" cy="70" rx="6" ry="4.5"/><ellipse cx="390" cy="60" rx="6" ry="4.5"/><ellipse cx="446" cy="55" rx="6" ry="4.5"/><ellipse cx="502" cy="50" rx="6" ry="4.5"/>
+          <ellipse cx="90" cy="160" rx="6" ry="4.5"/><ellipse cx="144" cy="150" rx="6" ry="4.5"/><ellipse cx="200" cy="140" rx="6" ry="4.5"/><ellipse cx="256" cy="130" rx="6" ry="4.5"/>
+        </g>
+        <path d="{{playPath}}" stroke="{{t.marker}}" stroke-width="2.5" fill="none"/>
+      </svg>
+      <div style="position:relative;height:6px;margin-top:12px;background:{{t.border}};border-radius:3px">
+        <span style="position:absolute;left:0;top:0;bottom:0;width:{{progress}}%;background:{{t.accent}};border-radius:3px"></span>
+        <i style="position:absolute;left:{{progress}}%;top:-6px;bottom:-6px;width:2px;margin-left:-1px;background:{{t.marker}};border-radius:2px"></i>
+      </div>
+      <p style="margin:8px 0 0;font-size:12px;color:{{t.muted}};font-variant-numeric:tabular-nums">{{barLabel}} · {{clock}} of 0:30 · {{tempo}} BPM</p>
+    </section>
+    <aside aria-label="Parts and tempo" style="padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
+      <h2 style="margin:0 0 8px;font-size:14px">Parts</h2>
+      <div role="group" aria-label="Voices" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <sc-for list="{{parts}}" as="p">
+          <button type="button" aria-pressed="{{ p.on }}" onClick="{{ p.toggle }}" style="min-height:40px;padding:6px 12px;border-radius:999px;border:1px solid {{t.muted}};background:{{p.bg}};color:{{t.text}}">{{p.name}} <span style="font-size:12px;color:{{t.muted}}">{{p.letter}}</span></button>
+        </sc-for>
+      </div>
+      <p style="margin:0 0 12px;font-size:12px;color:{{t.muted}}">{{partsNote}}</p>
+      <h2 style="margin:16px 0 8px;font-size:14px">Practice track</h2>
+      <p style="margin:0 0 6px;font-size:14px">{{tempo}} BPM · {{tempoPct}}% of the written tempo</p>
+      <p style="margin:0;font-size:12px;color:{{t.muted}}">Changing the speed re-renders the practice track. Playback keeps its place.</p>
+    </aside>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+class Component extends DCLogic {
+  componentDidMount() {
+    this.timer = setInterval(() => {
+      const s = this.state || {};
+      if (!s.playing) return;
+      const tempo = s.tempo || 84;
+      const step = 0.5 * (tempo / 84);
+      let pos = (s.pos || 0) + step;
+      if (pos >= 30) pos = s.loop ? 0 : 30;
+      this.setState({ pos, playing: s.loop || pos < 30 ? s.playing : false });
+    }, 500);
+  }
+  componentWillUnmount() {
+    clearInterval(this.timer);
+  }
+  renderVals() {
+    const s = this.state || {};
+    const playing = !!s.playing;
+    const tempo = s.tempo || 84;
+    const pos = s.pos || 0;
+    const loop = s.loop !== false;
+    const countIn = s.countIn !== false;
+    const LIGHT = { bg: '#ffffff', panel: '#f4f6fa', text: '#15171c', muted: '#4b5563', border: '#d5dce6', accent: '#0072ce', marker: '#b7850f', okTint: '#e4f2e8', okText: '#1e6b3a', tint: '#eaf2fb', flagWhite: '#ffffff' };
+    const DARK = { bg: '#101217', panel: '#1a1e27', text: '#eef2f7', muted: '#b4bdcb', border: '#2e3645', accent: '#0072ce', marker: '#f2c14e', okTint: '#17301f', okText: '#8fd3a4', tint: '#1b2b40', flagWhite: '#101217' };
+    const dark = !!s.dark;
+    const t = dark ? DARK : LIGHT;
+    const onParts = s.onParts || { S: true, A: true, T: false, B: false };
+    const names = [['S', 'Soprano'], ['A', 'Alto'], ['T', 'Tenor'], ['B', 'Bass']];
+    const parts = names.map(([letter, name]) => {
+      const on = !!onParts[letter];
+      return {
+        letter,
+        name,
+        on,
+        bg: on ? '#1b2b40' : 'transparent',
+        toggle: () => this.setState({ onParts: { ...onParts, [letter]: !on } }),
+      };
+    });
+    const onCount = parts.filter((p) => p.on).length;
+    const x = 20 + (pos / 30) * 560;
+    const barNumber = 17 + Math.floor((pos / 30) * 8);
+    const clockSec = Math.round(pos * 1000) / 1000;
+    const mm = Math.floor(clockSec / 60);
+    const ss = Math.floor(clockSec % 60);
+    return {
+      t: t,
+      dark,
+      darkLabel: dark ? 'Light theme' : 'Dark theme',
+      toggleDark: () => this.setState({ dark: !dark }),
+      playLabel: playing ? 'Pause' : 'Play',
+      parts,
+      partsNote: onCount + ' of 4 parts in the track. Solo a part by turning the others off.',
+      tempo,
+      tempoPct: Math.round((tempo / 84) * 100),
+      setTempo: (e) => this.setState({ tempo: Number(e.target.value) }),
+      togglePlay: () => this.setState({ playing: !playing }),
+      restart: () => this.setState({ pos: 0 }),
+      countIn,
+      countInLabel: countIn ? 'on' : 'off',
+      countInBg: countIn ? '#1b2b40' : 'transparent',
+      toggleCountIn: () => this.setState({ countIn: !countIn }),
+      loop,
+      loopLabel: loop ? 'on' : 'off',
+      loopBg: loop ? '#1b2b40' : 'transparent',
+      toggleLoop: () => this.setState({ loop: !loop }),
+      playPath: 'M' + x + ' 22V168',
+      progress: Math.round((pos / 30) * 100),
+      barLabel: 'bar ' + barNumber,
+      clock: mm + ':' + (ss < 10 ? '0' + ss : ss),
+    };
+  }
+}
+</script>
+</body>
+</html>
