@@ -87,7 +87,7 @@ Client config: `"command": "uv", "args": ["--directory", "<checkout>/render-mcp"
 | M1 | "Render this score" shows the viewer inline; the model still answers from the text result | ☐ | ☐ |
 | M2 | Page navigation and zoom work without a model turn | ☐ | ☐ |
 | M3 | Light and dark themes are followed | ☐ | ☐ |
-| M4 | Fullscreen works, or the button is hidden | ☐ | ☐ |
+| M4 (optional) | Fullscreen works, or the button is hidden. Not a release blocker. | ☐ | ☐ |
 | M5 | "Download SVG" saves a file, or the fallback path and button appear (D6) | ☐ | ☐ |
 | M6 | First render time (stopwatch) and any host size warnings | ☐ | ☐ |
 | M7 | Claude Code CLI (no MCP Apps): tools behave as before; `render_page_svg` is not listed | ☐ | — |
