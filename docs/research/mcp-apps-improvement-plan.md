@@ -196,7 +196,7 @@ gantt
     section Phase 1 Practice pair
     T1.1 Grading defects                :t11, after t04, 4d
     T1.2 Grading state uncertain        :t12, after t11, 2d
-    T1.7 Verify synth features          :t17, after t05, 1d
+    T1.7 Verify synth features          :done, t17, after t05, 1d
     T1.3 Practice Coach page            :t13, after t12, 4d
     T1.4 Adaptive polling               :t14, after t13, 2d
     T1.5 Ask Claude for tips            :t15, after t13, 1d
@@ -204,12 +204,12 @@ gantt
     T1.9 Practice Player page           :t19, after t18 t01, 4d
 
     section Phase 2 Review tools
-    T2.1 OMR warnings                   :t21, after t04, 2d
+    T2.1 OMR warnings                   :done, t21, after t04, 2d
     T2.2 SATB staff estimate            :t22, after t21, 4d
     T2.3 Recognition Review page        :t23, after t22, 4d
     T2.4 Multi-page merge               :t24, after t23, 2d
     T2.5 apply_abc_edit                 :t25, after t04, 4d
-    T2.6 Hunk model                     :t26, after t02, 2d
+    T2.6 Hunk model                     :done, t26, after t02, 2d
     T2.7 ABC Workbench page             :t27, after t25 t26, 4d
 
     section Phase 3 Comparison and setup
@@ -241,27 +241,27 @@ Dates are YYYY-MM-DD. Update this table with the Gantt chart after every step.
 | T0.3 | Mockup source of truth | Done | 2026-11-11 | 2026-11-11 | Branch `docs/mockup-source-of-truth` 316a801, unpushed. DA1 confirmed by owner |
 | T0.4 | warnings contract | Done | 2026-11-11 | 2026-11-11 | Branch `docs/warnings-contract` abfaa0a, unpushed |
 | T0.5 | Remove sample data | Not started | | | |
-| T1.1 | Grading defects | Not started | | | Opus |
-| T1.2 | Grading state uncertain | Not started | | | |
+| T1.1 | Grading defects | Done | 2026-11-11 | 2026-11-11 | PR #203 (#200 now merged; CI 23/23 after timing-flake fix bf32be3 and rebase onto main). xfail 4 → 0; 509 unit. Real-mic release evidence (PM1/PM2) still pending |
+| T1.2 | Grading state uncertain | Done | 2026-11-11 | 2026-11-11 | PR #200, 494 passed. Thresholds (YIN 0.6, octave 100 cents) to review; T1.1 still open |
 | T1.3 | Practice Coach page | Not started | | | DA7 open |
 | T1.4 | Adaptive polling | Not started | | | |
 | T1.5 | Ask Claude for tips | Not started | | | |
 | T1.6 | Browser mic (optional) | Not started | | | Phase 4 |
-| T1.7 | Verify synth features | Not started | | | §7 |
+| T1.7 | Verify synth features | Done | 2026-11-11 | 2026-11-11 | Report only, §7. All features exist |
 | T1.8 | Audio delivery | Not started | | | |
 | T1.9 | Practice Player page | Not started | | | DA3, DA4 open |
-| T2.1 | OMR warnings | Not started | | | |
+| T2.1 | OMR warnings | Done | 2026-11-11 | 2026-11-11 | PR #198, 318 passed. Owner decision: estimate now runs for all clients (see note) |
 | T2.2 | SATB staff estimate | Not started | | | Opus; integration needs real samples |
 | T2.3 | Recognition Review page | Not started | | | |
 | T2.4 | Multi-page merge (optional) | Not started | | | DA9 open |
-| T2.5 | apply_abc_edit | Not started | | | Opus |
-| T2.6 | Hunk model | Not started | | | |
+| T2.5 | apply_abc_edit | Done | 2026-11-11 | 2026-11-11 | PR #201, 306 unit + 6 integration. CI 23/23 after fix (BOM escape). Security review: LOW notes open (raw music21 error text; no size cap on `abc`) |
+| T2.6 | Hunk model | Done | 2026-11-11 | 2026-11-11 | PR #197, CI 24/24 pass, 283 unit tests |
 | T2.7 | ABC Workbench page | Not started | | | |
 | T3.1 | compare_scores | Not started | | | |
 | T3.2 | Verovio colour spike | Not started | | | |
 | T3.3 | Diff Viewer page | Not started | | | DA8 open |
 | T3.4 | Open in Score Viewer | Not started | | | |
-| T3.5 | Standard health structure | Not started | | | |
+| T3.5 | Standard health structure | Done | 2026-11-11 | 2026-11-11 | Already on main via PR #178 (merged). Verified: core `health.py`, six servers return it with `output_schema`. No new PR |
 | T3.6 | Setup Doctor page | Not started | | | DA5 open |
 | T4.1 | Score Viewer Kannel chrome | Not started | | | |
 | T4.2 | Download SVG or PDF | Not started | | | DA2 open |
@@ -285,6 +285,15 @@ After every implementation step, before the next step starts:
 |---|---|---|---|---|
 | 2026-11-11 | Plan created | none | Gantt and tracker added | none |
 | 2026-11-11 | Phase 0 step 1 | T0.1, T0.3, T0.4 | Implemented on separate branches, reviewed. ui: 270 unit, 61/61 e2e; docs reviewed | Branches not yet merged |
+| 2026-11-11 | Phase 1–2 batch 1 | T1.7, T2.1, T2.6 | T1.7 report (§7). T2.1 PR #198 (318 passed, 48 skipped). T2.6 PR #197 (283 passed). Open: T2.1 changes the staff estimate to run for all clients, with false positives on one-staff pages | T2.1 decision needed |
+| 2026-11-11 | Batch 2 results | T2.1 fix, T1.2, §10, T2.5 | PR #198 severity now `info` (ff07c0d). T1.2 PR #200 (494 passed, 4 xfail kept). §10 docs PR #199. T2.5 PR #201 (306 unit, 6 integration; other parts byte-identical on 10 SATB samples). Open: T1.2 thresholds (YIN 0.6, octave 100 cents) need review; T2.5 open questions (bar-count strictness, lyrics carry-over, multi-staff `<staff>`); `musicxml_to_abc` drops `=` naturals (B natural exports as B flat) | T1.2 thresholds, T2.5 questions, naturals bug |
+| 2026-11-11 | Interview decisions | T2.1, T1.9, T4.2 | Staff check: all clients, severity `info` (PR #198 to change). Practice Player: presets + per-part volume (DA3). Download: PDF and SVG (DA2). Next batch: T2.5, §10 docs PR, T1.2 | none |
+| 2026-11-11 | PR #201 fix | T2.5 | Scan failed on a literal U+FEFF in `abc_edit.py`. Replaced with the `\ufeff` escape (commit 5e7c7b9). CI 23/23 pass. Security LOW notes left open | none |
+| 2026-11-11 | Follow-up round | PR #203, PR #204 | #203: CI 3.13 failed on a timing flake (`idle_seconds` 0.0 vs 0.1), fixed with a frozen clock in the golden test (bf32be3); merged main into the branch (CLAUDE.md conflict, pitch row kept from branch, abc row from main); CI 23/23. #204: #201 security LOW notes fixed (fixed parse message, MAX_ABC_CHARS 65536, MAX_EDIT_BARS 64); CI 23/23. Plan doc contained a literal U+FEFF from an earlier edit, replaced with the escape | Real-mic evidence; review #203 and #204 |
+| 2026-11-11 | T1.1 result | T1.1 | PR #203 (stacked on #200): three defects fixed, 4 xfail → 0. Review: it also edits the root CLAUDE.md status row, and changes detector and aligner logic; real-mic run needed for release | real-mic evidence; #200 merge |
+| 2026-11-11 | Naturals fix | `musicxml_to_abc` naturals (not a plan ID) | PR #202: writes `=` for naturals; 237 unit passed, 3 of 4 new tests failed before fix; one golden line changed; one existing test expectation updated | none |
+| 2026-11-11 | T3.5 check | T3.5 | Already implemented on main via #178 (merged). No new work; T3.6 Setup Doctor page is now unblocked | none |
+| 2026-11-11 | Interview 2 | naturals bug, T1.2, T2.5, next batch | Naturals bug: fix now, own PR. T1.2 thresholds: accept as is. T2.5: strict bar count, multi-staff as a whole, key/time/clef ignored in ABC; lyrics carry-over not chosen. Next: T1.1, T3.5, naturals; T1.3 waits for #200 merge; T2.2 needs real samples | none |
 | 2026-11-11 | Owner answers | DA1, T0.2 | DA1 confirmed (`interactive/` canonical). T0.2 skipped (no `support.js`). §10 link change pending owner go-ahead | none |
 
 ---
@@ -308,7 +317,11 @@ After every implementation step, before the next step starts:
 
 ## 7. Verification to do before Phase 1
 
-- T1.7 result: which of `part_gains` presets, `count_in_bars`, `timbre`, `repeat` exist in code. Not verified in this document.
+- T1.7 result (2026-11-11, read-only, code not run): all synth features exist.
+  - `part_gains`, `preset` (`learning`, `karaoke`, `equal`) with `focus_part`, `measures`, `repeat` (1–20), `count_in_bars` (0–4), `metronome`, `tempo_factor`, `starting_pitches` (`parts`).
+  - `timbre` enum is `score` (default), `piano`, `choir`, `organ`. `score` is not in the mockup's list; the page must send one of the four.
+  - `read_audio_chunk` and `get_score_xml` are app-only. Not verified that the page is served them.
+  - Tests not run; gaps for T1.9 are the page, not the engine.
 - Whether `start_practice` and `list_sessions` are wired to a page or are text-only.
 - The three grading defects: check the xfail list in `pitch-mcp/docs/todo.md` is still current.
 
