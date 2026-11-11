@@ -247,7 +247,7 @@ Dates are YYYY-MM-DD. Update this table with the Gantt chart after every step.
 | T1.4 | Adaptive polling | Not started | | | |
 | T1.5 | Ask Claude for tips | Not started | | | |
 | T1.6 | Browser mic (optional) | Not started | | | Phase 4 |
-| T1.7 | Verify synth features | Not started | | | §7 |
+| T1.7 | Verify synth features | Done | 2026-11-11 | 2026-11-11 | Report only, §7. All features exist |
 | T1.8 | Audio delivery | Not started | | | |
 | T1.9 | Practice Player page | Not started | | | DA3, DA4 open |
 | T2.1 | OMR warnings | Not started | | | |
@@ -308,7 +308,11 @@ After every implementation step, before the next step starts:
 
 ## 7. Verification to do before Phase 1
 
-- T1.7 result: which of `part_gains` presets, `count_in_bars`, `timbre`, `repeat` exist in code. Not verified in this document.
+- T1.7 result (2026-11-11, read-only, code not run): all synth features exist.
+  - `part_gains`, `preset` (`learning`, `karaoke`, `equal`) with `focus_part`, `measures`, `repeat` (1–20), `count_in_bars` (0–4), `metronome`, `tempo_factor`, `starting_pitches` (`parts`).
+  - `timbre` enum is `score` (default), `piano`, `choir`, `organ`. `score` is not in the mockup's list; the page must send one of the four.
+  - `read_audio_chunk` and `get_score_xml` are app-only. Not verified that the page is served them.
+  - Tests not run; gaps for T1.9 are the page, not the engine.
 - Whether `start_practice` and `list_sessions` are wired to a page or are text-only.
 - The three grading defects: check the xfail list in `pitch-mcp/docs/todo.md` is still current.
 
