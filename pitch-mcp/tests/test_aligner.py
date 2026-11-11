@@ -1,5 +1,7 @@
 """Unit tests for pitch_mcp.aligner."""
 
+import math
+
 import pytest
 
 from pitch_mcp.aligner import align, summarize, _hz_to_cents_deviation, _classify
@@ -171,15 +173,9 @@ class TestAlign:
         assert result[1]["sung_hz"] is None
         assert result[2]["status"] == "on_pitch"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="DEFECT: DTW gives every frame after the score's end to the final note, and the "
-        "plausibility gate tests the median time of those frames, so a release or room tail of "
-        "more than 2.5x the note's length (median past end + 0.75 x length) makes a well-sung "
-        "final note no_signal. "
-        "See docs/todo.md (round trip, FluidSynth 2.4 reverb).",
-    )
     def test_a_long_tail_after_the_final_note_still_grades_it(self):
+        # DTW gives every frame after the score's end to the final note. The gate used to test
+        # the median time of those frames, so a tail over 2.5x the note dropped it as no_signal.
         # Measured shape of the synth-mcp choir round trip on FluidSynth 2.4 defaults: the final
         # 1.25 s note (3.75-5.0 s) stays voiced at its pitch until 8.2 s, a 3.2 s reverb tail.
         hop = 512 / 44100
@@ -192,6 +188,78 @@ class TestAlign:
         ]
         result = align(detected, notes)
         assert [r["status"] for r in result] == ["on_pitch", "on_pitch"]
+
+    def test_leading_frames_before_the_first_note_do_not_drop_it(self):
+        # Mirror of the tail case: a singer starting 4 s early on the first pitch.
+        hop = 512 / 44100
+        notes = [
+            self._make_note("E5", 76, 659.26, 0.0, 1.25, beat=1.0),
+            self._make_note("F5", 77, 698.46, 1.25, 5.0, beat=3.0),
+        ]
+        detected = [(-4.0 + i * hop, 659.26, 0.9) for i in range(int(5.25 / hop))] + [
+            (1.25 + i * hop, 698.46, 0.9) for i in range(int(3.75 / hop))
+        ]
+        result = align(detected, notes)
+        assert [r["status"] for r in result] == ["on_pitch", "on_pitch"]
+
+    def _phrase(self):
+        return [
+            self._make_note("G4", 67, 392.0, 0.0, 0.5, beat=1.0),
+            self._make_note("F4", 65, 349.23, 0.5, 1.0, beat=2.0),
+            self._make_note("E4", 64, 329.63, 1.0, 1.5, beat=3.0),
+            self._make_note("D4", 62, 293.66, 1.5, 2.0, beat=4.0),
+        ]
+
+    def _sung(self, hz_by_note, confidence=0.9):
+        hop = 0.02
+        return [
+            (start + i * hop, hz, confidence)
+            for start, hz in zip((0.0, 0.5, 1.0, 1.5), hz_by_note)
+            for i in range(25)
+        ]
+
+    @pytest.mark.parametrize("octaves, status", [(1, "sharp"), (-1, "flat")])
+    def test_octave_slip_keeps_its_frames_and_grades_1200_cents(self, octaves, status):
+        # 1-D DTW in MIDI space gave the slipped note a neighbour's frames: an octave is further
+        # than any neighbour, so the slipped frames were spread over the wrong notes.
+        sung = [392.0, 349.23 * 2.0**octaves, 329.63, 293.66]
+        result = align(self._sung(sung), self._phrase())
+        assert result[1]["status"] == status
+        assert result[1]["accuracy_cents"] == pytest.approx(1200 * octaves, abs=5)
+        assert [r["status"] for i, r in enumerate(result) if i != 1] == ["on_pitch"] * 3
+
+    def test_octave_slip_on_low_confidence_frames_is_uncertain(self):
+        # Same rule as a live frame: a weak detection an octave off may be the detector's error.
+        detected = self._sung([392.0, 698.46, 329.63, 293.66])
+        detected = [(t, f, 0.4 if f == 698.46 else c) for t, f, c in detected]
+        result = align(detected, self._phrase())
+        assert result[1]["status"] == "uncertain"
+        assert [r["status"] for i, r in enumerate(result) if i != 1] == ["on_pitch"] * 3
+
+    def test_a_clear_wrong_note_is_still_graded_when_confidence_is_low(self):
+        # Low confidence alone does not make a note uncertain offline; only the octave doubt does.
+        detected = self._sung([392.0, 349.23 * 2 ** (40 / 1200), 329.63, 293.66], confidence=0.4)
+        result = align(detected, self._phrase())
+        assert result[1]["status"] == "sharp"
+
+    def test_repeated_pitch_notes_share_frames_by_time(self):
+        # DTW cannot tell two equal pitches apart and may give one of them a single frame.
+        # Each note of a same-pitch run is graded on the frames inside its own time.
+        notes = [
+            self._make_note("D4", 62, 293.66, 0.0, 0.5, beat=1.0),
+            self._make_note("C4", 60, 261.63, 0.5, 1.0, beat=2.0),
+            self._make_note("C4", 60, 261.63, 1.0, 2.0, beat=3.0),
+        ]
+        hop = 0.02
+        vibrato = [261.63 * 2 ** (50 * math.sin(2 * math.pi * 5.5 * i * hop) / 1200) for i in range(50)]
+        detected = (
+            [(i * hop, 293.66, 0.9) for i in range(25)]
+            + [(0.5 + i * hop, 261.63, 0.9) for i in range(25)]
+            + [(1.0 + i * hop, hz, 0.9) for i, hz in enumerate(vibrato)]
+        )
+        result = align(detected, notes)
+        assert [r["status"] for r in result] == ["on_pitch"] * 3
+        assert abs(result[2]["accuracy_cents"]) <= 10
 
 
 class TestSummarize:

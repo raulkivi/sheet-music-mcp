@@ -74,6 +74,7 @@ def _detect_librosa(audio_path: str) -> list[tuple[float, float, float]]:
         return []
 
     hop_length = 512
+    frame_length = 2048
     fmin = librosa.note_to_hz("C2")   # ~65 Hz — Bass lowest
     fmax = librosa.note_to_hz("C7")   # ~2093 Hz — Soprano highest
 
@@ -83,11 +84,13 @@ def _detect_librosa(audio_path: str) -> list[tuple[float, float, float]]:
             fmin=fmin,
             fmax=fmax,
             sr=sr,
+            frame_length=frame_length,
             hop_length=hop_length,
         )
     except Exception as e:
         raise RuntimeError(f"pYIN pitch detection failed: {e}")
 
+    f0 = undo_subharmonics(y, sr, f0, hop_length, frame_length, fmax)
     times = librosa.times_like(f0, sr=sr, hop_length=hop_length)
 
     results: list[tuple[float, float, float]] = []
@@ -96,6 +99,49 @@ def _detect_librosa(audio_path: str) -> list[tuple[float, float, float]]:
             results.append((round(float(t), 4), round(float(freq), 2), round(float(prob), 4)))
 
     return results
+
+
+# A frame whose half-period difference is below this is periodic at twice the reported pitch:
+# its odd partials (the fundamental among them) carry under about 5% of the energy. Same order as
+# YIN's own first-dip threshold (0.1).
+SUBHARMONIC_THRESHOLD = 0.1
+
+
+def undo_subharmonics(
+    y: np.ndarray, sr: int, f0: np.ndarray, hop_length: int, frame_length: int, fmax: float
+) -> np.ndarray:
+    """``f0`` with every frame pYIN read an octave low moved up to its real pitch.
+
+    pYIN's HMM limits the pitch step between frames. A note an octave or more away from both
+    neighbours (an octave slip sung without a glide) can then be tracked at its subharmonic,
+    where the audio has no energy. YIN's first-dip rule would take the half period; this applies
+    it after the fact. Frames are centred like librosa's (``center=True``, zero padding).
+    """
+    padded = np.pad(y, frame_length // 2)
+    out = f0.copy()
+    for i, freq in enumerate(f0):
+        if np.isnan(freq) or freq <= 0 or 2 * freq > fmax:
+            continue
+        frame = padded[i * hop_length : i * hop_length + frame_length]
+        if _periodicity_gap(frame, sr / (2 * freq)) < SUBHARMONIC_THRESHOLD:
+            out[i] = 2 * freq
+    return out
+
+
+def _periodicity_gap(frame: np.ndarray, lag: float) -> float:
+    """Normalised difference between ``frame`` and itself ``lag`` samples later: 0 when periodic
+    at that lag, about 1 for unrelated signal. A fractional lag interpolates its two neighbours."""
+    low = int(np.floor(lag))
+    weight = lag - low
+    return (1 - weight) * _difference(frame, low) + weight * _difference(frame, low + 1)
+
+
+def _difference(frame: np.ndarray, lag: int) -> float:
+    if lag <= 0 or lag >= len(frame):
+        return float("inf")
+    a, b = frame[:-lag], frame[lag:]
+    energy = float(np.sum(a * a + b * b))
+    return float(np.sum((a - b) ** 2)) / energy if energy > 0 else float("inf")
 
 
 def _detect_crepe(audio_path: str) -> list[tuple[float, float, float]]:

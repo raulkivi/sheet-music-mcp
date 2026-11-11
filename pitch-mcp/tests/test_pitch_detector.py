@@ -10,6 +10,8 @@ from scipy.io.wavfile import write as wav_write
 
 from pitch_mcp.pitch_detector import detect_pitches, get_backend
 
+from .simulated_singer import SungNote, render, write_wav
+
 
 def _make_sine_wav(freq_hz: float, duration_sec: float = 2.0, sr: int = 22050) -> str:
     """Create a temporary WAV file with a sine wave at the given frequency.
@@ -94,6 +96,35 @@ class TestDetectPitches:
             pitches = detect_pitches(path)
             times = [t for t, f, c in pitches]
             assert times == sorted(times)
+        finally:
+            os.unlink(path)
+
+    @pytest.mark.parametrize("sr", [22050, 44100])
+    @pytest.mark.parametrize("slipped_hz", [698.46, 174.61], ids=["F5", "F3"])
+    def test_an_octave_slip_between_neighbours_is_read_at_its_own_octave(self, sr, slipped_hz):
+        # G4, F4 sung an octave off, E4, with no glide between them. pYIN's HMM limits the pitch
+        # step per frame, so at 22.05 kHz it read F5 (between two leaps of 10+ semitones) as its
+        # subharmonic F4 for the whole note, although the audio has no energy at F4.
+        notes = [SungNote(392.0, 0.0, 0.667), SungNote(slipped_hz, 0.667, 1.333), SungNote(329.63, 1.333, 2.0)]
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            path = f.name
+        write_wav(path, render(notes, sample_rate=sr), sample_rate=sr)
+        try:
+            held = [f for t, f, c in detect_pitches(path) if 0.767 <= t <= 1.233]
+            got = float(np.median(held))
+            assert abs(1200 * math.log2(got / slipped_hz)) < 30, f"expected {slipped_hz} Hz, got {got:.1f} Hz"
+        finally:
+            os.unlink(path)
+
+    def test_a_tone_with_a_strong_fundamental_is_not_doubled(self):
+        # The subharmonic check must not move a real note up: F4 with its usual partials stays F4.
+        notes = [SungNote(349.23, 0.0, 1.0)]
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            path = f.name
+        write_wav(path, render(notes), sample_rate=22050)
+        try:
+            freqs = [f for t, f, c in detect_pitches(path) if 0.1 <= t <= 0.9]
+            assert all(abs(1200 * math.log2(f / 349.23)) < 30 for f in freqs)
         finally:
             os.unlink(path)
 

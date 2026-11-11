@@ -6,10 +6,11 @@ Dynamic Time Warping (DTW). Returns per-note pitch accuracy data.
 
 Algorithm:
     1. Convert both sequences to MIDI note numbers (continuous float for detected,
-       integer for reference).
-    2. Run DTW (windowed) to find the best temporal alignment.
-    3. For each reference note, find the set of detected frames aligned to it
-       and compute the average frequency deviation in cents.
+       integer for reference), placed on a pitch helix (one turn per octave).
+    2. Run DTW (windowed) to find the best temporal alignment; re-split runs of
+       same-pitch notes by time.
+    3. For each reference note, take the aligned frames inside its own time
+       and compute the median frequency deviation in cents.
 """
 
 import logging
@@ -43,7 +44,7 @@ def align(
                 "expected_hz": 392.0,
                 "sung_hz": 395.2,
                 "accuracy_cents": 12,
-                "status": "sharp",   # "on_pitch" | "sharp" | "flat" | "no_signal"
+                "status": "sharp",   # "on_pitch" | "sharp" | "flat" | "uncertain" | "no_signal"
             }
         Returns an empty list if either sequence is empty.
     """
@@ -54,9 +55,10 @@ def align(
         # No audio — every note is "no_signal"
         return [_no_signal_result(n) for n in note_sequence]
 
-    # --- Step 1: Build query and reference sequences in MIDI space ---
+    # --- Step 1: Build query and reference sequences on the pitch helix ---
     query_times = np.array([t for t, f, c in detected], dtype=np.float64)
     query_hz = np.array([f for t, f, c in detected], dtype=np.float64)
+    query_confidence = np.array([c for t, f, c in detected], dtype=np.float64)
     query_midi = _hz_to_midi_continuous(query_hz)  # fractional MIDI numbers
 
     ref_midis = np.array([n["midi"] for n in note_sequence], dtype=np.float64)
@@ -68,38 +70,33 @@ def align(
     # note boundary go to whichever neighbor it actually matches in pitch,
     # so real tempo drift (rubato, hesitation) no longer misattributes
     # frames to the wrong note.
-    from dtaidistance import dtw
+    from dtaidistance import dtw_ndim
 
-    path = dtw.warping_path(ref_midis, query_midi, window=window)
+    path = dtw_ndim.warping_path(_pitch_helix(ref_midis), _pitch_helix(query_midi), window=window)
 
     frame_indices_by_note: list[list[int]] = [[] for _ in note_sequence]
     for ref_idx, query_idx in path:
         frame_indices_by_note[ref_idx].append(query_idx)
+    frame_indices_by_note = _share_repeated_pitches(frame_indices_by_note, note_sequence, query_times)
 
     # --- Step 3: Per-note accuracy, gated by temporal plausibility ---
     # DTW always assigns every reference note at least one frame (it's a
     # full-coverage alignment), even when the singer never actually
-    # attempted that note. A note whose assigned frames land nowhere near
-    # its own expected time window is not a real signal — report it as
-    # such rather than a spurious pitch reading.
+    # attempted that note, and it gives every frame before the score's start
+    # or after its end to the first or last note. Only frames inside a
+    # note's own time (with a margin) count; a note with none is not a real
+    # signal — report it as such rather than a spurious pitch reading.
     results: list[dict] = []
     for note, frame_idxs in zip(note_sequence, frame_indices_by_note):
-        start, end = note["start_sec"], note["end_sec"]
-        margin = max(0.15, (end - start) * 0.75)
-
-        frame_times = query_times[frame_idxs]
-        frame_hz = query_hz[frame_idxs]
-        median_time = float(np.median(frame_times))
-        plausible = (start - margin) <= median_time <= (end + margin)
-
-        if not plausible:
+        frame_idxs = _frames_in_time(frame_idxs, query_times, note)
+        if not frame_idxs:
             results.append(_no_signal_result(note))
             continue
 
         # Compute median frequency (robust to outliers)
-        sung_hz = float(np.median(frame_hz))
+        sung_hz = float(np.median(query_hz[frame_idxs]))
         accuracy_cents = _hz_to_cents_deviation(sung_hz, note["freq_hz"])
-        status = _classify(accuracy_cents)
+        status = _note_status(accuracy_cents, float(np.median(query_confidence[frame_idxs])))
 
         results.append(
             {
@@ -108,12 +105,73 @@ def align(
                 "expected": note["note_name"],
                 "expected_hz": round(note["freq_hz"], 2),
                 "sung_hz": round(sung_hz, 2),
-                "accuracy_cents": accuracy_cents,
+                # An uncertain note carries no cents: nothing downstream can grade it.
+                "accuracy_cents": None if status == "uncertain" else accuracy_cents,
                 "status": status,
             }
         )
 
     return results
+
+
+# One helix turn per octave: an octave slip lies nearer its own note than any neighbour, while
+# a small deviation still costs about one unit per semitone, as on the plain MIDI line.
+HELIX_RADIUS = 12 / (2 * math.pi)
+HELIX_RISE = 0.1  # per semitone; keeps octaves apart (an octave costs about one semitone)
+
+
+def _pitch_helix(midi: np.ndarray) -> np.ndarray:
+    """(n, 3) points: pitch class on a circle, register as a small height."""
+    midi = np.asarray(midi, dtype=np.float64)
+    angle = 2 * math.pi * midi / 12
+    return np.column_stack([HELIX_RADIUS * np.cos(angle), HELIX_RADIUS * np.sin(angle), HELIX_RISE * midi])
+
+
+def _share_repeated_pitches(
+    frames_by_note: list[list[int]], note_sequence: list[dict], query_times: np.ndarray
+) -> list[list[int]]:
+    """Frames of each run of consecutive same-pitch notes, re-split by time.
+
+    DTW has no pitch evidence to split such a run and may give one note a single frame. Each
+    frame goes to the note whose time contains it; frames before or after the run go to its
+    first or last note.
+    """
+    shared = [list(frames) for frames in frames_by_note]
+    run_start = 0
+    for i in range(1, len(note_sequence) + 1):
+        if i < len(note_sequence) and note_sequence[i]["midi"] == note_sequence[run_start]["midi"]:
+            continue
+        if i - run_start > 1:
+            run = range(run_start, i)
+            pooled = sorted(f for n in run for f in frames_by_note[n])
+            for n in run:
+                shared[n] = []
+            for frame in pooled:
+                shared[_note_at(query_times[frame], note_sequence, run)].append(frame)
+        run_start = i
+    return shared
+
+
+def _note_at(time: float, note_sequence: list[dict], run: range) -> int:
+    for n in run:
+        if time < note_sequence[n]["end_sec"]:
+            return n
+    return run[-1]
+
+
+def _frames_in_time(frame_idxs: list[int], query_times: np.ndarray, note: dict) -> list[int]:
+    """The frames within the note's time, widened by max(0.15 s, 75% of its length)."""
+    start, end = note["start_sec"], note["end_sec"]
+    margin = max(0.15, (end - start) * 0.75)
+    return [f for f in frame_idxs if start - margin <= query_times[f] <= end + margin]
+
+
+def _note_status(cents: int, confidence: float) -> str:
+    """A note's grade. An octave off on weak detections may be the detector's own octave error,
+    so it is ``uncertain`` (same thresholds as a live frame); otherwise ``_classify``."""
+    if confidence < GRADING_CONFIDENCE and _octave_ambiguous(cents):
+        return "uncertain"
+    return _classify(cents)
 
 
 def _no_signal_result(note: dict) -> dict:

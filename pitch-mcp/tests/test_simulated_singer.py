@@ -95,14 +95,10 @@ class TestSimulatedSinger:
         assert abs(result["note_accuracy"][SLIPPED]["accuracy_cents"]) <= TOLERANCE
         assert others_on_pitch(result, set()) == []
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="DEFECT: an octave slip is not graded. The detector reports the up note at half "
-        "its pitch, and for both directions the DTW aligner hands the slipped note a neighbour's "
-        "frames, so it grades on_pitch (up) or against the wrong pitch (down). See HANDOVER.md.",
-    )
     @pytest.mark.parametrize("octaves, direction", [(1, "sharp"), (-1, "flat")])
     def test_an_octave_slip_is_graded_by_about_1200_cents(self, tmp_path, phrase, octaves, direction):
+        # Was a defect: pYIN read the up slip at its subharmonic, and 1-D DTW handed the slipped
+        # note a neighbour's frames (pitch_detector.undo_subharmonics, aligner._pitch_helix).
         notes = singer.octave_slip(singer.sung_notes(phrase), SLIPPED, octaves=octaves)
         result = grade(tmp_path, singer.render(notes))
         note = result["note_accuracy"][SLIPPED]
@@ -118,12 +114,9 @@ class TestSimulatedSinger:
         assert abs(note["accuracy_cents"]) <= TOLERANCE
         assert others_on_pitch(result, set()) == []
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="DEFECT: the final C4 repeats the previous note's pitch, DTW gives it a single "
-        "frame, and that one vibrato extreme (+50 cents) is graded sharp. See HANDOVER.md.",
-    )
     def test_vibrato_on_the_held_final_note_grades_on_its_centre_pitch(self, tmp_path, phrase):
+        # Was a defect: the final C4 repeats the previous pitch and DTW gave it one frame, a
+        # vibrato extreme graded sharp. Same-pitch runs now split by time (aligner).
         notes = singer.vibrato(singer.sung_notes(phrase), HELD, rate_hz=5.5, depth_cents=50)
         result = grade(tmp_path, singer.render(notes))
         note = result["note_accuracy"][HELD]

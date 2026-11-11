@@ -91,12 +91,28 @@ not previously derive from the singer's actual performance in either phase:
 recorded here. Each is an `xfail(strict=True)` test written to the intended behaviour; remove the
 marker when fixed.
 
-- [ ] **Octave slips are not graded.** An octave-up note is detected at half its pitch (pYIN) and
+- [x] **Octave slips are not graded.** An octave-up note is detected at half its pitch (pYIN) and
       graded `on_pitch` at 0 cents; for both directions the DTW aligner hands the slipped note a
       neighbour's frames (`sung_hz` = a neighbouring note). Expected: `sharp` / `flat` near +-1200.
-- [ ] **A note that repeats the previous pitch can get one frame.** On the final C4 (after another
+      **Fixed (2026-11-11, T1.1):** two causes. (1) pYIN's HMM limits the pitch step per frame; at
+      22.05 kHz F5 between G4 and E4 (two leaps over 10 semitones) was tracked at F4 for the whole
+      note. `pitch_detector.undo_subharmonics` moves a frame up an octave when the audio is periodic
+      at half its period (normalised difference < 0.1, i.e. odd partials under ~5% of the energy).
+      Tuning `max_transition_rate` instead was erratic across sample rates. (2) DTW ran on the
+      MIDI line, where an octave is further than any neighbour; it now runs on a pitch helix
+      (`aligner._pitch_helix`, `dtw_ndim`), one turn per octave, where the octave is nearer.
+      An octave-off note on weak detections (median confidence < 0.6) is `uncertain`, matching
+      the live rule. Tests: the simulated-singer case, `test_pitch_detector.py`
+      `test_an_octave_slip_between_neighbours_is_read_at_its_own_octave`,
+      `test_a_tone_with_a_strong_fundamental_is_not_doubled`, `test_aligner.py`
+      `test_octave_slip_keeps_its_frames_and_grades_1200_cents`,
+      `test_octave_slip_on_low_confidence_frames_is_uncertain`.
+- [x] **A note that repeats the previous pitch can get one frame.** On the final C4 (after another
       C4) DTW assigned a single frame, so one vibrato extreme (+50 cents) was graded `sharp`. The same
       vibrato on a note between different pitches grades `on_pitch`.
+      **Fixed (2026-11-11, T1.1):** `aligner._share_repeated_pitches` pools the frames of a run of
+      same-pitch notes and gives each frame to the note whose time contains it. Tests: the
+      simulated-singer case and `test_repeated_pitch_notes_share_frames_by_time`.
 - Deliberate tolerances, asserted as documented: a note 150 ms late stays `on_pitch` (grading is by
   pitch; the aligner has no timing metric); +25 cents is on the `|cents| <= 25` `on_pitch` edge, so
   that test asserts the deviation, not the label; a 150 ms breath gap or 20 dB SNR noise does not
@@ -163,11 +179,15 @@ was `no_signal`, with every other note on pitch within 10 cents.
       1 dB) and the round trip passes unchanged on both. Pinned by
       `test_reverb_and_chorus_are_set_explicitly` (unit) and `TestEffectSettings` (integration: the
       library keeps each value; an int for a num setting is silently ignored).
-- [ ] **A long tail after the final note makes it `no_signal`.** DTW hands every frame after the
+- [x] **A long tail after the final note makes it `no_signal`.** DTW hands every frame after the
       score's end to the last note, and the plausibility gate takes the median time of those
       frames: a voiced tail longer than about 2.5x the note (median past `end + 0.75 x length`)
       drops a well-sung final note. A reverberant room or a singer holding the last note does
-      this. Strict xfail: `tests/test_aligner.py::TestAlign::test_a_long_tail_after_the_final_note_still_grades_it`.
+      this. Was a strict xfail: `tests/test_aligner.py::TestAlign::test_a_long_tail_after_the_final_note_still_grades_it`.
+      **Fixed (2026-11-11, T1.1):** the gate now keeps only the frames inside the note's time
+      widened by max(0.15 s, 75% of its length) (`aligner._frames_in_time`) and grades on those;
+      a note with none stays `no_signal`. The same applies to leading frames before the first note
+      (`test_leading_frames_before_the_first_note_do_not_drop_it`).
       The round trip itself stays strict (every note `on_pitch`); its failure message now lists
       only the off notes with measure, beat, expected and detected Hz and cents
       (`round_trip.off_notes`).

@@ -23,6 +23,18 @@ The response MUST include:
 - Per-note breakdown: measure number, beat position, expected note name, detected frequency in Hz, deviation in cents, status
 - Accuracy histogram: counts of on-pitch, sharp, flat, and no-signal notes
 
+Grading rules for the per-note breakdown:
+
+- An octave slip (a note sung a whole octave up or down) MUST be graded `sharp` / `flat` near
+  ±1200 cents against its own note, not against a neighbour's frames. When the slipped note's
+  detections are weak (median pYIN confidence below 0.6) it is `uncertain` instead, with
+  `accuracy_cents` null: the octave may be the detector's error.
+- A note that repeats the previous note's pitch MUST be graded on the frames inside its own time,
+  so vibrato on it grades on its centre pitch.
+- Voiced audio before the first note or after the last (a long release, a room tail, a singer
+  holding the final note) MUST NOT turn a well-sung first or last note into `no_signal`. Only frames
+  within a note's time widened by max(0.15 s, 75% of its length) count for that note.
+
 ### FR-2 — Score loading
 
 The server MUST accept a MusicXML document (inline, or as a file path: FR-8) and a part (ID, name or voice), parse the reference note sequence, and return a session ID.
@@ -458,10 +470,13 @@ folders, `os.pathsep`-separated) and `SHEET_MUSIC_MAX_SCORE_BYTES` (default 16 M
 - Language: Python 3.12+
 - Package manager: uv
 - Score parsing: music21
-- Primary pitch detection backend: librosa pYIN (`librosa.pyin`) — pure Python, no system deps
+- Primary pitch detection backend: librosa pYIN (`librosa.pyin`) — pure Python, no system deps.
+  A frame pYIN reads an octave low (periodic at half the period, normalised difference < 0.1) is
+  moved up an octave (`pitch_detector.undo_subharmonics`)
 - Real-time audio: sounddevice — installs without a build step; requires `libportaudio2` at runtime
 - Real-time pitch detection in the audio callback thread uses YIN autocorrelation — no heavy libraries in the audio thread
-- Score alignment: DTW via dtaidistance
+- Score alignment: DTW via dtaidistance, on a pitch helix (one turn per octave) so an octave slip
+  stays with its own note
 - `aubio` is excluded: no Python 3.13 wheel
 - `crepe` is excluded from default install: build failure in uv due to missing `pkg_resources`
 - Audio callback MUST NOT perform I/O, locking, or heavy computation — keep it minimal
