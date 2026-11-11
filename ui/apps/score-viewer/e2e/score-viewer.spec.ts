@@ -1,32 +1,8 @@
 import { readFileSync } from "node:fs";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 // @ts-expect-error -- plain .mjs script without type declarations
 import { externalReferences } from "../../../scripts/check-html.mjs";
-
-interface LoggedMessage {
-  direction: "host->app" | "app->host";
-  t: number;
-  method?: string;
-  params?: Record<string, unknown>;
-}
-
-async function openHost(page: Page, query: Record<string, string> = {}) {
-  await page.goto(`/?${new URLSearchParams(query)}`);
-  return page.frameLocator("iframe");
-}
-
-function messages(page: Page, method: string): Promise<LoggedMessage[]> {
-  return page.evaluate(
-    (m) => (window as unknown as { __host: { messages(m: string): LoggedMessage[] } }).__host.messages(m),
-    method,
-  );
-}
-
-async function pageLabel(frame: ReturnType<Page["frameLocator"]>) {
-  const text = (await frame.locator("#page-label").textContent()) ?? "";
-  const [, page, count] = text.match(/Page (\d+) \/ (\d+)/) ?? [];
-  return { page: Number(page), count: Number(count) };
-}
+import { messages, openHost, pageLabel } from "../../../test/e2e/host-helpers.ts";
 
 test("the built page has no off-origin references (AC-R1)", () => {
   const html = readFileSync(new URL("../../../dist/score-viewer.html", import.meta.url), "utf8");

@@ -37,6 +37,26 @@ export function renderMcpLaunch(renderMcpDir: string, outputRoot: string): Launc
   return { command, args: [], cwd: renderMcpDir, env };
 }
 
+/**
+ * Reads the server's stderr as it comes, so a chatty server never blocks on a full pipe, and
+ * keeps only the last `limit` characters to explain a server that fails to start.
+ */
+export class StderrTail {
+  private buffer = "";
+
+  constructor(private readonly limit = 8192) {}
+
+  drain(stream: NodeJS.ReadableStream | null): void {
+    stream?.on("data", (chunk: Buffer | string) => {
+      this.buffer = (this.buffer + chunk.toString()).slice(-this.limit);
+    });
+  }
+
+  text(): string {
+    return this.buffer;
+  }
+}
+
 export class McpRelay {
   /** Every tool call made on the server, in order: the host's own and the view's. */
   readonly calls: RelayedCall[] = [];
@@ -49,7 +69,15 @@ export class McpRelay {
 
   static async start(launch: Launch, outputRoot: string): Promise<McpRelay> {
     const client = new Client({ name: "sheet-music-mock-host", version: "0.0.0" });
-    await client.connect(new StdioClientTransport({ ...launch, stderr: "pipe" }));
+    const transport = new StdioClientTransport({ ...launch, stderr: "pipe" });
+    // The transport hands out the pipe before start, so nothing the server writes is missed.
+    const stderr = new StderrTail();
+    stderr.drain(transport.stderr as NodeJS.ReadableStream | null);
+    try {
+      await client.connect(transport);
+    } catch (error) {
+      throw new Error(`render-mcp did not start: ${String(error)}\n${stderr.text()}`);
+    }
     return new McpRelay(client, outputRoot);
   }
 

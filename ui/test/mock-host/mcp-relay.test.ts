@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { McpRelay, renderMcpLaunch, type ToolClient } from "./mcp-relay.ts";
+import { McpRelay, renderMcpLaunch, StderrTail, type ToolClient } from "./mcp-relay.ts";
 
 class FakeClient implements ToolClient {
   calls: unknown[] = [];
@@ -58,5 +58,26 @@ describe("renderMcpLaunch", () => {
     const dir = mkdtempSync(join(tmpdir(), "relay-"));
     dirs.push(dir);
     expect(() => renderMcpLaunch(dir, "/tmp/out")).toThrow(/uv sync --frozen --extra dev/);
+  });
+});
+
+describe("StderrTail", () => {
+  it("drains a stream so a chatty server never blocks, keeping only the last bytes", async () => {
+    const { PassThrough } = await import("node:stream");
+    const stream = new PassThrough({ highWaterMark: 16 });
+    const tail = new StderrTail(10);
+    tail.drain(stream);
+    // Far more than the stream buffers: write() only keeps returning true if someone reads.
+    let accepted = true;
+    for (let i = 0; i < 1000; i++) accepted = stream.write("0123456789") && accepted;
+    stream.end("ABCDEFGHIJ-end");
+    await new Promise((resolve) => stream.on("end", resolve));
+    expect(tail.text()).toBe("EFGHIJ-end");
+  });
+
+  it("drains nothing when there is no stream", () => {
+    const tail = new StderrTail(10);
+    tail.drain(null);
+    expect(tail.text()).toBe("");
   });
 });

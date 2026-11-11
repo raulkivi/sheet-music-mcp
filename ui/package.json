@@ -13,10 +13,11 @@
   "scripts": {
     "build": "vite build && node scripts/check-html.mjs dist/score-viewer.html",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "npm run build:host && playwright test",
     "typecheck": "tsc --noEmit",
     "copy-assets": "node scripts/copy-assets.mjs",
-    "measure": "node scripts/measure.mjs"
+    "measure": "npm run build:host && node scripts/measure.mjs",
+    "build:host": "vite build --config test/mock-host/vite.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
