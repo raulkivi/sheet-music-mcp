@@ -5,7 +5,7 @@
 Renders MusicXML scores to PDF (for printing) or PNG (for display in web/mobile apps).
 Backend: Verovio (in-process Python) + cairosvg + pypdf. No MuseScore CLI required.
 
-**Status:** Phase 1 + UX Waves 1–3 complete. 169 unit tests (default run) + 9 integration tests.
+**Status:** Phase 1 + UX Waves 1–3 complete; MCP Apps Score Viewer spike (`ui://render/score-viewer`, app-only `render_page_svg`) on branch `mcp-apps/phase0`. 234 unit tests (default run) + 12 integration tests.
 
 ---
 

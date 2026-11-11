@@ -1,0 +1,9 @@
+{
+  "name": "@sheet-music-mcp/score-viewer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@sheet-music-mcp/ui-kit": "0.0.0"
+  }
+}

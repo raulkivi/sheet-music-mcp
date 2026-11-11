@@ -1,0 +1,79 @@
+# Builds and tests the MCP Apps UI workspace (ui/), then checks that render-mcp's
+# wheel ships the built page. Python unit tests stay in tests.yml: they need no Node.
+name: UI
+
+on:
+  pull_request:
+    paths:
+      - 'ui/**'
+      - 'render-mcp/**'
+      - 'sheet-music-mcp-core/**'
+      - '.github/workflows/ui.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'ui/**'
+      - 'render-mcp/**'
+      - 'sheet-music-mcp-core/**'
+      - '.github/workflows/ui.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ui:
+    runs-on: ubuntu-latest
+    # Bounds a hung browser test.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install UI dependencies
+        working-directory: ui
+        run: npm ci
+      - name: Typecheck
+        working-directory: ui
+        run: npm run typecheck
+      - name: Unit tests
+        working-directory: ui
+        run: npm test
+      # The e2e tests run against the built page.
+      - name: Build
+        working-directory: ui
+        run: npm run build
+      - name: Install Playwright browser
+        working-directory: ui
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end tests
+        working-directory: ui
+        run: npm run test:e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: ui/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+      # Copies the built page into render-mcp, where the wheel packages it.
+      - name: Copy built page into render-mcp
+        working-directory: ui
+        run: npm run copy-assets
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: '3.13'
+          enable-cache: true
+          cache-dependency-glob: render-mcp/uv.lock
+      - name: Install render-mcp dependencies
+        working-directory: render-mcp
+        run: uv sync --frozen --extra dev
+      # Builds the wheel and checks the HTML is inside with no off-origin references.
+      - name: Wheel packaging test
+        working-directory: render-mcp
+        run: VIRTUAL_ENV= .venv/bin/pytest tests/test_packaging.py -m integration -v

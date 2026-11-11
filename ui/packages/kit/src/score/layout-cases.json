@@ -1,0 +1,113 @@
+{
+  "description": "Container width (CSS px) and zoom -> Verovio layout. Checked by paging.test.ts (layoutFor) and render-mcp tests/test_page_svg.py (page_layout), so the WASM and server renderers lay pages out alike.",
+  "cases": [
+    {
+      "containerWidth": 1000,
+      "zoom": 1,
+      "layout": {
+        "scale": 40,
+        "pageWidth": 2500,
+        "pageHeight": 3535
+      }
+    },
+    {
+      "containerWidth": 968,
+      "zoom": 1,
+      "layout": {
+        "scale": 40,
+        "pageWidth": 2420,
+        "pageHeight": 3422
+      }
+    },
+    {
+      "containerWidth": 640,
+      "zoom": 1,
+      "layout": {
+        "scale": 40,
+        "pageWidth": 1600,
+        "pageHeight": 2262
+      }
+    },
+    {
+      "containerWidth": 900,
+      "zoom": 1.25,
+      "layout": {
+        "scale": 50,
+        "pageWidth": 1800,
+        "pageHeight": 2545
+      }
+    },
+    {
+      "containerWidth": 375,
+      "zoom": 1,
+      "layout": {
+        "scale": 25,
+        "pageWidth": 1500,
+        "pageHeight": 2121
+      }
+    },
+    {
+      "containerWidth": 1200,
+      "zoom": 0.5,
+      "layout": {
+        "scale": 20,
+        "pageWidth": 6000,
+        "pageHeight": 8484
+      }
+    },
+    {
+      "containerWidth": 300,
+      "zoom": 3,
+      "layout": {
+        "scale": 20,
+        "pageWidth": 1500,
+        "pageHeight": 2121
+      }
+    },
+    {
+      "containerWidth": 1000,
+      "zoom": 0.67,
+      "layout": {
+        "scale": 27,
+        "pageWidth": 3704,
+        "pageHeight": 5237
+      }
+    },
+    {
+      "containerWidth": 2000,
+      "zoom": 2,
+      "layout": {
+        "scale": 80,
+        "pageWidth": 2500,
+        "pageHeight": 3535
+      }
+    },
+    {
+      "containerWidth": 1,
+      "zoom": 1,
+      "layout": {
+        "scale": 1,
+        "pageWidth": 1500,
+        "pageHeight": 2121
+      }
+    },
+    {
+      "containerWidth": 1500,
+      "zoom": 0.8,
+      "layout": {
+        "scale": 32,
+        "pageWidth": 4688,
+        "pageHeight": 6629
+      }
+    },
+    {
+      "containerWidth": 799,
+      "zoom": 1.5,
+      "layout": {
+        "scale": 53,
+        "pageWidth": 1500,
+        "pageHeight": 2121
+      }
+    }
+  ]
+}

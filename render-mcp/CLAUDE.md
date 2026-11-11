@@ -5,7 +5,8 @@
 Renders MusicXML scores to PDF (for printing) or PNG (for display in web/mobile apps).
 Uses Verovio (in-process) + cairosvg + pypdf. No MuseScore CLI required.
 
-**Status:** Phase 1 + UX Waves 1–3 complete. 169 unit tests (default run) + 9 integration.
+**Status:** Phase 1 + UX Waves 1–3 complete; MCP Apps spike phase 0c (Score Viewer resource,
+`structuredContent`, app-only `render_page_svg`). 234 unit tests (default run) + 12 integration.
 
 ---
 
@@ -13,9 +14,12 @@ Uses Verovio (in-process) + cairosvg + pypdf. No MuseScore CLI required.
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v             # 169 unit tests (integration deselected)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v             # 234 unit tests (integration deselected)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration  # Verovio runs in-process, always fast
 ```
+
+`tests/test_packaging.py` (integration) needs the UI built first:
+`cd ../ui && npm ci && npm run build && npm run copy-assets`.
 
 Install dependencies: `uv sync`
 
@@ -25,7 +29,9 @@ Install dependencies: `uv sync`
 
 | File | Purpose |
 |------|---------|
-| `src/render_mcp/server.py` | MCP tool definitions and handlers |
+| `src/render_mcp/server.py` | MCP tool definitions and handlers, Score Viewer registry |
+| `src/render_mcp/presenter.py` | Engine result → `content` + `structuredContent`; output schemas |
+| `src/render_mcp/ui/assets/score-viewer.html` | Built by `ui/` (`npm run copy-assets`), gitignored |
 | `src/render_mcp/engine.py` | Verovio + cairosvg rendering pipeline (no MCP imports) |
 | `src/render_mcp/utils.py` | MusicXML validation, path helpers |
 | `docs/HANDOVER.md` | Status, remaining work, definition of done |
@@ -44,6 +50,11 @@ Install dependencies: `uv sync`
 | `list_capabilities` | Server metadata, active backend, format support |
 | `health_check` | Runtime dependency check |
 | `describe_score` | Shared (core) tool: parts with IDs, key, time, tempo, measures, duration — no rendering |
+| `render_page_svg` | App-only (`_meta.ui.visibility: ["app"]`): one page of inline MusicXML as SVG for the Score Viewer when the host blocks WebAssembly; listed only for MCP Apps clients |
+
+`render_to_pdf` and `render_to_image` link `ui://render/score-viewer` (`_meta.ui.resourceUri`)
+when the HTML is packaged, declare an `output_schema` and return `structuredContent`; their
+`content` is unchanged (`tests/test_content_golden.py`).
 
 Both render tools take the score as `musicxml` (inline) or `musicxml_path` (`.musicxml`, `.xml`,
 `.mxl`; exactly one). Paths are read via `sheet_music_mcp_core.references.load_score()`, confined
@@ -109,6 +120,16 @@ asyncio.run(_run())
   signature. `page` counts pages of the cut score. Bad ranges are `INVALID_PARAMETER` with a
   `hint` ("This score has measures A–B."); the render handlers use `processing_error_content`
   so the hint survives.
+- **`call_tool` vs `call_tool_result`.** The server wires `call_tool_result()`; `call_tool()`
+  returns its `content` only (older tests index it as a list). Render errors are `isError`.
+- **Tests never see a local UI build.** `tests/conftest.py` swaps `server.ui_registry` for
+  in-memory assets; the `packaged_ui` fixture gives the linked case.
+- **Layout parity.** `engine.page_layout()` mirrors `ui/packages/kit/src/score/paging.ts`
+  `layoutFor()` (JS rounding); both are checked against `ui/packages/kit/src/score/layout-cases.json`.
+- **Verovio reads almost anything.** Validate with `validate_musicxml()` before the engine.
+- **Verovio's resource path is per thread.** `render_page_svg` renders in a worker thread
+  (`asyncio.to_thread`, one at a time behind a lock); `engine._verovio_toolkit()` sets the
+  resource path itself, or a toolkit made off the importing thread finds no fonts.
 - **Integration tests need the omr-mcp samples.** They read
   `../omr-mcp/test_samples/pdmx_satb_samples/mxl/`; without that folder they fail with
   "Fixture dir not found".

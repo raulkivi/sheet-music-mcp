@@ -1,14 +1,14 @@
 import asyncio
 import json
 import logging
-from pathlib import Path
 
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import TextContent, Tool, ToolAnnotations
+from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
-from sheet_music_mcp_core.content import error_content, file_link, png_block, processing_error_content
+from sheet_music_mcp_core.content import error_content, processing_error_content
 from sheet_music_mcp_core.measures import MEASURES_PROPERTY
+from sheet_music_mcp_core.paths import max_score_bytes
 from sheet_music_mcp_core.references import (
     DESCRIBE_SCORE_TOOL,
     describe_score_tool,
@@ -16,11 +16,13 @@ from sheet_music_mcp_core.references import (
     load_score,
     score_input_properties,
 )
-from sheet_music_mcp_core.wiring import make_handlers
+from sheet_music_mcp_core.ui import PackageAssetSource, UiRegistry, UiResource
+from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 
 from . import __version__
 from .engine import (
     ProcessingError,
+    SvgPageRenderer,
     cairosvg_available,
     detect_backend,
     get_health_status,
@@ -28,6 +30,14 @@ from .engine import (
     render_to_image,
     render_to_pdf,
     verovio_available,
+)
+from .presenter import (
+    IMAGE_OUTPUT_SCHEMA,
+    PAGE_SVG_OUTPUT_SCHEMA,
+    PDF_OUTPUT_SCHEMA,
+    present_image,
+    present_page_svg,
+    present_pdf,
 )
 from .utils import (
     DPI_DEFAULT,
@@ -54,7 +64,22 @@ INSTRUCTIONS = (
     "use describe_score to learn a score's part IDs and size cheaply."
 )
 
-_IMAGE_MIME_TYPES = {"png": "image/png", "svg": "image/svg+xml"}
+SCORE_VIEWER = UiResource(
+    "ui://render/score-viewer",
+    "score-viewer.html",
+    "Score Viewer",
+    "Pages through and zooms the rendered score inline.",
+)
+
+# Reads the HTML packaged under render_mcp/ui/assets/; tests replace ui_registry with in-memory
+# assets. Without a UI build the viewer is hidden and the tools carry no _meta.ui.
+DEFAULT_UI_REGISTRY = UiRegistry([SCORE_VIEWER], PackageAssetSource("render_mcp"))
+ui_registry = DEFAULT_UI_REGISTRY
+
+# Keeps the last score the viewer paged through parsed (engine.SvgPageRenderer). It runs in a
+# worker thread and one Verovio toolkit is not thread-safe, so calls take turns.
+page_renderer = SvgPageRenderer()
+_page_renderer_lock = asyncio.Lock()
 
 
 def _score_properties() -> dict:
@@ -72,22 +97,6 @@ def _measures_argument(arguments: dict) -> dict:
     The engine cuts the score before backend dispatch; without a range the call is unchanged.
     """
     return {"measures": arguments["measures"]} if arguments.get("measures") is not None else {}
-
-
-def _file_blocks(path: str, mime_type: str) -> list:
-    """Blocks appended after the JSON text for a written file (conventions, Result Content).
-
-    A PNG of at most 1 MB is also sent inline; SVG gets only the link.
-    """
-    if not Path(path).is_file():
-        return []
-    blocks = []
-    if mime_type == "image/png":
-        image = png_block(path)
-        if image is not None:
-            blocks.append(image)
-    blocks.append(file_link(path, mime_type))
-    return blocks
 
 
 async def list_tools():
@@ -109,6 +118,8 @@ async def list_tools():
                 },
                 **exactly_one("musicxml", "musicxml_path"),
             },
+            output_schema=PDF_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(SCORE_VIEWER),
         ),
         Tool(
             name="render_to_image",
@@ -145,6 +156,8 @@ async def list_tools():
                 },
                 **exactly_one("musicxml", "musicxml_path"),
             },
+            output_schema=IMAGE_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(SCORE_VIEWER),
         ),
         Tool(
             name="list_capabilities",
@@ -172,98 +185,164 @@ async def list_tools():
             },
         ),
         DESCRIBE_SCORE_TOOL,
+        Tool(
+            name="render_page_svg",
+            title="Render score page as SVG",
+            annotations=ToolAnnotations(**READ_ONLY),
+            description=(
+                "For the Score Viewer only: one page of an inline MusicXML score as SVG, laid out "
+                "for the viewer's width and zoom. Used when the host blocks client-side rendering."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    # Inline only: an app-only tool never reads a path (proposal §7).
+                    "musicxml": {"type": "string", "description": "MusicXML document as a string"},
+                    "page": {"type": "integer", "minimum": 1, "description": "Page number, 1-indexed"},
+                    "width_px": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10000,
+                        "description": "Viewer width in CSS pixels; the page is laid out to fill it",
+                    },
+                    "zoom": {
+                        "type": "number",
+                        "minimum": 0.1,
+                        "maximum": 10,
+                        "description": "Zoom factor, 1 = 100 %",
+                    },
+                },
+                "required": ["musicxml", "page", "width_px", "zoom"],
+                "additionalProperties": False,
+            },
+            output_schema=PAGE_SVG_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(SCORE_VIEWER, app_only=True),
+        ),
     ]
 
 
-async def call_tool(name: str, arguments: dict, ctx=None):
-    if name == "render_to_pdf":
-        try:
-            musicxml = await load_score(arguments, ctx)
-        except ProcessingError as e:
-            return processing_error_content(e)
-        output_path = arguments.get("output_path")
+def _error(content: list) -> CallToolResult:
+    # isError, so clients skip output_schema validation of the absent structured content.
+    return CallToolResult(content=content, is_error=True)
 
-        ok, err = validate_musicxml(musicxml)
+
+async def _render_pdf(arguments: dict, ctx) -> CallToolResult:
+    try:
+        musicxml = await load_score(arguments, ctx)
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    output_path = arguments.get("output_path")
+
+    ok, err = validate_musicxml(musicxml)
+    if not ok:
+        return _error(error_content(err, "INVALID_INPUT"))
+
+    try:
+        resolved_output = generate_pdf_path(output_path)
+    except ValueError as e:
+        return _error(error_content(str(e), "INVALID_PARAMETER"))
+
+    try:
+        pdf_path, page_count = render_to_pdf(musicxml, resolved_output, **_measures_argument(arguments))
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("render_to_pdf unexpected error: %s", e)
+        return _error(error_content(f"Rendering failed: {e}", "PROCESSING_FAILED"))
+
+    content, structured = present_pdf(pdf_path, page_count, detect_backend())
+    return CallToolResult(content=content, structured_content=structured)
+
+
+async def _render_image(arguments: dict, ctx) -> CallToolResult:
+    try:
+        musicxml = await load_score(arguments, ctx)
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    page = arguments.get("page", PAGE_DEFAULT)
+    fmt = arguments.get("format", "png")
+    dpi = arguments.get("dpi", DPI_DEFAULT)
+    output_path = arguments.get("output_path")
+
+    ok, err = validate_musicxml(musicxml)
+    if not ok:
+        return _error(error_content(err, "INVALID_INPUT"))
+
+    for ok, err in (validate_page(page), validate_image_format(fmt), validate_dpi(dpi)):
         if not ok:
-            return error_content(err, "INVALID_INPUT")
+            return _error(error_content(err, "INVALID_PARAMETER"))
 
-        try:
-            resolved_output = generate_pdf_path(output_path)
-        except ValueError as e:
-            return error_content(str(e), "INVALID_PARAMETER")
+    try:
+        resolved_output = generate_image_path(output_path, fmt)
+    except ValueError as e:
+        return _error(error_content(str(e), "INVALID_PARAMETER"))
 
-        try:
-            pdf_path, page_count = render_to_pdf(
-                musicxml, resolved_output, **_measures_argument(arguments)
+    try:
+        result = render_to_image(musicxml, page, fmt, dpi, resolved_output, **_measures_argument(arguments))
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("render_to_image unexpected error: %s", e)
+        return _error(error_content(f"Rendering failed: {e}", "PROCESSING_FAILED"))
+
+    content, structured = present_image(result)
+    return CallToolResult(content=content, structured_content=structured)
+
+
+async def _render_page_svg(arguments: dict, ctx) -> CallToolResult:
+    musicxml = arguments["musicxml"]
+    # App-only tools are still callable by any client, so the inline score gets the file cap.
+    limit = max_score_bytes()
+    if len(musicxml.encode("utf-8")) > limit:
+        return _error(
+            processing_error_content(
+                ProcessingError(
+                    f"The score is larger than {limit} bytes.",
+                    "INVALID_PARAMETER",
+                    hint="Raise SHEET_MUSIC_MAX_SCORE_BYTES or render a measure range.",
+                )
             )
-        except ProcessingError as e:
-            return processing_error_content(e)
-        except Exception as e:
-            logger.error("render_to_pdf unexpected error: %s", e)
-            return error_content(f"Rendering failed: {e}", "PROCESSING_FAILED")
-
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "pdf_path": pdf_path,
-                        "page_count": page_count,
-                        "backend": detect_backend(),
-                    },
-                    indent=2,
-                ),
-            ),
-            *_file_blocks(pdf_path, "application/pdf"),
-        ]
-
-    elif name == "render_to_image":
-        try:
-            musicxml = await load_score(arguments, ctx)
-        except ProcessingError as e:
-            return processing_error_content(e)
-        page = arguments.get("page", PAGE_DEFAULT)
-        fmt = arguments.get("format", "png")
-        dpi = arguments.get("dpi", DPI_DEFAULT)
-        output_path = arguments.get("output_path")
-
-        ok, err = validate_musicxml(musicxml)
-        if not ok:
-            return error_content(err, "INVALID_INPUT")
-
-        ok, err = validate_page(page)
-        if not ok:
-            return error_content(err, "INVALID_PARAMETER")
-
-        ok, err = validate_image_format(fmt)
-        if not ok:
-            return error_content(err, "INVALID_PARAMETER")
-
-        ok, err = validate_dpi(dpi)
-        if not ok:
-            return error_content(err, "INVALID_PARAMETER")
-
-        try:
-            resolved_output = generate_image_path(output_path, fmt)
-        except ValueError as e:
-            return error_content(str(e), "INVALID_PARAMETER")
-
-        try:
-            result = render_to_image(
-                musicxml, page, fmt, dpi, resolved_output, **_measures_argument(arguments)
+        )
+    ok, err = validate_musicxml(musicxml)
+    if not ok:
+        return _error(error_content(err, "INVALID_INPUT"))
+    try:
+        # Verovio layout of a large score takes long enough to stall other requests.
+        async with _page_renderer_lock:
+            page = await asyncio.to_thread(
+                page_renderer.render,
+                musicxml,
+                arguments["page"],
+                arguments["width_px"],
+                arguments["zoom"],
             )
-        except ProcessingError as e:
-            return processing_error_content(e)
-        except Exception as e:
-            logger.error("render_to_image unexpected error: %s", e)
-            return error_content(f"Rendering failed: {e}", "PROCESSING_FAILED")
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    content, structured = present_page_svg(page)
+    return CallToolResult(content=content, structured_content=structured)
 
-        return [
-            TextContent(type="text", text=json.dumps(result, indent=2)),
-            *_file_blocks(result["image_path"], _IMAGE_MIME_TYPES[fmt]),
-        ]
 
-    elif name == "list_capabilities":
+_RESULT_TOOLS = {
+    "render_to_pdf": _render_pdf,
+    "render_to_image": _render_image,
+    "render_page_svg": _render_page_svg,
+}
+
+
+async def call_tool(name: str, arguments: dict, ctx=None) -> list:
+    """The tool's content blocks: what every client sees, structured content aside."""
+    return (await call_tool_result(name, arguments, ctx)).content
+
+
+async def call_tool_result(name: str, arguments: dict, ctx=None) -> CallToolResult:
+    """The full result the server sends, ``structuredContent`` included."""
+    if name in _RESULT_TOOLS:
+        return await _RESULT_TOOLS[name](arguments, ctx)
+    return CallToolResult(content=await _plain_tool(name, arguments, ctx))
+
+
+async def _plain_tool(name: str, arguments: dict, ctx) -> list:
+    if name == "list_capabilities":
         backend = detect_backend()
         ms_available = musescore_available()
         vr_available = verovio_available()
@@ -340,13 +419,28 @@ async def call_tool(name: str, arguments: dict, ctx=None):
     raise ValueError(f"Unknown tool: {name}")
 
 
-_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, pass_context=True, logger=logger)
+class _CurrentUiRegistry:
+    """Serves whichever registry ``ui_registry`` holds at request time, so tests can swap it."""
+
+    def list_resources(self):
+        return ui_registry.list_resources()
+
+    def read(self, uri: str):
+        return ui_registry.read(uri)
+
+
+_on_list_tools, _on_call_tool = make_handlers(
+    list_tools, call_tool_result, pass_context=True, logger=logger
+)
+_on_list_resources, _on_read_resource = make_resource_handlers(_CurrentUiRegistry(), logger=logger)
 
 app = Server(
     "render-mcp",
     instructions=INSTRUCTIONS,
     on_list_tools=_on_list_tools,
     on_call_tool=_on_call_tool,
+    on_list_resources=_on_list_resources,
+    on_read_resource=_on_read_resource,
 )
 
 

@@ -34,5 +34,14 @@ Thumbs.db
 .env
 .env.*
 
+# UI workspace (ui/): dependencies, build output, Playwright artefacts
+ui/node_modules/
+ui/dist/
+ui/test-results/
+ui/playwright-report/
+
+# Built MCP Apps pages, copied in by `npm run copy-assets` / CI (decision D1)
+render-mcp/src/render_mcp/ui/assets/*.html
+
 # Snyk Security Extension - AI Rules (auto-generated)
 .github/instructions/snyk_rules.instructions.md

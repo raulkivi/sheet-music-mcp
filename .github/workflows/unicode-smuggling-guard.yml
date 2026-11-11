@@ -1,5 +1,6 @@
 # Fails on invisible Unicode that could hide instructions in MCP tool
-# descriptions, prompts and docs read by LLM agents.
+# descriptions, prompts and docs read by LLM agents. Scans the whole repo, ui/
+# sources included; the scanner skips gitignored paths (ui/node_modules, ui/dist).
 name: Unicode smuggling guard
 
 on:
