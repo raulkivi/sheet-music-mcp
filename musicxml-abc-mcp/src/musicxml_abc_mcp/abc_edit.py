@@ -408,7 +408,7 @@ def _copy(elements: list[Element]) -> list[Element]:
 
 def _splice(text: str, part_id: str, replacements: dict[int, Element]) -> str:
     """``text`` with the part's measures at the given positions replaced; every other byte kept."""
-    data = text.removeprefix("﻿").encode("utf-8")
+    data = text.removeprefix("\ufeff").encode("utf-8")
     spans = _measure_spans(data, part_id)
     for position in sorted(replacements, reverse=True):
         begin, finish = spans[position]
