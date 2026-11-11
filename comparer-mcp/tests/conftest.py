@@ -6,12 +6,17 @@ from sheet_music_mcp_core.ui import InMemoryAssetSource, UiRegistry
 import comparer_mcp.server as server
 
 VIEWER_HTML = "<!doctype html><title>Diff Viewer</title>"
+SETUP_DOCTOR_HTML = "<!doctype html><title>Setup Doctor</title>"
 
 
 def registry(*, packaged: bool) -> UiRegistry:
-    """The server's UI registry over in-memory assets, with or without the built viewer."""
-    assets = {server.DIFF_VIEWER.asset: VIEWER_HTML} if packaged else {}
-    return UiRegistry([server.DIFF_VIEWER], InMemoryAssetSource(assets))
+    """The server's UI registry over in-memory assets, with or without the built apps."""
+    assets = (
+        {server.DIFF_VIEWER.asset: VIEWER_HTML, server.SETUP_DOCTOR.asset: SETUP_DOCTOR_HTML}
+        if packaged
+        else {}
+    )
+    return UiRegistry([server.DIFF_VIEWER, server.SETUP_DOCTOR], InMemoryAssetSource(assets))
 
 
 @pytest.fixture(autouse=True)

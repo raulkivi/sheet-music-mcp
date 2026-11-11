@@ -7,6 +7,7 @@ from mcp.server import Server
 from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from sheet_music_mcp_core.content import error_content, processing_error_content
+from sheet_music_mcp_core.health import HEALTH_OUTPUT_SCHEMA, setup_doctor_resource
 from sheet_music_mcp_core.measures import MEASURES_PROPERTY
 from sheet_music_mcp_core.paths import max_score_bytes
 from sheet_music_mcp_core.references import (
@@ -20,6 +21,7 @@ from sheet_music_mcp_core.ui import PackageAssetSource, UiRegistry, UiResource
 from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 
 from . import __version__
+from .health import build_health_report
 from .engine import (
     ProcessingError,
     SvgPageRenderer,
@@ -71,9 +73,11 @@ SCORE_VIEWER = UiResource(
     "Pages through and zooms the rendered score inline.",
 )
 
+SETUP_DOCTOR = setup_doctor_resource("render")
+
 # Reads the HTML packaged under render_mcp/ui/assets/; tests replace ui_registry with in-memory
-# assets. Without a UI build the viewer is hidden and the tools carry no _meta.ui.
-DEFAULT_UI_REGISTRY = UiRegistry([SCORE_VIEWER], PackageAssetSource("render_mcp"))
+# assets. Without a UI build the apps are hidden and the tools carry no _meta.ui.
+DEFAULT_UI_REGISTRY = UiRegistry([SCORE_VIEWER, SETUP_DOCTOR], PackageAssetSource("render_mcp"))
 ui_registry = DEFAULT_UI_REGISTRY
 
 # Keeps the last score the viewer paged through parsed (engine.SvgPageRenderer). It runs in a
@@ -183,6 +187,8 @@ async def list_tools():
                 "properties": {},
                 "required": [],
             },
+            output_schema=HEALTH_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(SETUP_DOCTOR),
         ),
         DESCRIBE_SCORE_TOOL,
         Tool(
@@ -322,10 +328,32 @@ async def _render_page_svg(arguments: dict, ctx) -> CallToolResult:
     return CallToolResult(content=content, structured_content=structured)
 
 
+async def _health_check(arguments: dict, ctx) -> CallToolResult:
+    # The text lines are the historical output; the report goes to structured_content.
+    status = get_health_status()
+    lines = [
+        f"render-mcp status: {status['status'].upper()}",
+        f"  Backend:   {status['backend'] or 'none'}",
+        f"  MuseScore: {'✓' if status['musescore_available'] else '✗'}",
+        f"  Verovio:   {'✓' if status['verovio_available'] else '✗'}",
+        f"  cairosvg:  {'✓' if status['cairosvg_available'] else '✗'}",
+    ]
+    if status["notes"]:
+        lines.append("")
+        lines.append("Warnings:")
+        for note in status["notes"]:
+            lines.append(f"  - {note}")
+    return CallToolResult(
+        content=[TextContent(type="text", text="\n".join(lines))],
+        structured_content=build_health_report(status),
+    )
+
+
 _RESULT_TOOLS = {
     "render_to_pdf": _render_pdf,
     "render_to_image": _render_image,
     "render_page_svg": _render_page_svg,
+    "health_check": _health_check,
 }
 
 
@@ -399,22 +427,6 @@ async def _plain_tool(name: str, arguments: dict, ctx) -> list:
             return await describe_score_tool(arguments, ctx)
         except ProcessingError as e:
             return processing_error_content(e)
-
-    elif name == "health_check":
-        status = get_health_status()
-        lines = [
-            f"render-mcp status: {status['status'].upper()}",
-            f"  Backend:   {status['backend'] or 'none'}",
-            f"  MuseScore: {'✓' if status['musescore_available'] else '✗'}",
-            f"  Verovio:   {'✓' if status['verovio_available'] else '✗'}",
-            f"  cairosvg:  {'✓' if status['cairosvg_available'] else '✗'}",
-        ]
-        if status["notes"]:
-            lines.append("")
-            lines.append("Warnings:")
-            for note in status["notes"]:
-                lines.append(f"  - {note}")
-        return [TextContent(type="text", text="\n".join(lines))]
 
     raise ValueError(f"Unknown tool: {name}")
 

@@ -6,7 +6,7 @@ Renders MusicXML scores to PDF (for printing) or PNG (for display in web/mobile 
 Uses Verovio (in-process) + cairosvg + pypdf. No MuseScore CLI required.
 
 **Status:** Phase 1 + UX Waves 1–3 complete; MCP Apps spike phase 0c (Score Viewer resource,
-`structuredContent`, app-only `render_page_svg`). 234 unit tests (default run) + 12 integration.
+`structuredContent`, app-only `render_page_svg`). 259 unit tests (default run) + 12 integration.
 
 ---
 
@@ -14,7 +14,7 @@ Uses Verovio (in-process) + cairosvg + pypdf. No MuseScore CLI required.
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v             # 234 unit tests (integration deselected)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v             # 259 unit tests (integration deselected)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration  # Verovio runs in-process, always fast
 ```
 

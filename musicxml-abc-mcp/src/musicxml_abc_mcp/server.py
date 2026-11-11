@@ -7,6 +7,7 @@ from mcp.server import Server
 from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from sheet_music_mcp_core.content import error_content, processing_error_content
+from sheet_music_mcp_core.health import HEALTH_OUTPUT_SCHEMA, setup_doctor_resource
 from sheet_music_mcp_core.measures import MEASURES_PROPERTY
 from sheet_music_mcp_core.params import aliased
 from sheet_music_mcp_core.references import (
@@ -24,6 +25,7 @@ from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 from . import __version__
 from .abc_store import AbcStore
 from .engine import ProcessingError, abc_to_musicxml, health_check, musicxml_to_abc, validate_abc
+from .health import build_health_report
 from .presenter import (
     ABC_OUTPUT_SCHEMA,
     CONVERSION_OUTPUT_SCHEMA,
@@ -58,9 +60,12 @@ ABC_WORKBENCH = UiResource(
     "Shows the model's ABC edit against the original, validates ABC as you type, and converts the accepted text to MusicXML.",
 )
 
+# The Setup Doctor renders health_check's structuredContent (docs/conventions.md: Health Reports).
+SETUP_DOCTOR = setup_doctor_resource("abc")
+
 # Reads the HTML packaged under musicxml_abc_mcp/ui/assets/; tests replace ui_registry with
-# in-memory assets. Without a UI build the workbench is hidden and the tools carry no _meta.ui.
-DEFAULT_UI_REGISTRY = UiRegistry([ABC_WORKBENCH], PackageAssetSource("musicxml_abc_mcp"))
+# in-memory assets. Without a UI build the apps are hidden and the tools carry no _meta.ui.
+DEFAULT_UI_REGISTRY = UiRegistry([ABC_WORKBENCH, SETUP_DOCTOR], PackageAssetSource("musicxml_abc_mcp"))
 ui_registry = DEFAULT_UI_REGISTRY
 
 # The ABC each musicxml_to_abc call produced, so the workbench can show it as the "original".
@@ -202,6 +207,8 @@ async def list_tools():
                 "properties": {},
                 "required": [],
             },
+            output_schema=HEALTH_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(SETUP_DOCTOR),
         ),
         DESCRIBE_SCORE_TOOL,
     ]
@@ -295,11 +302,13 @@ async def call_tool_result(name: str, arguments: dict, ctx=None) -> CallToolResu
     """The full result the server sends, ``structuredContent`` included."""
     if name in _RESULT_TOOLS:
         return await _RESULT_TOOLS[name](arguments, ctx)
-    return CallToolResult(content=await _plain_tool(name, arguments, ctx))
+    result = await _plain_tool(name, arguments, ctx)
+    # health_check returns a full result (it carries structured content); the others return blocks.
+    return result if isinstance(result, CallToolResult) else CallToolResult(content=result)
 
 
 async def _plain_tool(name: str, arguments: dict, ctx) -> list:
-    """Tools without a UI: content blocks only."""
+    """Tools without structured content: content blocks only (health_check returns a full result)."""
     if name == "list_capabilities":
         backend_version = "unknown"
         try:
@@ -343,11 +352,15 @@ async def _plain_tool(name: str, arguments: dict, ctx) -> list:
 
     elif name == "health_check":
         try:
-            result = health_check()
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+            raw = health_check()
+            # structuredContent is derived from the raw dict; the text stays byte-identical.
+            return CallToolResult(
+                content=[TextContent(type="text", text=json.dumps(raw, indent=2))],
+                structured_content=build_health_report(raw),
+            )
         except Exception as e:
             logger.error("health_check unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
 
     raise ValueError(f"Unknown tool: {name}")
 

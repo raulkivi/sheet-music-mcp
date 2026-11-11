@@ -8,12 +8,20 @@ import omr_mcp.server as server
 from omr_mcp.previews import ReviewJobs
 
 REVIEW_HTML = "<!doctype html><title>Recognition Review</title>"
+SETUP_HTML = "<!doctype html><title>Setup Doctor</title>"
 
 
 def registry(*, packaged: bool) -> UiRegistry:
     """The server's UI registry over in-memory assets, with or without the built app."""
-    assets = {server.RECOGNITION_REVIEW.asset: REVIEW_HTML} if packaged else {}
-    return UiRegistry([server.RECOGNITION_REVIEW], InMemoryAssetSource(assets))
+    assets = (
+        {
+            server.RECOGNITION_REVIEW.asset: REVIEW_HTML,
+            server.SETUP_DOCTOR.asset: SETUP_HTML,
+        }
+        if packaged
+        else {}
+    )
+    return UiRegistry([server.RECOGNITION_REVIEW, server.SETUP_DOCTOR], InMemoryAssetSource(assets))
 
 
 @pytest.fixture(autouse=True)

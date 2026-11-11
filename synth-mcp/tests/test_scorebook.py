@@ -64,7 +64,7 @@ def test_expires_with_the_artifact():
 def test_dropped_entries_are_forgotten_on_the_next_remember():
     clock = Clock()
     store = InMemoryArtifactStore(ttl_seconds=10, clock=clock)
-    book = _book(store)
+    book = _book(store, ttl_seconds=10, clock=clock)
     for _ in range(3):
         _remember(store, book)
 

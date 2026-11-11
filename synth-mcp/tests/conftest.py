@@ -8,12 +8,16 @@ import synth_mcp.server as server
 from synth_mcp.scorebook import ScoreBook
 
 PLAYER_HTML = "<!doctype html><title>Practice Player</title>"
+SETUP_DOCTOR_HTML = "<!doctype html><title>Setup Doctor</title>"
 
 
 def registry(*, packaged: bool) -> UiRegistry:
-    """The server's UI registry over in-memory assets, with or without the built player."""
-    assets = {server.PRACTICE_PLAYER.asset: PLAYER_HTML} if packaged else {}
-    return UiRegistry([server.PRACTICE_PLAYER], InMemoryAssetSource(assets))
+    """The server's UI registry over in-memory assets, with or without the built apps."""
+    assets = {}
+    if packaged:
+        assets[server.PRACTICE_PLAYER.asset] = PLAYER_HTML
+        assets[server.SETUP_DOCTOR.asset] = SETUP_DOCTOR_HTML
+    return UiRegistry([server.PRACTICE_PLAYER, server.SETUP_DOCTOR], InMemoryAssetSource(assets))
 
 
 def use_store(monkeypatch, store) -> None:

@@ -49,7 +49,12 @@ class TestToolLinking:
         assert (await _tools())[name].meta is None
 
     async def test_other_model_facing_tools_are_not_linked(self, packaged_ui):
-        others = [t for n, t in (await _tools()).items() if n not in LINKED and not is_app_only(t)]
+        others = [
+            t
+            for n, t in (await _tools()).items()
+            # health_check links the Setup Doctor, a different app, not the workbench.
+            if n not in (*LINKED, "health_check") and not is_app_only(t)
+        ]
 
         assert others
         assert all(t.meta is None or "resourceUri" not in t.meta.get("ui", {}) for t in others)
@@ -71,7 +76,8 @@ class TestResources:
         result = _with_client(lambda c: c.list_resources())
 
         assert [(r.uri, r.name, r.mime_type) for r in result.resources] == [
-            (WORKBENCH_URI, "ABC Workbench", UI_MIME)
+            (WORKBENCH_URI, "ABC Workbench", UI_MIME),
+            ("ui://abc/setup-doctor", "Setup Doctor", UI_MIME),
         ]
 
     def test_lists_nothing_without_a_ui_build(self):

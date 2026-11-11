@@ -11,6 +11,7 @@ from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from sheet_music_mcp_core.artifacts import MAX_CHUNK_BYTES, FileArtifactStore, chunk_payload
 from sheet_music_mcp_core.content import audio_block, error_content, file_link, processing_error_content
+from sheet_music_mcp_core.health import HEALTH_OUTPUT_SCHEMA, setup_doctor_resource
 from sheet_music_mcp_core.measures import MEASURES_PROPERTY, select_measures
 from sheet_music_mcp_core.params import aliased
 from sheet_music_mcp_core.references import (
@@ -25,6 +26,7 @@ from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 
 from . import __version__
 from .clip import clip_midi, clip_seconds, pitches_text, render_clip, starting_pitches
+from .health import build_health_report, health_text, probe
 from .engine import (
     ProcessingError,
     describe_mix,
@@ -72,9 +74,13 @@ PRACTICE_PLAYER = UiResource(
     "Plays a rendered practice track with a mixer for each voice part, over the score.",
 )
 
+# The standard Setup Doctor app every server ships (docs/conventions.md, Health Reports):
+# health_check links to it so the report's fixes are one copy away.
+SETUP_DOCTOR = setup_doctor_resource("synth")
+
 # Reads the HTML packaged under synth_mcp/ui/assets/; tests replace ui_registry with in-memory
-# assets. Without a UI build the player is hidden and the tools carry no _meta.ui link.
-DEFAULT_UI_REGISTRY = UiRegistry([PRACTICE_PLAYER], PackageAssetSource("synth_mcp"))
+# assets. Without a UI build the apps are hidden and the tools carry no _meta.ui link.
+DEFAULT_UI_REGISTRY = UiRegistry([PRACTICE_PLAYER, SETUP_DOCTOR], PackageAssetSource("synth_mcp"))
 ui_registry = DEFAULT_UI_REGISTRY
 
 # One store per process: the WAVs synthesize wrote, read back in chunks by the app (the iframe
@@ -270,6 +276,8 @@ async def list_tools():
                 "properties": {},
                 "required": [],
             },
+            output_schema=HEALTH_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(SETUP_DOCTOR),
         ),
         DESCRIBE_SCORE_TOOL,
         Tool(
@@ -505,11 +513,21 @@ async def _get_score_xml(arguments: dict, ctx) -> CallToolResult:
         return _error(processing_error_content(e))
 
 
+async def _health_check(arguments: dict, ctx) -> CallToolResult:
+    # The text stays what it always was; the same probes also feed the standard report.
+    p = probe()
+    return CallToolResult(
+        content=[TextContent(type="text", text=health_text(p))],
+        structured_content=build_health_report(p),
+    )
+
+
 _RESULT_TOOLS = {
     "get_parts": _get_parts,
     "synthesize": _synthesize,
     "read_audio_chunk": _read_audio_chunk,
     "get_score_xml": _get_score_xml,
+    "health_check": _health_check,
 }
 
 
@@ -571,61 +589,6 @@ async def _plain_tool(name: str, arguments: dict, ctx):
             "fluidsynth_available": fluidsynth_available,
         }
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
-
-    elif name == "health_check":
-        lines = ["synth-mcp health check\n" + "=" * 22]
-
-        # Soundfont
-        soundfont_path = os.environ.get("SYNTH_SOUNDFONT_PATH", "")
-        if not soundfont_path:
-            sf_status = "MISSING — SYNTH_SOUNDFONT_PATH is not set"
-            sf_ok = False
-        elif not os.path.exists(soundfont_path):
-            sf_status = f"MISSING — file not found at {soundfont_path!r}"
-            sf_ok = False
-        else:
-            sf_status = f"OK — {soundfont_path}"
-            sf_ok = True
-        lines.append(f"Soundfont:    {sf_status}")
-
-        if not sf_ok:
-            lines.append(
-                "\n  To fix: download an SF2 soundfont, e.g. TimGM6mb.sf2 from\n"
-                "  https://sourceforge.net/projects/timidity/files/\n"
-                "  Then add to your LLM client config:\n"
-                '    "env": {"SYNTH_SOUNDFONT_PATH": "/path/to/soundfont.sf2"}'
-            )
-
-        # FluidSynth Python binding
-        fluidsynth_ok = True
-        try:
-            import fluidsynth  # noqa: F401
-        except (ImportError, OSError) as e:
-            fluidsynth_ok = False
-            lines.append(f"FluidSynth:   MISSING — {e}")
-        if fluidsynth_ok:
-            lines.append("FluidSynth:   OK")
-
-        # music21
-        music21_ok = True
-        try:
-            import music21  # noqa: F401
-        except ImportError as e:
-            music21_ok = False
-            lines.append(f"music21:      MISSING — {e}")
-        if music21_ok:
-            lines.append("music21:      OK")
-
-        # Overall status
-        all_ok = sf_ok and fluidsynth_ok and music21_ok
-        status = "READY" if all_ok else "NOT READY"
-        lines.append(f"\nOverall:      {status}")
-        if not all_ok:
-            lines.append(
-                "Fix the issues above, then restart the server and run health_check again."
-            )
-
-        return [TextContent(type="text", text="\n".join(lines))]
 
     elif name == "describe_score":
         try:

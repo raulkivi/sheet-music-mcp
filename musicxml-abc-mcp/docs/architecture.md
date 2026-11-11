@@ -75,7 +75,7 @@ live here. No engine logic.
 ### `abc_store.py`
 
 `AbcStore` keeps recent `musicxml_to_abc` results behind random `abc_id`s (bounded, TTL, thread
-safe, no MCP imports). The app-only `get_abc` reads from it, so the workbench gets the "original"
+safe, no MCP imports; a core `ExpiringTable` underneath, plus the latest id for `get_abc` without one). The app-only `get_abc` reads from it, so the workbench gets the "original"
 side by id and never needs a path. `server.py` holds the module-level instance, replaced in tests.
 
 ### `engine.py`

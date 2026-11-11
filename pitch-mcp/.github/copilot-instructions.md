@@ -11,7 +11,7 @@ complete, plus UX Wave 2 (score references: `musicxml_path`, `describe_score`) a
 (`measures` ranges, `start_practice`, `highlights`) and the MCP Apps Practice Coach server side
 (`structuredContent`, `ui://pitch/practice-coach`, app-only `get_score_for_session`) with its
 browser-microphone mode (`start_monitoring` `source: "pushed"`, app-only `push_audio_chunk`, the
-`AudioSource` refactor); the page itself is not built yet, so tools carry no `_meta.ui`. 406 unit
+`AudioSource` refactor); the page itself is not built yet, so tools carry no `_meta.ui`. 408 unit
 (+6 skipped) + 4 integration tests pass (`-m integration`); 2 manual mic tests (`-m manual`)
 require real hardware.
 

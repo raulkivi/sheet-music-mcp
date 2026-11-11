@@ -10,7 +10,7 @@ status while a singer sings.
 complete, plus UX Wave 2 (score references: `musicxml_path`, `describe_score`) and UX Wave 3
 (`measures` ranges, `start_practice`, `highlights`), the MCP Apps Practice Coach server side
 (`structuredContent`, app-only `get_score_for_session`) and its browser-microphone mode
-(`start_monitoring` `source: "pushed"`, app-only `push_audio_chunk`). 406 unit
+(`start_monitoring` `source: "pushed"`, app-only `push_audio_chunk`). 438 unit
 (+6 skipped) + 4 integration tests pass (`-m integration`); 2 manual mic tests (`-m manual`)
 require real hardware.
 
@@ -20,7 +20,7 @@ require real hardware.
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v                 # 406 unit tests (integration/manual skipped by default)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v                 # 438 unit tests (integration/manual skipped by default)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration   # offline analysis against the committed fixture pair
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m manual        # real mic tests — skip in CI
 ```
@@ -160,8 +160,9 @@ asyncio.run(_run())
 - **The live YIN must interpolate at the dip's minimum.** It used to interpolate at the first lag
   below the threshold and read every note ~40 cents flat; `test_audio_source.py` pins E2–A5 within
   3 cents.
-- **The Practice Coach does not declare `_meta.ui.permissions.microphone` yet**: the core
-  `UiResource` has no `permissions` field. Add it in `sheet-music-mcp-core` first.
+- **The Practice Coach declares `permissions={"microphone": {}}`** on `PRACTICE_COACH`; the registry
+  sends it as the resource's `_meta.ui.permissions.microphone` in `resources/list` and `resources/read`
+  (pinned in `tests/test_practice_coach.py`).
 - **Accuracy thresholds:** on_pitch = ±25 cents; sharp = >+25 cents; flat = <−25 cents.
 
 ---

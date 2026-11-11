@@ -6,12 +6,18 @@ from sheet_music_mcp_core.ui import InMemoryAssetSource, UiRegistry
 import pitch_mcp.server as server
 
 COACH_HTML = "<!doctype html><title>Practice Coach</title>"
+DOCTOR_HTML = "<!doctype html><title>Setup Doctor</title>"
 
 
 def registry(*, packaged: bool) -> UiRegistry:
-    """The server's UI registry over in-memory assets, with or without the built coach."""
-    assets = {server.PRACTICE_COACH.asset: COACH_HTML} if packaged else {}
-    return UiRegistry([server.PRACTICE_COACH], InMemoryAssetSource(assets))
+    """The server's UI registry over in-memory assets, with or without the built apps."""
+    assets = {}
+    if packaged:
+        assets[server.PRACTICE_COACH.asset] = COACH_HTML
+        assets[server.SETUP_DOCTOR.asset] = DOCTOR_HTML
+    return UiRegistry(
+        [server.PRACTICE_COACH, server.SETUP_DOCTOR], InMemoryAssetSource(assets)
+    )
 
 
 @pytest.fixture(autouse=True)

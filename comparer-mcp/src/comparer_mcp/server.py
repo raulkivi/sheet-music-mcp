@@ -7,6 +7,7 @@ from mcp.server import Server
 from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from sheet_music_mcp_core.content import error_content, processing_error_content
+from sheet_music_mcp_core.health import HEALTH_OUTPUT_SCHEMA, setup_doctor_resource
 from sheet_music_mcp_core.measures import MEASURES_PROPERTY, parse_range
 from sheet_music_mcp_core.params import aliased
 from sheet_music_mcp_core.parts import PartInfo, resolve_parts
@@ -22,6 +23,7 @@ from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 from . import __version__
 from .annotator import annotate
 from .engine import ProcessingError, compare, health_check
+from .health import build_health_report
 from .presenter import (
     COMPARISON_OUTPUT_SCHEMA,
     REPORT_OUTPUT_SCHEMA,
@@ -86,9 +88,11 @@ DIFF_VIEWER = UiResource(
     "Shows two scores side by side with their differences marked, a filterable change list and the report.",
 )
 
+SETUP_DOCTOR = setup_doctor_resource("comparer")
+
 # Reads the HTML packaged under comparer_mcp/ui/assets/; tests replace ui_registry with in-memory
 # assets. Without a UI build the viewer is hidden and the tools carry no _meta.ui.
-DEFAULT_UI_REGISTRY = UiRegistry([DIFF_VIEWER], PackageAssetSource("comparer_mcp"))
+DEFAULT_UI_REGISTRY = UiRegistry([DIFF_VIEWER, SETUP_DOCTOR], PackageAssetSource("comparer_mcp"))
 ui_registry = DEFAULT_UI_REGISTRY
 
 
@@ -228,6 +232,8 @@ async def list_tools():
                 "properties": {},
                 "required": [],
             },
+            output_schema=HEALTH_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(SETUP_DOCTOR),
         ),
         DESCRIBE_SCORE_TOOL,
     ]
@@ -437,8 +443,12 @@ async def _dispatch(name: str, arguments: dict, ctx=None):
 
     elif name == "health_check":
         try:
-            result = health_check()
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+            raw = health_check()
+            # The text stays byte-identical to before the standard report existed.
+            return CallToolResult(
+                content=[TextContent(type="text", text=json.dumps(raw, indent=2))],
+                structured_content=build_health_report(raw),
+            )
         except Exception as e:
             logger.error("health_check unexpected error: %s", e)
             return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
