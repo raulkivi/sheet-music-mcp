@@ -1,6 +1,6 @@
 # UI and sound testing: improvement plan
 
-Analysis date: 2026-11-11. Status: **proposal, nothing built.** No code, tests or CI changed; nothing committed.
+Analysis date: 2026-11-11. Status: **P1 done (U1, U6)**; the other phases are still proposals.
 
 Compared against the testing in `agent-cost-analyzer` (MIT, same owner):
 `packages/mcp-apps/e2e/` (Playwright fake MCP Apps host), `packages/mcp-apps/test/theme/` (contrast tests),
@@ -130,7 +130,7 @@ configuration, which only a real run can test.
 | Phase | Task | Size | Depends | Exit |
 |---|---|---|---|---|
 | P0 | Decisions in section 7; check soundfont licence | low | — | Answers recorded here |
-| P1 | U1 + U6: `AppBridge` host, real `render-mcp` over stdio, no CI retries | medium | P0 | Existing 13 specs green on the new host; one real-server spec green |
+| P1 ✅ | U1 + U6: `AppBridge` host, real `render-mcp` over stdio, no CI retries | medium | P0 | Existing 13 specs green on the new host; one real-server spec green |
 | P2 | U2, U4, U5: real fallback path, 360 px, axe, keyboard | medium | P1 | Each AC id has a spec; CI job green |
 | P3 | U3: host theme sets and contrast (R3) | medium | P1 | Contrast tests green in each recorded set |
 | P4 | S1 + S2: audio feature module and synth content tests | medium | — | Module unit-tested; synth integration asserts content (done 2026-11-11: `synth-mcp/tests/audio_features.py` + `test_audio_content.py`; content tests unrun here, no soundfont; onset check deferred to P6) |
@@ -138,6 +138,11 @@ configuration, which only a real run can test.
 | P6 | S3 + S7 (synth part): pitch round-trip, soundfont in CI | medium-high | P4, P5, P0 | Round-trip green in CI |
 | P7 | S5, S6, R7/R8 evidence record | medium | P4 | Manual runs write records; a check reads them |
 | P8 | U7, U8 (per page, with each page), U9 optional | ongoing | P2 | Each new page ships its spec file |
+
+P1 status (2026-11-11): done. The 13 existing specs and the new real-server spec
+(`apps/score-viewer/e2e/real-server.spec.ts`) pass on the `AppBridge` host, and `retries` is 0.
+Not TDD (browser plumbing that only a real run tests): `playwright.config.ts`, `host-page.ts`, the
+host's vite build and the `ui.yml` step order (render-mcp's venv is now installed before e2e).
 
 Design: keep each test's seam an interface, as `ui/packages/kit` already does with `HostBridge`. The fake and real
 hosts implement the same port, and the synth test reaches the pitch detector through an interface, not an import.

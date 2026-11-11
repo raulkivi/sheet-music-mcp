@@ -50,6 +50,15 @@ jobs:
       - name: Install Playwright browser
         working-directory: ui
         run: npx playwright install --with-deps chromium
+      # The e2e host starts the real render-mcp over stdio for the real-server spec.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: '3.13'
+          enable-cache: true
+          cache-dependency-glob: render-mcp/uv.lock
+      - name: Install render-mcp dependencies
+        working-directory: render-mcp
+        run: uv sync --frozen --extra dev
       - name: End-to-end tests
         working-directory: ui
         run: npm run test:e2e
@@ -65,14 +74,6 @@ jobs:
       - name: Copy built page into render-mcp
         working-directory: ui
         run: npm run copy-assets
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-        with:
-          python-version: '3.13'
-          enable-cache: true
-          cache-dependency-glob: render-mcp/uv.lock
-      - name: Install render-mcp dependencies
-        working-directory: render-mcp
-        run: uv sync --frozen --extra dev
       # Builds the wheel and checks the HTML is inside with no off-origin references.
       - name: Wheel packaging test
         working-directory: render-mcp
