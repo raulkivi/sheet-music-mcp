@@ -187,10 +187,10 @@ gantt
     todayMarker off
 
     section Phase 0 Foundation
-    T0.1 Kannel tokens in kit           :t01, 2026-11-16, 2d
+    T0.1 Kannel tokens in kit           :done, t01, 2026-11-16, 2d
     T0.2 Render and check boards        :t02, 2026-11-16, 2d
-    T0.3 Mockup source of truth         :t03, 2026-11-16, 1d
-    T0.4 warnings contract              :t04, after t03, 1d
+    T0.3 Mockup source of truth         :done, t03, 2026-11-16, 1d
+    T0.4 warnings contract              :done, t04, after t03, 1d
     T0.5 Remove sample data             :t05, after t03, 1d
 
     section Phase 1 Practice pair
@@ -236,10 +236,10 @@ Dates are YYYY-MM-DD. Update this table with the Gantt chart after every step.
 
 | ID | Task | Status | Started | Done | Notes |
 |---|---|---|---|---|---|
-| T0.1 | Kannel tokens in kit | Not started | | | |
-| T0.2 | Render and check boards | Not started | | | |
-| T0.3 | Mockup source of truth | Not started | | | DA1 open |
-| T0.4 | warnings contract | Not started | | | |
+| T0.1 | Kannel tokens in kit | Done | 2026-11-11 | 2026-11-11 | Branch `feat/kannel-tokens-kit` 46d5448, unpushed. ui: 270 unit, 61/61 e2e |
+| T0.2 | Render and check boards | Blocked | | | Design runtime `support.js` not in repo; needs owner input |
+| T0.3 | Mockup source of truth | Done | 2026-11-11 | 2026-11-11 | Branch `docs/mockup-source-of-truth` 316a801, unpushed. DA1 recommendation applied, not yet confirmed by owner |
+| T0.4 | warnings contract | Done | 2026-11-11 | 2026-11-11 | Branch `docs/warnings-contract` abfaa0a, unpushed |
 | T0.5 | Remove sample data | Not started | | | |
 | T1.1 | Grading defects | Not started | | | Opus |
 | T1.2 | Grading state uncertain | Not started | | | |
@@ -284,6 +284,7 @@ After every implementation step, before the next step starts:
 | Date | Step | Tasks | Result | Blockers |
 |---|---|---|---|---|
 | 2026-11-11 | Plan created | none | Gantt and tracker added | none |
+| 2026-11-11 | Phase 0 step 1 | T0.1, T0.3, T0.4 | Implemented on separate branches, reviewed. ui: 270 unit, 61/61 e2e; docs reviewed | T0.2 needs `support.js`; branches not yet merged |
 
 ---
 
