@@ -11,7 +11,9 @@ import json
 
 from mcp.types import TextContent
 
-STATUSES = ["on_pitch", "sharp", "flat", "no_signal"]
+from .aligner import STATUSES as _STATUSES
+
+STATUSES = list(_STATUSES)
 
 SESSION_OUTPUT_SCHEMA = {
     "type": "object",
@@ -104,6 +106,8 @@ def present_pushed_position(position: dict) -> tuple[list, dict]:
     where = f"Measure {position['measure']}, beat {position['beat']:g}: {position['expected_note']} expected"
     if position["status"] == "no_signal":
         text = f"{where}, no signal."
+    elif position["status"] == "uncertain":
+        text = f"{where}, uncertain (not graded)."
     else:
         text = f"{where}, {position['status'].replace('_', ' ')} ({position['accuracy_cents']:+d} cents)."
     return [TextContent(type="text", text=text)], dict(position)

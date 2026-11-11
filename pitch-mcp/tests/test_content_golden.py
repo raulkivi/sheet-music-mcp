@@ -34,7 +34,7 @@ ANALYSIS = {
         {"measure": 2, "beat": 1.0, "expected": "D4", "expected_hz": 293.66, "sung_hz": None,
          "accuracy_cents": None, "status": "no_signal"},
     ],
-    "accuracy_histogram": {"on_pitch": 1, "sharp": 0, "flat": 0, "no_signal": 1},
+    "accuracy_histogram": {"on_pitch": 1, "sharp": 0, "flat": 0, "uncertain": 0, "no_signal": 1},
     "highlights": [],
 }
 

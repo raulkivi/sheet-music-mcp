@@ -150,6 +150,29 @@ def _classify(cents: int, threshold: int = 25) -> str:
     return "sharp" if cents > 0 else "flat"
 
 
+# Every grading state. Add new states here (and to the histogram) so schemas follow.
+STATUSES = ("on_pitch", "sharp", "flat", "uncertain", "no_signal")
+
+VOICING_CONFIDENCE = 0.3  # below this a frame is unvoiced: no_signal
+GRADING_CONFIDENCE = 0.6  # voiced but below this the YIN dip is too shallow to grade
+OCTAVE_AMBIGUITY_CENTS = 100  # within this of a whole number of octaves off: slip or true note?
+
+
+def frame_status(freq_hz: float, confidence: float, cents: int) -> str:
+    """Grade one live frame, or decline: ``no_signal`` (unvoiced), ``uncertain`` (voiced but
+    low confidence or an octave away from the expected note), else ``_classify``."""
+    if freq_hz <= 0 or confidence < VOICING_CONFIDENCE:
+        return "no_signal"
+    if confidence < GRADING_CONFIDENCE or _octave_ambiguous(cents):
+        return "uncertain"
+    return _classify(cents)
+
+
+def _octave_ambiguous(cents: int) -> bool:
+    octaves = round(abs(cents) / 1200)
+    return octaves >= 1 and abs(abs(cents) - octaves * 1200) <= OCTAVE_AMBIGUITY_CENTS
+
+
 def summarize(note_results: list[dict]) -> dict:
     """Compute summary statistics from per-note alignment results.
 
@@ -161,7 +184,7 @@ def summarize(note_results: list[dict]) -> dict:
             "highlights": [...],  # see highlights()
         }
     """
-    histogram = {"on_pitch": 0, "sharp": 0, "flat": 0, "no_signal": 0}
+    histogram = {status: 0 for status in STATUSES}
     cents_values: list[int] = []
 
     measures_seen: set[int] = set()
@@ -169,7 +192,8 @@ def summarize(note_results: list[dict]) -> dict:
     for note in note_results:
         status = note.get("status", "no_signal")
         histogram[status] = histogram.get(status, 0) + 1
-        if note.get("accuracy_cents") is not None:
+        # Uncertain grades never count toward accuracy.
+        if status != "uncertain" and note.get("accuracy_cents") is not None:
             cents_values.append(abs(note["accuracy_cents"]))
         if note.get("measure") is not None:
             measures_seen.add(note["measure"])
@@ -219,7 +243,7 @@ def _notes(note_results: list[dict]) -> list[tuple[int, str, Optional[float]]]:
             if key is not None:
                 notes.append(_note(key, cents))
             key, cents = entry_key, []
-        if entry.get("accuracy_cents") is not None:
+        if entry.get("status") != "uncertain" and entry.get("accuracy_cents") is not None:
             cents.append(entry["accuracy_cents"])
     if key is not None:
         notes.append(_note(key, cents))

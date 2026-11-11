@@ -57,7 +57,7 @@ class TestSimulatedSinger:
 
     def test_clean_take_grades_accurate(self, tmp_path, phrase):
         result = grade(tmp_path, singer.render(singer.sung_notes(phrase)))
-        assert result["accuracy_histogram"] == {"on_pitch": 20, "sharp": 0, "flat": 0, "no_signal": 0}
+        assert result["accuracy_histogram"] == {"on_pitch": 20, "sharp": 0, "flat": 0, "uncertain": 0, "no_signal": 0}
         assert result["avg_accuracy_cents"] <= 10
         assert result["highlights"] == []
 

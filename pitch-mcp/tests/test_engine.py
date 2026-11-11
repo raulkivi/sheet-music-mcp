@@ -288,6 +288,33 @@ class TestProcessPitchFrame:
         assert summary["accuracy_histogram"]["on_pitch"] == 1
         assert summary["avg_accuracy_cents"] == 0
 
+    def test_low_confidence_frame_is_uncertain_not_graded(self):
+        session = self._make_session()
+        session._process_pitch_frame(note_name_to_hz("C4") * 1.05, 0.4, 0.1)
+        pos = session.get_position()
+        assert pos["status"] == "uncertain"
+        assert pos["accuracy_cents"] is None
+        assert pos["sung_pitch_hz"] is not None
+
+    def test_octave_slip_frame_is_uncertain_not_confident(self):
+        session = self._make_session()
+        session._process_pitch_frame(note_name_to_hz("C4") / 2, 0.9, 0.1)
+        assert session.get_position()["status"] == "uncertain"
+
+    def test_summary_counts_uncertain_frames_apart_from_in_tune(self):
+        session = self._make_session()
+        session._process_pitch_frame(note_name_to_hz("C4"), 0.9, 0.1)
+        session._process_pitch_frame(note_name_to_hz("C4"), 0.4, 0.15)
+        hist = session.stop()["summary"]["accuracy_histogram"]
+        assert hist["on_pitch"] == 1
+        assert hist["uncertain"] == 1
+
+    def test_silence_after_singing_is_no_signal(self):
+        session = self._make_session()
+        session._process_pitch_frame(note_name_to_hz("C4"), 0.9, 0.1)
+        session._process_pitch_frame(0.0, 0.0, 0.2)
+        assert session.get_position()["status"] == "no_signal"
+
     def test_valid_frame_updates_current_position(self):
         session = self._make_session()
         session._process_pitch_frame(note_name_to_hz("E4"), 0.9, 0.6)
