@@ -11,6 +11,7 @@ import {
   type McpUiHostContext,
 } from "@modelcontextprotocol/ext-apps/app-bridge";
 import { LoggingTransport, MessageLog, type LoggedMessage } from "./message-log.ts";
+import { hostStyleVariables } from "./host-styles.ts";
 import { hostOptions } from "./options.ts";
 import { openingCall, OPENING_TOOL } from "./scenarios.ts";
 import { noTools, placeholderTools, relayedTools, type Relay, type ToolBackend } from "./tool-backends.ts";
@@ -29,13 +30,7 @@ declare global {
 }
 
 const MAX_HEIGHT = 6000;
-// A partial set, as hosts send: the type lists every variable, the protocol requires none.
 type StyleVariables = NonNullable<NonNullable<McpUiHostContext["styles"]>["variables"]>;
-const DARK_VARIABLES = {
-  "--color-background-primary": "#131314",
-  "--color-text-primary": "#f2f2f2",
-} as StyleVariables;
-const NO_VARIABLES = {} as StyleVariables;
 
 const options = hostOptions(location.search);
 
@@ -60,7 +55,7 @@ frame.setAttribute("sandbox", options.downloads ? "allow-scripts allow-downloads
 let displayMode: McpUiDisplayMode = "inline";
 const hostContext: McpUiHostContext = {
   theme: options.theme,
-  styles: { variables: options.theme === "dark" ? DARK_VARIABLES : NO_VARIABLES },
+  styles: { variables: hostStyleVariables(options.host, options.theme) as StyleVariables },
   displayMode,
   availableDisplayModes: options.modes,
   containerDimensions: { width: options.width, maxHeight: MAX_HEIGHT },
@@ -107,7 +102,7 @@ window.__host = {
     void bridge.sendHostContextChange({ containerDimensions: { width: newWidth, maxHeight: MAX_HEIGHT } });
   },
   setTheme(name) {
-    void bridge.sendHostContextChange({ theme: name, styles: { variables: name === "dark" ? DARK_VARIABLES : NO_VARIABLES } });
+    void bridge.sendHostContextChange({ theme: name, styles: { variables: hostStyleVariables(options.host, name) as StyleVariables } });
   },
   messages: (method) => log.messages(method),
 };

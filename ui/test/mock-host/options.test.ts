@@ -11,7 +11,13 @@ describe("hostOptions", () => {
       modes: ["inline"],
       width: 1000,
       tools: "placeholder",
+      host: "default",
     });
+  });
+
+  it("host=claude applies the recorded Claude Desktop variables", () => {
+    expect(hostOptions("?host=claude&theme=dark")).toMatchObject({ host: "claude", theme: "dark" });
+    expect(() => hostOptions("?host=vscode")).toThrow(/Unknown host=vscode/);
   });
 
   it("reads every query parameter", () => {
@@ -25,6 +31,7 @@ describe("hostOptions", () => {
       modes: ["inline", "fullscreen"],
       width: 360,
       tools: "real",
+      host: "default",
     });
   });
 

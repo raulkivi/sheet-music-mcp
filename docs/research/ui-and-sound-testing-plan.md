@@ -132,7 +132,7 @@ configuration, which only a real run can test.
 | P0 | Decisions in section 7; check soundfont licence | low | — | Answers recorded here |
 | P1 ✅ | U1 + U6: `AppBridge` host, real `render-mcp` over stdio, no CI retries | medium | P0 | Existing 13 specs green on the new host; one real-server spec green |
 | P2 ✅ | U2, U4, U5: real fallback path, 360 px, axe, keyboard | medium | P1 | Each AC id has a spec; CI job green |
-| P3 | U3: host theme sets and contrast (R3) | medium | P1 | Contrast tests green in each recorded set |
+| P3 ✅ | U3: host theme sets and contrast (R3) | medium | P1 | Contrast tests green in each recorded set |
 | P4 | S1 + S2: audio feature module and synth content tests | medium | — | Module unit-tested; synth integration asserts content (done 2026-11-11: `synth-mcp/tests/audio_features.py` + `test_audio_content.py`; content tests unrun here, no soundfont; onset check deferred to P6) |
 | P5 ✅ | S4 + S7 (pitch part): simulated-singer grading, pitch integration job in CI | medium | — | Each fault case has a spec; integration job green (done 2026-11-11: 6 fault cases as unit tests in `pitch-mcp/tests/test_simulated_singer.py`, 2 defects (3 strict xfail tests) recorded in `pitch-mcp/docs/todo.md`; job `pitch-integration` added, not yet run on GitHub) |
 | P6 | S3 + S7 (synth part): pitch round-trip, soundfont in CI | medium-high | P4, P5, P0 | Round-trip green in CI |
@@ -152,6 +152,14 @@ Prev's visible text was not part of its name (axe `label-content-name-mismatch`;
 focus was lost when Next or Prev disabled itself at the end (now handed to the other button). There is
 no page-jump control; the arrow and Page keys are tested instead. axe-core 4.14.0 added (exact pin).
 Not TDD: the mock host's fullscreen sizing (`host-page.ts`, `index.html`) and the spec helpers.
+
+P3 status (2026-11-11): done locally. `ui/test/theme/` holds the contrast helpers, the recorded Claude light and
+dark sets (`recordings/claude-desktop.json`, copied from agent-cost-analyzer, recorded 2026-11-07) and a fallback set
+per theme; `theme-contrast.test.ts` reads the real `style.css` (60 checks). It found one real failure, fixed
+test-first: the button border (`--color-border-primary`) reached only 1.5:1 to 2.9:1 on every set, now
+`--color-text-secondary`. The mock host takes `host=claude` and the U4 stops also run in Claude dark (36 tests).
+VS Code sets stay out of scope (Claude Desktop is the only real host). Not TDD: the mock host's `host-page.ts` wiring
+and `u3-host-themes.spec.ts`, which tests that wiring.
 
 Design: keep each test's seam an interface, as `ui/packages/kit` already does with `HostBridge`. The fake and real
 hosts implement the same port, and the synth test reaches the pitch detector through an interface, not an import.

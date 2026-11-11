@@ -10,6 +10,10 @@
 //             1 = five placeholder pages for render_page_svg, 0 = no tool at all,
 //             real = the real render-mcp over stdio, through window.mcpHostRelay
 //             (test/e2e/host-fixture.ts). With real, render_to_pdf runs there too.
+//   host      default | claude   style variables the host sends (default default): a partial
+//             set, or the recording of Claude Desktop (host-styles.ts); theme picks light or dark
+
+import { HOSTS, type HostName } from "./host-styles.ts";
 
 export const SCENARIOS = ["inline-long", "inline-satb", "path-only"] as const;
 export type ScenarioName = (typeof SCENARIOS)[number];
@@ -24,6 +28,7 @@ export interface HostOptions {
   modes: DisplayMode[];
   width: number;
   tools: ToolsMode;
+  host: HostName;
 }
 
 const TOOLS: Record<string, ToolsMode> = { "1": "placeholder", "0": "none", real: "real" };
@@ -37,6 +42,8 @@ export function hostOptions(search: string): HostOptions {
   const server = params.get("server") ?? "1";
   const tools = TOOLS[server];
   if (!tools) throw new Error(`Unknown server=${server}; expected 1, 0 or real`);
+  const host = params.get("host") ?? "default";
+  if (!(HOSTS as readonly string[]).includes(host)) throw new Error(`Unknown host=${host}; expected ${HOSTS.join(" or ")}`);
   return {
     scenario: scenario as ScenarioName,
     theme: params.get("theme") === "dark" ? "dark" : "light",
@@ -45,5 +52,6 @@ export function hostOptions(search: string): HostOptions {
     modes: (params.get("modes") ?? "inline").split(",") as DisplayMode[],
     width: Number(params.get("width") ?? 1000),
     tools,
+    host: host as HostName,
   };
 }

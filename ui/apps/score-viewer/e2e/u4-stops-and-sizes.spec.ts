@@ -4,6 +4,14 @@ import { SIZES, ScoreViewerFrame, type Control, type Size } from "../../../test/
 // U4 (docs/research/ui-and-sound-testing-plan.md): every stop at 1280 px and 360 px container
 // width, and in the host's fullscreen. At each stop: axe finds nothing in the chrome (the SVG
 // notation is excluded, R4), every Tab stop shows its focus ring, and nothing scrolls sideways.
+// Each stop runs in the default host and in Claude dark: the recorded Claude Desktop variables
+// (U3, test/theme/recordings), where axe also measures the real colour contrast.
+
+/** Hosts the stops run in: the mock host's query for each. */
+const HOSTS: { name: string; query: Record<string, string> }[] = [
+  { name: "default host", query: {} },
+  { name: "Claude dark", query: { host: "claude", theme: "dark" } },
+];
 
 interface Stop {
   name: string;
@@ -74,19 +82,21 @@ function expectedTabOrder(stop: Stop, size: Size): Control[] {
   return [...beforeAsk, "Exit fullscreen", ...ask];
 }
 
-for (const size of SIZES) {
-  for (const stop of STOPS) {
-    test(`U4 ${size.name}: ${stop.name}: axe clean, focus visible on Tab, no sideways scroll`, async ({ page }) => {
-      const view = await ScoreViewerFrame.open(page, stop.query, size);
-      await stop.reach(view);
+for (const host of HOSTS) {
+  for (const size of SIZES) {
+    for (const stop of STOPS) {
+      test(`U4 ${host.name}, ${size.name}: ${stop.name}: axe clean, focus visible on Tab, no sideways scroll`, async ({ page }) => {
+        const view = await ScoreViewerFrame.open(page, { ...stop.query, ...host.query }, size);
+        await stop.reach(view);
 
-      if (size.width !== undefined) expect(await view.width()).toBeLessThanOrEqual(size.width);
-      expect(await view.scrollsSideways()).toBe(false);
-      expect(await view.axeViolations()).toEqual([]);
+        if (size.width !== undefined) expect(await view.width()).toBeLessThanOrEqual(size.width);
+        expect(await view.scrollsSideways()).toBe(false);
+        expect(await view.axeViolations()).toEqual([]);
 
-      const tabStops = await view.tabThrough();
-      expect(tabStops.map((tabStop) => tabStop.name)).toEqual(expectedTabOrder(stop, size));
-      for (const tabStop of tabStops) expect(tabStop, `focus ring on ${tabStop.name}`).toMatchObject({ ringVisible: true });
-    });
+        const tabStops = await view.tabThrough();
+        expect(tabStops.map((tabStop) => tabStop.name)).toEqual(expectedTabOrder(stop, size));
+        for (const tabStop of tabStops) expect(tabStop, `focus ring on ${tabStop.name}`).toMatchObject({ ringVisible: true });
+      });
+    }
   }
 }

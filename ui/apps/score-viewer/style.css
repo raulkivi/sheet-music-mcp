@@ -41,7 +41,9 @@ body {
 button {
   min-height: 32px;
   padding: 4px 10px;
-  border: 1px solid var(--color-border-primary);
+  /* The host's border colours are translucent and reach only 1.5:1 to 2.9:1 (U3); a button's
+     edge is a mark, so it takes the secondary text colour, which clears 3:1 on every host set. */
+  border: 1px solid var(--color-text-secondary);
   border-radius: var(--border-radius-md);
   background: var(--color-background-primary);
   color: var(--color-text-primary);
