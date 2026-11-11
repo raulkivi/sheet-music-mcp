@@ -142,6 +142,10 @@ asyncio.run(_run())
   (no soundfont, no FluidSynth, render failure) becomes `"audio_unavailable"`; the
   `audio/starting-pitches-*.wav` path is only created after rendering worked. Tests patch
   `synth_mcp.clip.synthesize_midi`.
+- **Reverb and chorus are set explicitly** (`engine.EFFECT_SETTINGS`, FluidSynth 2.3 defaults). 2.4 changed
+  the defaults (room size 0.2 -> 0.5, ...) and the choir round trip lost its final note on Ubuntu 26.04.
+  Floats for num settings, ints for int settings, or FluidSynth silently ignores the value
+  (`TestEffectSettings` checks the installed library keeps each one).
 - **FluidSynth renders the full release tail** (about 2.6 s after the last chord with FluidR3_GM),
   so `render_clip` cuts the clip 0.25 s after the chord, faded out (`clip_seconds` +
   `RELEASE_SECONDS`); otherwise a 4-part clip is 275 KB and never inline.

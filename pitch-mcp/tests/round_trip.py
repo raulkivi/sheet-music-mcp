@@ -8,6 +8,8 @@ Pure: score notes (``pitch_mcp.utils.extract_part_notes``) and frames
   note's frames, so the fixture has no repeated pitches.
 - **Pitch**: the median of the frames from ``SETTLE_S`` after the onset to ``SETTLE_S`` before the
   note's end (the attack and the release are not the pitch), in cents from the score.
+
+``off_notes`` lists the notes ``analyze_recording`` did not grade on_pitch, for failure messages.
 """
 
 import math
@@ -58,3 +60,21 @@ def compare(
         if abs(cents) > pitch_tolerance_cents:
             problems.append(f"{where}: {cents:+.0f} cents")
     return problems
+
+
+def off_notes(note_accuracy: Sequence[dict]) -> list[str]:
+    """One readable line per ``analyze_recording`` note not graded on_pitch; empty when all are."""
+    lines = []
+    for note in note_accuracy:
+        if note["status"] == "on_pitch":
+            continue
+        where = f"m{note['measure']} b{note['beat']:g} {note['expected']}"
+        expected = f"expected {note['expected_hz']:.2f} Hz"
+        if note["sung_hz"] is None:
+            lines.append(f"{where}: {expected}, detected nothing ({note['status']})")
+        else:
+            lines.append(
+                f"{where}: {expected}, detected {note['sung_hz']:.2f} Hz, "
+                f"{note['accuracy_cents']:+d} cents ({note['status']})"
+            )
+    return lines

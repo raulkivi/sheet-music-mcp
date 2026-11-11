@@ -309,12 +309,15 @@ pyfluidsynth.Synth settings
   audio.file.name   = output.wav   ← destination path
   audio.file.type   = "wav"
   player.timing-source = "sample"  ← sample-accurate timing
+  EFFECT_SETTINGS                  ← reverb + chorus set explicitly (FluidSynth 2.3 defaults)
 
 fs.start(driver="file")            ← starts file writer
 fs.play_midi_file(midi_path)       ← queues MIDI
 fluid_player_join(fs.player)       ← BLOCKS until MIDI playback complete
 fs.delete()                        ← cleanup
 ```
+
+Reverb and chorus are never left to the library: FluidSynth 2.4 changed their defaults (reverb room size 0.2 -> 0.5, level 0.9 -> 0.7, ...), which made a Choir Aahs tail ring about a second longer on Ubuntu 26.04 than on 24.04. `EFFECT_SETTINGS` pins the 2.3 values, so a render sounds the same on both. Num settings must be Python floats and int settings ints: pyfluidsynth picks the setter by type and FluidSynth ignores a mismatch.
 
 `fluid_player_join` is a C-level blocking call. It blocks the Python thread (and therefore the MCP event loop) until synthesis is complete. This is acceptable for Phase 1.
 

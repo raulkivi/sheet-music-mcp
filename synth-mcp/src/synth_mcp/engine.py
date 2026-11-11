@@ -255,6 +255,26 @@ def _carry_over_tempo_marks(source_score, target_score) -> None:
 # Step 3 — synthesize to WAV
 # ---------------------------------------------------------------------------
 
+# Reverb and chorus, set explicitly so a render sounds the same on every FluidSynth version.
+# These are FluidSynth 2.3's defaults; 2.4 changed them (reverb room size 0.2 -> 0.5, damping
+# 0.0 -> 0.3, width 0.5 -> 0.8, level 0.9 -> 0.7; chorus level 2.0 -> 0.6, speed 0.3 -> 0.2,
+# depth 8 -> 4.25 ms), which made a Choir Aahs release ring on about a second longer.
+# Types matter: pyfluidsynth picks the setter by Python type, and FluidSynth silently ignores a
+# num setting given as an int (or an int setting as a float).
+EFFECT_SETTINGS: dict[str, int | float] = {
+    "synth.reverb.active": 1,
+    "synth.reverb.room-size": 0.2,
+    "synth.reverb.damp": 0.0,
+    "synth.reverb.width": 0.5,
+    "synth.reverb.level": 0.9,
+    "synth.chorus.active": 1,
+    "synth.chorus.nr": 3,
+    "synth.chorus.level": 2.0,
+    "synth.chorus.speed": 0.3,
+    "synth.chorus.depth": 8.0,
+}
+
+
 def synthesize_midi(midi_bytes: bytes, output_path: str) -> float:
     """Render MIDI bytes to a WAV file using the FluidSynth CLI.
 
@@ -314,6 +334,7 @@ def synthesize_midi(midi_bytes: bytes, output_path: str) -> float:
                 "audio.file.type": "wav",
                 "player.timing-source": "sample",
                 "synth.lock-memory": 0,
+                **EFFECT_SETTINGS,
             },
         )
         try:

@@ -76,6 +76,27 @@ class TestCompare:
         assert round_trip.compare(PHRASE, detected) == []
 
 
+class TestOffNotes:
+    """The failure message of the grading tests: only the notes not graded on_pitch."""
+
+    def graded(self, status, sung_hz, cents, measure=2, beat=3.0, expected="F5", hz=698.46):
+        return {"measure": measure, "beat": beat, "expected": expected, "expected_hz": hz,
+                "sung_hz": sung_hz, "accuracy_cents": cents, "status": status}
+
+    def test_on_pitch_notes_are_not_listed(self):
+        assert round_trip.off_notes([self.graded("on_pitch", 700.0, 4)]) == []
+
+    def test_an_off_note_shows_where_what_and_how_far(self):
+        [line] = round_trip.off_notes(
+            [self.graded("on_pitch", 440.0, 0), self.graded("sharp", 720.0, 53)]
+        )
+        assert line == "m2 b3 F5: expected 698.46 Hz, detected 720.00 Hz, +53 cents (sharp)"
+
+    def test_a_note_without_signal_says_so(self):
+        [line] = round_trip.off_notes([self.graded("no_signal", None, None, beat=2.5)])
+        assert line == "m2 b2.5 F5: expected 698.46 Hz, detected nothing (no_signal)"
+
+
 # ---------------------------------------------------------------------------
 # The round trip itself
 # ---------------------------------------------------------------------------
@@ -116,15 +137,15 @@ class TestSynthToPitch:
     @pytest.mark.parametrize("part", PARTS)
     def test_analysis_grades_the_rendition_on_pitch(self, render, part):
         result = analyze_recording(str(render(part)), SCORE.read_text(), part)
-        assert [n["status"] for n in result["note_accuracy"]] == ["on_pitch"] * len(
-            result["note_accuracy"]
-        ), result["note_accuracy"]
+        assert round_trip.off_notes(result["note_accuracy"]) == []
 
     @pytest.mark.parametrize("part", PARTS)
     def test_choir_timbre_grades_on_pitch(self, render, part):
         # Choir Aahs is nearer a voice. Its slow attack moves pitch onsets 50-190 ms late (the new
         # note only wins once the old one has faded), so only the grade is checked here.
+        # The release tail after the last note is synth-mcp's reverb, set explicitly
+        # (synth_mcp.engine.EFFECT_SETTINGS): on FluidSynth 2.4's own defaults it rang 3.2 s and
+        # the final note went no_signal (pitch-mcp/docs/todo.md).
         result = analyze_recording(str(render(part, "choir")), SCORE.read_text(), part)
-        assert result["accuracy_histogram"]["on_pitch"] == len(result["note_accuracy"]), result[
-            "note_accuracy"
-        ]
+        assert round_trip.off_notes(result["note_accuracy"]) == []
+        assert result["accuracy_histogram"]["on_pitch"] == len(result["note_accuracy"])

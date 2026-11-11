@@ -145,3 +145,29 @@ Both fixed 2026-11-11; the assertions are unchanged and `synth-mcp -m integratio
       0 -> 0, 1.0 -> `DEFAULT_CC7` 100, 2.0 -> 127, linear on each side of 1.0, so unnamed parts
       and gain 1.0 keep the default level. Pinned by `test_part_gain_moves_only_that_part` (1.5 dB
       tolerance kept) and `TestCc7Value`.
+
+### First run on GitHub (2026-11-11): FluidSynth 2.4 reverb
+
+On `ubuntu-latest` (Ubuntu 26.04, libfluidsynth3 2.4.8) the four
+`test_choir_timbre_grades_on_pitch` cases failed; locally (24.04, 2.3.4) they passed. Reproduced here
+with the 26.04 `libfluidsynth3_2.4.8+dfsg-1` (and its `libsdl3-0`) extracted to a scratch dir and
+`LD_LIBRARY_PATH`. In every part the **final note** (m2 b3: P1 F5, P2 A4, P3 C4, P4 F2; 3.75-5.00 s)
+was `no_signal`, with every other note on pitch within 10 cents.
+
+- [x] **synth-mcp relied on FluidSynth's reverb and chorus defaults, which 2.4 changed** (reverb
+      room size 0.2 -> 0.5, damp 0 -> 0.3, width 0.5 -> 0.8, level 0.9 -> 0.7; chorus level 2 -> 0.6,
+      speed 0.3 -> 0.2, depth 8 -> 4.25 ms). The Choir Aahs tail stayed voiced to 8.2 s instead of
+      7.2 s (P4: 6.7 s), so the final note got 277 frames after 5.0 s against 108 inside it.
+      Fixed in `synth-mcp/src/synth_mcp/engine.py`: `EFFECT_SETTINGS` sets the 2.3 values
+      explicitly; with them 2.4.8 renders the same tail level as 2.3.4 (every 0.5 s window within
+      1 dB) and the round trip passes unchanged on both. Pinned by
+      `test_reverb_and_chorus_are_set_explicitly` (unit) and `TestEffectSettings` (integration: the
+      library keeps each value; an int for a num setting is silently ignored).
+- [ ] **A long tail after the final note makes it `no_signal`.** DTW hands every frame after the
+      score's end to the last note, and the plausibility gate takes the median time of those
+      frames: a voiced tail longer than about 2.5x the note (median past `end + 0.75 x length`)
+      drops a well-sung final note. A reverberant room or a singer holding the last note does
+      this. Strict xfail: `tests/test_aligner.py::TestAlign::test_a_long_tail_after_the_final_note_still_grades_it`.
+      The round trip itself stays strict (every note `on_pitch`); its failure message now lists
+      only the off notes with measure, beat, expected and detected Hz and cents
+      (`round_trip.off_notes`).
