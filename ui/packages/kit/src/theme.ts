@@ -14,25 +14,26 @@ export interface StyleTarget {
   dataset: Record<string, string | undefined>;
 }
 
+// Kept equal to docs/design/tokens.css (Kannel); ui/test/theme/brand-tokens.test.ts enforces it.
 export const FALLBACK_VARIABLES: Record<ThemeName, Readonly<Record<string, string>>> = {
   light: {
     "--color-background-primary": "#ffffff",
-    "--color-background-secondary": "#f4f4f5",
-    "--color-text-primary": "#1c1c1e",
-    "--color-text-secondary": "#5c5c66",
-    "--color-border-primary": "#d4d4d8",
-    "--color-ring-primary": "#2563eb",
-    "--font-sans": "system-ui, -apple-system, 'Segoe UI', sans-serif",
+    "--color-background-secondary": "#f4f6fa",
+    "--color-text-primary": "#15171c",
+    "--color-text-secondary": "#4b5563",
+    "--color-border-primary": "#d5dce6",
+    "--color-ring-primary": "#0072ce",
+    "--font-sans": "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
     "--border-radius-md": "6px",
   },
   dark: {
-    "--color-background-primary": "#1c1c1e",
-    "--color-background-secondary": "#2a2a2e",
-    "--color-text-primary": "#ececf1",
-    "--color-text-secondary": "#a1a1aa",
-    "--color-border-primary": "#3f3f46",
-    "--color-ring-primary": "#60a5fa",
-    "--font-sans": "system-ui, -apple-system, 'Segoe UI', sans-serif",
+    "--color-background-primary": "#101217",
+    "--color-background-secondary": "#1a1e27",
+    "--color-text-primary": "#eef2f7",
+    "--color-text-secondary": "#b4bdcb",
+    "--color-border-primary": "#2e3645",
+    "--color-ring-primary": "#6cb4f0",
+    "--font-sans": "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
     "--border-radius-md": "6px",
   },
 };
