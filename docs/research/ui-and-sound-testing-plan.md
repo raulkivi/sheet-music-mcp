@@ -136,7 +136,7 @@ configuration, which only a real run can test.
 | P4 | S1 + S2: audio feature module and synth content tests | medium | — | Module unit-tested; synth integration asserts content (done 2026-11-11: `synth-mcp/tests/audio_features.py` + `test_audio_content.py`; content tests unrun here, no soundfont; onset check deferred to P6) |
 | P5 ✅ | S4 + S7 (pitch part): simulated-singer grading, pitch integration job in CI | medium | — | Each fault case has a spec; integration job green (done 2026-11-11: 6 fault cases as unit tests in `pitch-mcp/tests/test_simulated_singer.py`, 2 defects (3 strict xfail tests) recorded in `pitch-mcp/docs/todo.md`; job `pitch-integration` added, not yet run on GitHub) |
 | P6 | S3 + S7 (synth part): pitch round-trip, soundfont in CI | medium-high | P4, P5, P0 | Round-trip green in CI |
-| P7 | S5, S6, R7/R8 evidence record | medium | P4 | Manual runs write records; a check reads them |
+| P7 ✅ | S5, S6, R7/R8 evidence record | medium | P4 | Manual runs write records; a check reads them (done 2026-11-11: `synth-mcp/tests/test_practice_timing.py`; `tools/release-evidence`; `publish.yml` job `evidence`) |
 | P8 | U7, U8 (per page, with each page), U9 optional | ongoing | P2 | Each new page ships its spec file (U7 and the U8 rule done 2026-11-11; U9 deferred, decision 5; U8 specs follow with each page) |
 
 P1 status (2026-11-11): done. The 13 existing specs and the new real-server spec
@@ -160,6 +160,21 @@ test-first: the button border (`--color-border-primary`) reached only 1.5:1 to 2
 `--color-text-secondary`. The mock host takes `host=claude` and the U4 stops also run in Claude dark (36 tests).
 VS Code sets stay out of scope (Claude Desktop is the only real host). Not TDD: the mock host's `host-page.ts` wiring
 and `u3-host-themes.spec.ts`, which tests that wiring.
+
+P7 status (2026-11-11): done locally (the gate runs on the next `pitch-mcp/v*` or `render-mcp/v*` tag). S5:
+`synth-mcp/tests/test_practice_timing.py` (31 tests, MIDI only) adds what `test_practice_midi.py` did not cover:
+click onsets in seconds through the tempo map (tempo change, tempo factor, 6/8, repeat), clicks across a meter
+change, written repeats and volta endings as printed bar numbers, and part gains as CC7 with velocities untouched.
+It found one defect, fixed test-first: with volta endings and `repeat` > 1 (no clicks), every pass after the first
+played the first ending again; `extract_midi` now expands written repeats before `repeat_music`. S6/R8:
+`tools/release-evidence` (own uv project, stdlib only, not published) mirrors agent-cost-analyzer's G2 design: a
+schema-1 record (commit, dirty, versions, platform and input-device type, tests, ranAt, notes; no names or paths)
+in a git note under `refs/notes/release-evidence`, one line per suite, latest run wins; never pushes. Suites:
+`pitch-mic` (`-m manual` with `PITCH_MANUAL_EVIDENCE=1`, required PM1 and PM2) and `claude-desktop-host` (CLI
+walk of the §4 rows M0 to M7 from one data file). R7: `publish.yml`'s `evidence` job (no id-token) runs before
+`publish` and gates pitch-mcp and render-mcp only; `release-evidence.yml` runs the tool's 156 tests. Not TDD: the
+workflow YAML, the conftest hooks and the interactive terminal prompts (the walk itself is tested with scripted
+answers); both were run once against a scratch clone.
 
 P8 status (2026-11-11): U7 and the U8 rule done locally; U9 stays deferred (decision 5). `npm run perf` checks
 `measure.mjs` output against `ui/perf-budget.json` (limits 1.5x to 2x the measured values, recorded in `ui/README.md`);

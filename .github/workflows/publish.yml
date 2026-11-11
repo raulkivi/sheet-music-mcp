@@ -23,6 +23,8 @@
 #   and the `mcp-name:` marker in each README proves ownership of the PyPI package.
 #
 # PUBLISHING A RELEASE:
+#   pitch-mcp and render-mcp first need manual evidence on the commit you tag (job `evidence`,
+#   tools/release-evidence/README.md): record it, then git push origin refs/notes/release-evidence.
 #   Bump the version in pyproject.toml, __init__.py, uv.lock and server.json (servers
 #   only), then
 #   push a tag matching the server prefix, one tag per push, e.g.:
@@ -45,8 +47,43 @@ permissions:
   contents: read
 
 jobs:
+  # Release gate (R7/R8, docs/research/ui-and-sound-testing-plan.md P7): a release of pitch-mcp
+  # needs the owner's real-microphone run (suite pitch-mic), a release of render-mcp the Claude
+  # Desktop host checklist (suite claude-desktop-host), recorded as a git note under
+  # refs/notes/release-evidence on the tagged commit. Other packages are not gated (the mapping
+  # lives in tools/release-evidence/src/release_evidence/suites.py). Runs in its own job with no
+  # id-token, before anything is built or published. See tools/release-evidence/README.md.
+  evidence:
+    name: Release evidence for ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Check release evidence
+        run: |
+          package="${GITHUB_REF_NAME%%/v*}"
+          # Standard library only; --no-dev installs nothing.
+          evidence() { uv run --project tools/release-evidence --frozen --no-dev release-evidence "$@"; }
+          suite="$(evidence suite-for "$package")"
+          if [ -z "$suite" ]; then
+            echo "$package releases are not gated on manual evidence."
+            exit 0
+          fi
+          # The repository is public, so the fetch needs no token.
+          if ! git fetch --no-tags origin refs/notes/release-evidence:refs/notes/release-evidence; then
+            echo "::error title=No release evidence::Couldn't fetch refs/notes/release-evidence from origin. Record the $suite suite on this commit, then git push origin refs/notes/release-evidence. See tools/release-evidence/README.md."
+            exit 1
+          fi
+          evidence check --suite "$suite" HEAD
+
   publish:
     name: Publish ${{ github.ref_name }}
+    needs: evidence
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

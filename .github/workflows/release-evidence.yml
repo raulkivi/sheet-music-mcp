@@ -1,0 +1,39 @@
+# The release-evidence tool's own unit tests (tools/release-evidence, P7 in
+# docs/research/ui-and-sound-testing-plan.md). publish.yml runs the tool as the release gate.
+name: Release evidence tool
+
+on:
+  pull_request:
+    paths:
+      - tools/release-evidence/**
+      - .github/workflows/release-evidence.yml
+      - .github/workflows/publish.yml
+  push:
+    branches: [main]
+    paths:
+      - tools/release-evidence/**
+      - .github/workflows/release-evidence.yml
+      - .github/workflows/publish.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: release-evidence unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: tools/release-evidence
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: true
+          cache-dependency-glob: tools/release-evidence/uv.lock
+      - run: uv sync --frozen
+      # The tests make their own temporary git repositories; they never touch this checkout's notes.
+      - run: uv run --frozen --no-sync pytest -q

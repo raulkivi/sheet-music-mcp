@@ -101,3 +101,17 @@ marker when fixed.
   pitch; the aligner has no timing metric); +25 cents is on the `|cents| <= 25` `on_pitch` edge, so
   that test asserts the deviation, not the label; a 150 ms breath gap or 20 dB SNR noise does not
   change the grade.
+
+---
+
+## Manual-run evidence (2026-11-11, P7 / S6)
+
+- [x] **The real-microphone run leaves a record.** `tests/test_manual.py` tests are named by stable
+      ids (`test_pm1_*`, `test_pm2_*`). With `PITCH_MANUAL_EVIDENCE=1` and `-m manual`, the hooks at
+      the end of `tests/conftest.py` (logic in `tests/manual_evidence.py`, unit-tested in
+      `tests/test_manual_evidence.py`) record the run as a git note on the commit it started on,
+      through `tools/release-evidence` (suite `pitch-mic`). `publish.yml` refuses a `pitch-mcp/v*`
+      tag unless PM1 and PM2 passed on that commit from a clean tree. How to record and push:
+      `tools/release-evidence/README.md`.
+- [ ] **Record evidence before the next pitch-mcp release** (owner, real microphone), then push the
+      notes ref. Without it the publish workflow stops at the `evidence` job.

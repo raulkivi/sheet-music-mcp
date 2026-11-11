@@ -7,6 +7,7 @@ the faulty note. Deterministic (fixed seed), no hardware.
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from pitch_mcp.engine import analyze_recording
@@ -51,7 +52,7 @@ class TestSimulatedSinger:
     def test_noise_has_the_requested_snr(self, phrase):
         clean = singer.render(singer.sung_notes(phrase))
         noisy = singer.add_noise(clean, snr_db=20, seed=1)
-        snr = 10 * __import__("numpy").log10((clean**2).mean() / ((noisy - clean) ** 2).mean())
+        snr = 10 * np.log10((clean**2).mean() / ((noisy - clean) ** 2).mean())
         assert snr == pytest.approx(20, abs=0.1)
 
     def test_clean_take_grades_accurate(self, tmp_path, phrase):

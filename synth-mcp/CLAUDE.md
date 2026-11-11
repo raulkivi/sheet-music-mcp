@@ -132,6 +132,10 @@ asyncio.run(_run())
 - **music21's conductor track keeps tempo/time marks only in ascending offset order, first part
   first.** The count-in's meter and tempo therefore go at offset 0 of the first part, not in the
   click part; the click part is appended last so it is the last MIDI track.
+- **Expand written repeats before `repeat_music`.** Copies of unexpanded volta endings confuse
+  music21's own expansion at export (later passes replayed the first ending), so `extract_midi`
+  calls `expand_repeats` whenever clicks or `repeat > 1` are asked for
+  (`tests/test_practice_timing.py`, which also checks click onsets in seconds).
 - **A bare `<sound tempo>` is `numberSounding`, not `number`.** `select_measures` carries the tempo
   that way; music21's MIDI export prefers `numberSounding`, so `scale_tempo` scales both.
 - **`starting_pitches` without audio is not an error.** Any `ProcessingError` from `render_clip`

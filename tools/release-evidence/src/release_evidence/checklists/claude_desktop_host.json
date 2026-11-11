@@ -1,0 +1,14 @@
+{
+  "source": "docs/research/mcp-apps-phase0-findings.md §4 and mcp-apps-phase0-spike-plan.md §6 (Claude Desktop column). Ids are stable: never renumber a row; retire it and add a new id.",
+  "setup": "Build the UI (cd ui && npm ci && npm run build && npm run copy-assets) and point Claude Desktop at this checkout's render-mcp: \"command\": \"uv\", \"args\": [\"--directory\", \"<checkout>/render-mcp\", \"run\", \"render-mcp\"]. Restart Claude Desktop.",
+  "rows": [
+    {"id": "M0", "text": "The viewer's engine line shows wasm or server (note which)", "required": true},
+    {"id": "M1", "text": "\"Render this score\" shows the viewer inline, and the model still answers from the text result", "required": true},
+    {"id": "M2", "text": "Page navigation and zoom work without a model turn", "required": true},
+    {"id": "M3", "text": "Light and dark host themes are followed", "required": true},
+    {"id": "M4", "text": "Fullscreen works, or its button is hidden when the host has no fullscreen", "required": true},
+    {"id": "M5", "text": "\"Download SVG\" saves a file, or the fallback shows the path and the \"ask Claude\" button posts a message (D6)", "required": true},
+    {"id": "M6", "text": "First render time measured with a stopwatch (put it in the row note) and no host size warnings", "required": true},
+    {"id": "M7", "text": "In the Claude Code CLI (no MCP Apps) the tools behave as before and render_page_svg is not listed", "required": true}
+  ]
+}

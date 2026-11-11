@@ -187,8 +187,10 @@ def extract_midi(
     _carry_over_tempo_marks(score, new_score)
 
     # Practice steps (practice.py); each is a no-op at its default.
-    if count_in_bars or metronome:
-        new_score = expand_repeats(new_score)  # clicks follow the bars as played
+    # Clicks follow the bars as played, and repeat copies the bars as played: copies of
+    # unexpanded volta endings would confuse music21's own expansion at export.
+    if count_in_bars or metronome or repeat > 1:
+        new_score = expand_repeats(new_score)
     repeat_music(new_score, repeat)
     scale_tempo(new_score, tempo_factor)
     clicks = add_clicks(new_score, count_in_bars, metronome)
