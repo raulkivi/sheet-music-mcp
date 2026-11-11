@@ -72,6 +72,17 @@ describe("Kannel tokens: coverage", () => {
   });
 });
 
+describe("Kannel tokens: kit fallback", () => {
+  it.each([
+    { theme: "light", selector: LIGHT },
+    { theme: "dark", selector: DARK },
+  ] as const)("kit fallback values equal tokens.css ($theme)", ({ theme, selector }) => {
+    for (const [name, value] of Object.entries(FALLBACK_VARIABLES[theme])) {
+      expect(value, name).toBe(token(selector, name));
+    }
+  });
+});
+
 describe("Kannel tokens: identity", () => {
   it("uses the Estonian flag blue (#0072CE) as the accent", () => {
     expect(token(LIGHT, "--kannel-flag-blue").toLowerCase()).toBe("#0072ce");
