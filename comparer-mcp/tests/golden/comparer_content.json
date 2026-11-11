@@ -1,10 +1,4 @@
 {
-  "capabilities": [
-    {
-      "text": "{\n  \"server\": \"comparer-mcp\",\n  \"version\": \"0.3.0\",\n  \"input_formats\": [\n    \"musicxml\",\n    \"mxl\"\n  ],\n  \"input_parameters\": [\n    \"reference_xml\",\n    \"reference_path\",\n    \"target_xml\",\n    \"target_path\"\n  ],\n  \"output_formats\": [\n    \"json\"\n  ],\n  \"tools\": [\n    \"compare_musicxml\",\n    \"compare_musicxml_files\",\n    \"quick_similarity\",\n    \"list_changes\",\n    \"generate_comparison_report\",\n    \"export_annotated_musicxml\",\n    \"list_capabilities\",\n    \"health_check\",\n    \"describe_score\"\n  ],\n  \"backend\": \"music21\",\n  \"backend_version\": \"10.5.1\"\n}",
-      "type": "text"
-    }
-  ],
   "changes": [
     {
       "text": "{\n  \"changes\": [\n    {\n      \"measure_number\": 1,\n      \"beat\": 2.0,\n      \"voice\": 1,\n      \"operation\": \"PITCH_CHANGE\",\n      \"reference\": {\n        \"pitch\": \"D4\",\n        \"midi\": 62,\n        \"duration\": 1.0,\n        \"duration_type\": \"quarter\",\n        \"is_rest\": false,\n        \"is_chord\": false,\n        \"tie\": null,\n        \"lyrics\": null,\n        \"articulations\": []\n      },\n      \"target\": {\n        \"pitch\": \"G4\",\n        \"midi\": 67,\n        \"duration\": 1.0,\n        \"duration_type\": \"quarter\",\n        \"is_rest\": false,\n        \"is_chord\": false,\n        \"tie\": null,\n        \"lyrics\": null,\n        \"articulations\": []\n      },\n      \"interval_error\": 5,\n      \"part_name\": \"Soprano\"\n    }\n  ],\n  \"count\": 1\n}",
