@@ -1,5 +1,7 @@
 # musicxml-abc-mcp — Technical Architecture
 
+**Last changed:** 2026-11-11 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## Overview
 
 musicxml-abc-mcp is a stateless MCP server that converts between MusicXML and ABC notation. It uses music21 to parse both formats and a custom ABC serializer to produce ABC output (music21 9.x has no built-in ABC writer). The primary use case is enabling an LLM (Claude) to read and edit scores without handling verbose MusicXML directly.
@@ -17,8 +19,8 @@ musicxml-abc-mcp is a stateless MCP server that converts between MusicXML and AB
 ┌──────────────────────────▼────────────────────────────────┐
 │                       server.py                           │
 │                                                           │
-│  list_tools()   → 6 tool definitions                      │
-│  call_tool()    → dispatches to engine                    │
+│  list_tools()   → 8 tool definitions                      │
+│  call_tool()    → dispatches to engine / abc_edit         │
 │  load_score / deliver_score / describe_score (core)       │
 └──────────┬────────────────────────────────────────────────┘
            │
@@ -35,7 +37,8 @@ musicxml-abc-mcp is a stateless MCP server that converts between MusicXML and AB
 │  _find_title()              _is_dynamic()               │
 │  ProcessingError                                         │
 └──────────┬──────────────────────────────────────────────┘
-           │
+           │   abc_edit.py: apply_abc_edit() (bar edits, uses
+           │   abc_bars.split_bars() and abc_to_musicxml())
 ┌──────────▼──────────────┐  ┌──────────────────────────────┐
 │        utils.py         │  │          music21             │
 │                         │  │                              │
@@ -54,12 +57,14 @@ musicxml-abc-mcp is a stateless MCP server that converts between MusicXML and AB
 
 MCP protocol layer. Contains no conversion logic.
 
-- Registers seven tools (the seventh, `get_abc`, is app-only and hidden from clients without MCP Apps):  `musicxml_to_abc`, `abc_to_musicxml`, `validate_abc`, `list_capabilities`,
+- Registers eight tools (`get_abc` is app-only and hidden from clients without MCP Apps):
+  `musicxml_to_abc`, `abc_to_musicxml`, `apply_abc_edit`, `validate_abc`, `list_capabilities`,
   `health_check`, the shared `describe_score` and `get_abc`
 - Reads the score with `sheet_music_mcp_core.references.load_score` (`musicxml` text or a confined
   `musicxml_path`, `.mxl` included), then validates parameters (via `utils.py`) before calling engine
-- Returns `abc_to_musicxml` results with `deliver_score` (`return` = `auto` / `path` / `inline`):
-  large scores go to `<output root>/scores/from-abc-<timestamp>.musicxml`
+- Returns `abc_to_musicxml` and `apply_abc_edit` results with `deliver_score` (`return` = `auto` /
+  `path` / `inline`): large scores go to `<output root>/scores/from-abc-<timestamp>.musicxml`
+  (`abc-edit-<timestamp>.musicxml` for edits)
 - Converts engine results and `ProcessingError` exceptions to `TextContent` JSON
 - Wires the handlers with `make_handlers(..., pass_context=True)`, so `load_score` can ask the
   client for its MCP roots
@@ -103,6 +108,36 @@ All conversion and serialization logic. No MCP imports.
 | `_tempo_number(tempo_mark)` | A MetronomeMark's shown tempo, else its sounding tempo (a bare `<sound tempo>`) |
 | `_find_title(part, score)` | Extract title from score metadata |
 | `_is_dynamic(elem)` | True if element is a music21 Dynamic |
+
+### `abc_edit.py`
+
+`apply_abc_edit(musicxml_str, part, measures, abc)` (C16). No MCP imports. Works on the score text,
+not a re-serialised tree, so everything outside the edited bars keeps its bytes:
+
+1. `select_measures` checks the range (same errors and hints as `musicxml_to_abc`); `parse_score`
+   (defusedxml) parses the score; partwise only.
+2. The part is resolved from the part list (`resolve_part`, score-part IDs); positions come from
+   the first part's printed numbers (`printed_numbers`), as in `select_measures`.
+3. `abc_bars.split_bars` cuts the ABC at its bar lines; the count must equal the range length
+   before any bar is converted. Each bar is converted alone with `abc_to_musicxml`, under a 64/4
+   meter so music21 never re-bars it, and ties across bar lines get their stop back.
+4. Each edited bar is the original bar's shell (attributes, `<print>`, leading `<attributes>`,
+   bar lines, tempo/rehearsal/segno/coda directions) around the ABC bar's notes, with ABC
+   `attributes`, `print`, `barline` and tempo dropped. Durations are rescaled to the part's
+   divisions; when they do not fit, the bar gets finer divisions and the next untouched bar gets
+   the part's own value back.
+5. `expat` finds the byte span of each `<measure>` of the part; the new bars are spliced in, in
+   the indentation of the line they replace. A non-UTF-8 encoding declaration becomes UTF-8.
+
+Warnings (conventions: Warnings) report dynamics, lyrics and articulations the edited bars lost
+and bars whose length changed.
+
+### `abc_bars.py`
+
+`split_bars(abc)`: one standalone tune per bar (`X:1`, `M:64/4`, the `L:` and `K:` in force, the bar
+body). Handles `|`, `||`, `|]`, `[|`, `|:`, `:|`, `::`, volta numbers and `[1`; does not split inside
+chords `[...]`, inline fields `[K:...]`, quoted annotations or `!...!` decorations. Drops comments
+and `w:` lines; rejects several tunes (`X:`), voices (`V:`) and ABC without `K:`. No music21.
 
 ### `utils.py`
 
@@ -297,6 +332,7 @@ C2 D2 E2 F2 | G2 A2 B2 c2 | ...
 | ABC parse failure | `INVALID_INPUT` |
 | Requested part name not found | `INVALID_PARAMETER` |
 | `measures` reversed, malformed or outside the score (`hint` names the score's bars) | `INVALID_PARAMETER` |
+| `apply_abc_edit`: ABC bar count differs from the range, several tunes or voices, no `K:`, timewise score | `INVALID_INPUT` |
 | Both or neither of `musicxml` / `musicxml_path`; path outside the read roots | `INVALID_PARAMETER` |
 | Score file missing / too large | `FILE_NOT_FOUND` / `FILE_TOO_LARGE` |
 | music21 conversion failure | `PROCESSING_FAILED` |
@@ -324,6 +360,7 @@ No system libraries required. Pure Python.
 | Articulations not preserved | Trills, ornaments, slurs are not emitted |
 | Lyrics not preserved | Not implemented in the custom serializer |
 | Round-trip is lossy | Note content preserved ±2%; everything else may differ |
+| `apply_abc_edit` replaces a bar's music | Dynamics, lyrics and articulations of edited bars are lost (warned); ABC `w:` lyrics and key/time/clef changes in the ABC are not applied; a multi-staff part is edited as a whole and new notes carry no `<staff>`; ties and slurs into or out of the range are not joined |
 
 These limitations are by design and are documented in the `warnings` field of every `musicxml_to_abc` response.
 
@@ -341,6 +378,8 @@ musicxml-abc-mcp/
 │       ├── presenter.py  ← structuredContent + output schemas (ABC Workbench)
 │       ├── abc_store.py  ← abc_id handles to musicxml_to_abc results
 │       ├── engine.py     ← Conversion logic + custom ABC serializer
+│       ├── abc_edit.py   ← apply_abc_edit: splice edited bars into the score text
+│       ├── abc_bars.py   ← split ABC at its bar lines, one tune per bar
 │       └── utils.py      ← Minimal input validation
 └── tests/
     ├── test_server.py
@@ -350,6 +389,10 @@ musicxml-abc-mcp/
     ├── test_abc_store.py
     ├── test_content_golden.py  ← content byte-identical (golden/abc_content.json)
     ├── test_engine.py
+    ├── test_abc_edit.py  ← apply_abc_edit engine (other parts identical, shell, divisions, warnings)
+    ├── test_abc_bars.py  ← ABC bar splitting
+    ├── test_apply_abc_edit_tool.py  ← apply_abc_edit tool: schema, paths, return modes, errors
+    ├── edit_fixtures.py  ← three-part score and helpers for the edit tests
     ├── test_utils.py
     └── fixtures/
         ├── simple.musicxml

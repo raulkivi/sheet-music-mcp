@@ -6,7 +6,7 @@ Converts between MusicXML and ABC notation. ABC is compact and text-based, makin
 for Claude to read and edit scores directly in its context window.
 
 **Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references) + UX Wave 3 (`measures`) complete.
-214 unit tests pass (`-m "not integration"`) + 4 integration tests. MCP Apps ABC Workbench server side done (`structuredContent`, output schemas, app-only `get_abc`); the page is not built yet.
+306 unit tests pass (`-m "not integration"`) + 6 integration tests. MCP Apps ABC Workbench server side done (`structuredContent`, output schemas, app-only `get_abc`); the page is not built yet. `apply_abc_edit` (C16) replaces bars of one part and keeps the rest of the score byte-identical.
 
 ---
 
@@ -54,6 +54,7 @@ MXL test fixtures are in `../omr-mcp/test_samples/pdmx_satb_samples/mxl/` — 10
 |------|-------------|
 | `musicxml_to_abc` | MusicXML (`musicxml` text or `musicxml_path`, `.mxl` too) → ABC notation (all parts or one specific part; `measures` [start, end] for a range of printed bars) |
 | `abc_to_musicxml` | ABC notation → MusicXML; `return` `auto` (default) / `path` / `inline` — large scores come back as `musicxml_path` + `score_summary` |
+| `apply_abc_edit` | Replace bars `measures` [start, end] of one `part` with edited ABC; other parts, the header and all other bars stay byte-identical; `warnings[]` for lost dynamics, lyrics, articulations or changed bar lengths; `return` `auto` / `path` / `inline` (`WRITES_FILE`) |
 | `validate_abc` | Validate ABC syntax, return `valid`, `errors`, `warnings` |
 | `list_capabilities` | Server metadata and format support |
 | `health_check` | MusicXML → ABC → MusicXML round-trip self-test |

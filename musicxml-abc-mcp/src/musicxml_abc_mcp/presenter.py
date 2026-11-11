@@ -40,6 +40,35 @@ CONVERSION_OUTPUT_SCHEMA = {
     "required": ["warnings", "delivery", "musicxml_bytes"],
 }
 
+# Warning items of docs/conventions.md (Warnings).
+_WARNING_ITEMS = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "code": {"type": "string"},
+            "severity": {"type": "string", "enum": ["info", "warning", "error"]},
+            "message": {"type": "string"},
+            "measure": {"type": "integer"},
+            "part": {"type": "string"},
+        },
+        "required": ["code", "severity", "message"],
+    },
+}
+
+EDIT_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "part": {"type": "string", "description": "MusicXML part ID of the edited part"},
+        "measures": {"type": "array", "items": {"type": "integer"}, "minItems": 2, "maxItems": 2},
+        "measures_replaced": {"type": "integer", "minimum": 1},
+        "warnings": _WARNING_ITEMS,
+        "delivery": CONVERSION_OUTPUT_SCHEMA["properties"]["delivery"],
+        "musicxml_bytes": CONVERSION_OUTPUT_SCHEMA["properties"]["musicxml_bytes"],
+    },
+    "required": ["part", "measures", "measures_replaced", "warnings", "delivery", "musicxml_bytes"],
+}
+
 VALIDATION_OUTPUT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -71,6 +100,13 @@ def present_conversion(content: list, result: dict) -> tuple[list, dict]:
         "delivery": "path" if delivered_by_path else "inline",
         "musicxml_bytes": len(result["musicxml"].encode("utf-8")),
     }
+
+
+def present_edit(content: list, result: dict) -> tuple[list, dict]:
+    """``(content, structured_content)`` for ``apply_abc_edit``: the change summary without the score."""
+    _, structured = present_conversion(content, result)
+    summary = {key: result[key] for key in ("part", "measures", "measures_replaced", "warnings")}
+    return content, {**summary, "delivery": structured["delivery"], "musicxml_bytes": structured["musicxml_bytes"]}
 
 
 def present_validation(result: dict) -> tuple[list, dict]:

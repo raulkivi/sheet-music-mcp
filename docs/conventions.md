@@ -249,6 +249,8 @@ items, so a client (or the Recognition Review UI) can act on them without parsin
 | `DYNAMICS_DROPPED` | Dynamics in the source are missing from the result |
 | `ARTICULATION_DROPPED` | Articulations in the source are missing from the result |
 | `LOW_RESOLUTION` | Source image resolution too low for reliable recognition |
+| `LYRICS_DROPPED` | Lyrics in the source are missing from the result |
+| `MEASURE_DURATION_MISMATCH` | A replaced measure's length differs from the measure it replaces |
 
 Add a code to this table in the same change that first emits it.
 
