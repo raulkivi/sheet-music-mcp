@@ -50,12 +50,10 @@ jobs:
       - name: Install Playwright browser
         working-directory: ui
         run: npx playwright install --with-deps chromium
-      # U7 performance budget (ui/perf-budget.json). A warning for now: continue-on-error keeps a
-      # breach from failing the job. Remove it to make the budget required once the numbers are
-      # stable on the runner (docs/research/ui-and-sound-testing-plan.md, U7).
+      # U7 performance budget (ui/perf-budget.json). Required: a breach fails the job. Recent runner
+      # numbers sit at 2-4x under the phone limit and well under the desktop limit.
       - name: Performance budget
         working-directory: ui
-        continue-on-error: true
         run: npm run perf
       # The e2e host starts the real render-mcp over stdio for the real-server spec.
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
