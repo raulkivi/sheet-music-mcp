@@ -24,12 +24,16 @@ DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 PART_ID = re.compile(r"P[0-9a-f]{32}")
 # Output file names carry a timestamp.
 STAMP = re.compile(r"\d{8}-\d{6}-\d{6}")
+# The exported MusicXML names the music21 version, which changes with every backend bump.
+MUSIC21_VERSION = re.compile(r"music21 v\.[\d.]+")
 
 
 def _text(result) -> list[dict]:
     blocks = result.content if hasattr(result, "content") else result
     dumped = json.dumps([b.model_dump(mode="json", by_alias=True, exclude_none=True) for b in blocks])
-    return json.loads(PART_ID.sub("<PART>", STAMP.sub("<STAMP>", DATE.sub("<DATE>", dumped))).replace(str(TMP[0].resolve()), "<TMP>").replace(str(TMP[0]), "<TMP>"))
+    masked = MUSIC21_VERSION.sub("music21 v.<VERSION>", DATE.sub("<DATE>", dumped))
+    masked = PART_ID.sub("<PART>", STAMP.sub("<STAMP>", masked))
+    return json.loads(masked.replace(str(TMP[0].resolve()), "<TMP>").replace(str(TMP[0]), "<TMP>"))
 
 
 async def _all_contents(tmp_path, monkeypatch) -> dict:
