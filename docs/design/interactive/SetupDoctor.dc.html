@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Setup Doctor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width:100%;min-height:820px;box-sizing:border-box;background:{{t.bg}};color:{{t.text}};font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;display:flex;flex-direction:column">
+  <div style="height:3px;background:linear-gradient(#0072ce 0 33.33%,#15171c 33.33% 66.66%,{{t.flagWhite}} 66.66% 100%)"></div>
+  <header style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 16px;background:{{t.panel}};border-bottom:1px solid {{t.border}}">
+    <svg viewBox="0 0 24 24" aria-hidden="true" style="width:24px;height:24px;fill:none;stroke:{{t.accentText}};stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><path d="M3 12 C7 8 12 9 15 11 L21 6 L19 12 L21 18 L15 13 C12 15 7 16 3 12 Z"/></svg>
+    <strong style="font-size:16px">Setup Doctor</strong>
+    <span style="font-size:12px;color:{{t.muted}}">Checked just now · render-mcp, synth-mcp, omr-mcp</span>
+    <span style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:999px;background:{{summaryBg}};color:{{summaryText}}">{{summary}}</span>
+    <button type="button" aria-pressed="{{ dark }}" onClick="{{ toggleDark }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">{{darkLabel}}</button>
+  </header>
+  <div role="toolbar" aria-label="Setup actions" style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:8px 16px;border-bottom:1px solid {{t.border}}">
+    <button type="button" onClick="{{ checkAgain }}" disabled="{{ checking }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.accent}};background:{{t.accent}};color:#ffffff;font-weight:600">{{checkLabel}}</button>
+    <button type="button" onClick="{{ copyReport }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.muted}};background:{{t.bg}};color:{{t.text}}">{{copyLabel}}</button>
+  </div>
+  <main style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;padding:16px;align-items:start">
+    <section aria-label="Checks" style="min-width:0;padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
+      <ul style="list-style:none;margin:0;padding:0">
+        <sc-for list="{{rows}}" as="r">
+          <li style="padding:10px 0;border-bottom:1px solid {{t.border}};display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <span style="font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:{{r.bg}};color:{{r.text}}">{{r.badge}}</span>
+              <strong style="font-size:14px">{{r.name}}</strong>
+            </div>
+            <span style="font-size:14px;color:{{t.muted}}">{{r.detail}}</span>
+            <sc-if value="{{ r.hasAction }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+                <button type="button" onClick="{{ r.primary }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.accent}};background:{{t.accent}};color:#ffffff;font-weight:600">{{r.primaryLabel}}</button>
+                <button type="button" onClick="{{ r.secondary }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.muted}};background:{{t.bg}};color:{{t.text}}">{{r.secondaryLabel}}</button>
+              </div>
+            </sc-if>
+          </li>
+        </sc-for>
+      </ul>
+    </section>
+    <aside aria-label="Summary" style="padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
+      <h2 style="margin:0 0 8px;font-size:14px">{{headline}}</h2>
+      <p style="margin:0 0 12px;font-size:14px">{{subline}}</p>
+      <sc-if value="{{ showSteps }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:10px;border:1px solid {{t.border}};border-radius:6px;margin-bottom:12px">
+          <h3 style="margin:0 0 6px;font-size:14px">Install Audiveris</h3>
+          <ol style="margin:0;padding-left:18px;font-size:14px;color:{{t.text}}">
+            <li>Download the Audiveris release for your system from its project page.</li>
+            <li>Unpack it and note the folder.</li>
+            <li>Set its path in the server settings, then press Check again.</li>
+          </ol>
+        </div>
+      </sc-if>
+      <sc-if value="{{ allReady }}" hint-placeholder-val="{{ false }}">
+        <div style="display:grid;gap:8px">
+          <p style="margin:0;font-size:14px;font-weight:600;color:{{t.okText}}">Everything is ready. Start practising.</p>
+          <svg width="100%" height="12" aria-hidden="true" style="display:block"><defs><pattern id="kannel-ornament" width="24" height="12" patternUnits="userSpaceOnUse"><path d="M12 1 L23 6 L12 11 L1 6 Z" fill="none" stroke="{{t.accentText}}" stroke-width="1.25"/></pattern></defs><rect width="100%" height="12" fill="url(#kannel-ornament)"/></svg>
+        </div>
+      </sc-if>
+      <p style="margin:12px 0 0;font-size:12px;color:{{t.muted}}">Each fix-it action is a button, so the steps are reachable from the keyboard.</p>
+    </aside>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const s = this.state || {};
+    const dark = !!s.dark;
+    const installed = !!s.installed;
+    const usingOemer = !!s.usingOemer;
+    const cacheChecked = !!s.cacheChecked;
+    const showSteps = !!s.showSteps;
+    const checking = !!s.checking;
+    const copied = !!s.copied;
+    const LIGHT = { bg: '#ffffff', panel: '#f4f6fa', text: '#15171c', muted: '#4b5563', border: '#d5dce6', accent: '#0072ce', accentText: '#005fae', flagWhite: '#ffffff', okTint: '#e4f2e8', okText: '#1e6b3a', warnTint: '#fbf0d2', warnText: '#7a5300', badTint: '#f9e3e1', badText: '#a8322d', infoTint: '#eaf2fb' };
+    const DARK = { bg: '#101217', panel: '#1a1e27', text: '#eef2f7', muted: '#b4bdcb', border: '#2e3645', accent: '#0072ce', accentText: '#7fbcf5', flagWhite: '#101217', okTint: '#17301f', okText: '#8fd3a4', warnTint: '#3a2d0c', warnText: '#f2c14e', badTint: '#3a1c1a', badText: '#f09a94', infoTint: '#1b2b40' };
+    const t = dark ? DARK : LIGHT;
+    const pill = (tint, text) => ({ bg: tint, text });
+    const ready = pill(t.okTint, t.okText);
+    const warn = pill(t.warnTint, t.warnText);
+    const bad = pill(t.badTint, t.badText);
+    const audStatus = installed ? 'ready' : usingOemer ? 'warn' : 'bad';
+    const audBadge = { ready: 'Ready', warn: 'Using oemer', bad: 'Must fix' }[audStatus];
+    const audPill = { ready, warn, bad }[audStatus];
+    const audDetail = installed
+      ? 'Found. OMR can keep the SATB voice structure.'
+      : usingOemer
+        ? 'Using oemer for now. It loses the SATB voice structure of choir scores.'
+        : 'Not found. Without it, OMR uses oemer, which loses the SATB voice structure of choir scores.';
+    const cacheStatus = cacheChecked ? 'ready' : 'warn';
+    const cachePill = cacheStatus === 'ready' ? ready : warn;
+    const rows = [
+      { name: 'Verovio (music engraving)', badge: 'Ready', detail: 'Built in. Nothing to do.', bg: ready.bg, text: ready.text, hasAction: false },
+      { name: 'FluidSynth (audio)', badge: 'Ready', detail: 'Version 2.3 found.', bg: ready.bg, text: ready.text, hasAction: false },
+      { name: 'Soundfont', badge: 'Ready', detail: '/usr/share/sounds/sf2/TimGM6mb.sf2', bg: ready.bg, text: ready.text, hasAction: false },
+      { name: 'PortAudio (microphone)', badge: 'Ready', detail: 'Input device found: USB microphone.', bg: ready.bg, text: ready.text, hasAction: false },
+      {
+        name: 'Audiveris (keeps SATB parts)',
+        badge: audBadge,
+        detail: audDetail,
+        bg: audPill.bg,
+        text: audPill.text,
+        hasAction: !installed,
+        primaryLabel: showSteps ? 'I have installed it' : 'Show install steps',
+        primary: () => (showSteps ? this.setState({ installed: true, showSteps: false, usingOemer: false }) : this.setState({ showSteps: true })),
+        secondaryLabel: usingOemer ? 'Use Audiveris when installed' : 'Use oemer for now',
+        secondary: () => this.setState({ usingOemer: !usingOemer }),
+      },
+      {
+        name: 'Model cache (oemer)',
+        badge: cacheStatus === 'ready' ? 'Ready' : 'Check',
+        detail: cacheChecked ? 'Cache checked just now.' : 'Last used 40 days ago. First run downloads again if the cache was cleared.',
+        bg: cachePill.bg,
+        text: cachePill.text,
+        hasAction: !cacheChecked,
+        primaryLabel: 'Mark cache as checked',
+        primary: () => this.setState({ cacheChecked: true }),
+        secondaryLabel: 'Later',
+        secondary: () => {},
+      },
+    ];
+    const bads = rows.filter((r) => r.badge === 'Must fix').length;
+    const checks = rows.filter((r) => r.badge === 'Check' || r.badge === 'Using oemer').length;
+    const readyCount = rows.length - bads - checks;
+    const allReady = bads === 0 && checks === 0;
+    return {
+      t,
+      flagWhite: t.flagWhite,
+      accentText: t.accentText,
+      dark,
+      darkLabel: dark ? 'Light theme' : 'Dark theme',
+      toggleDark: () => this.setState({ dark: !dark }),
+      rows,
+      showSteps,
+      allReady,
+      checking,
+      checkLabel: checking ? 'Checking…' : 'Check again',
+      checkAgain: () => {
+        this.setState({ checking: true });
+        setTimeout(() => this.setState({ checking: false }), 600);
+      },
+      copyLabel: copied ? 'Report copied' : 'Copy report for support',
+      copyReport: () => this.setState({ copied: true }),
+      summary: allReady ? 'All ready' : bads + ' to fix · ' + (checks + readyCount) + ' ready',
+      summaryBg: allReady ? ready.bg : bads ? bad.bg : warn.bg,
+      summaryText: allReady ? ready.text : bads ? bad.text : warn.text,
+      headline: allReady ? 'All set' : 'Before you start',
+      subline: allReady ? 'Every check is ready.' : (bads ? bads + ' thing' + (bads > 1 ? 's' : '') + ' need fixing. ' : '') + (checks ? checks + ' to check. ' : '') + 'Use the buttons on each row.',
+    };
+  }
+}
+</script>
+</body>
+</html>

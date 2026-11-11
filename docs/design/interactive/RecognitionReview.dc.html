@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Recognition Review</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width:100%;min-height:820px;box-sizing:border-box;background:{{t.bg}};color:{{t.text}};font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;display:flex;flex-direction:column">
+  <div style="height:3px;background:linear-gradient(#0072ce 0 33.33%,#15171c 33.33% 66.66%,{{t.flagWhite}} 66.66% 100%)"></div>
+  <header style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 16px;background:{{t.panel}};border-bottom:1px solid {{t.border}}">
+    <strong style="font-size:16px">Recognition Review</strong>
+    <span style="font-size:12px;color:{{t.muted}}">Page 2 of 3 · sample scan</span>
+    <span style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:999px;background:{{statusBg}};color:{{statusText}}">{{statusLabel}}</span>
+    <button type="button" aria-pressed="{{ dark }}" onClick="{{ toggleDark }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">{{darkLabel}}</button>
+  </header>
+  <div role="toolbar" aria-label="Recognition controls" style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:8px 16px;border-bottom:1px solid {{t.border}}">
+    <span style="font-size:12px;color:{{t.muted}}">Engine</span>
+    <button type="button" aria-pressed="{{ isOemer }}" onClick="{{ useOemer }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.muted}};background:{{oemerBg}};color:{{t.text}}">oemer (fast)</button>
+    <button type="button" aria-pressed="{{ isAudiveris }}" onClick="{{ useAudiveris }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.muted}};background:{{audBg}};color:{{t.text}}">Audiveris (keeps SATB)</button>
+    <button type="button" onClick="{{ rerun }}" disabled="{{ running }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.accent}};background:{{t.accent}};color:#ffffff;font-weight:600">{{rerunLabel}}</button>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button type="button" onClick="{{ saveXml }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.muted}};background:{{t.bg}};color:{{t.text}}">Save MusicXML</button>
+      <button type="button" onClick="{{ accept }}" disabled="{{ accepted }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.accent}};background:{{t.accent}};color:#ffffff;font-weight:600">{{acceptLabel}}</button>
+    </div>
+  </div>
+  <main style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 340px;gap:16px;padding:16px;align-items:start">
+    <section aria-label="Photo of the page" style="min-width:0;padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
+      <h2 style="margin:0 0 8px;font-size:14px">Photo</h2>
+      <div style="aspect-ratio:3/4;display:grid;place-items:center;border:1px dashed {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.muted}};font-size:12px">Scanned page (sample image)</div>
+    </section>
+    <section aria-label="Recognised score" style="min-width:0;padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
+      <h2 style="margin:0 0 8px;font-size:14px">Recognised score · {{staves}} staves</h2>
+      <svg viewBox="0 0 600 180" role="img" aria-label="Recognised page, four voices" style="display:block;width:100%;height:auto;color:{{t.text}}">
+        <path d="M20 30H580M20 40H580M20 50H580M20 60H580M20 70H580M20 110H580M20 120H580M20 130H580M20 140H580M20 150H580" stroke="currentColor" stroke-width="1" fill="none"/>
+        <path d="M96 70V40M150 60V30M206 55V25M262 50V20M96 160V130M150 150V120M206 140V110M262 130V100" stroke="currentColor" stroke-width="1.2" fill="none"/>
+        <g fill="currentColor">
+          <ellipse cx="90" cy="70" rx="6" ry="4.5"/><ellipse cx="144" cy="60" rx="6" ry="4.5"/><ellipse cx="200" cy="55" rx="6" ry="4.5"/><ellipse cx="256" cy="50" rx="6" ry="4.5"/>
+          <ellipse cx="90" cy="160" rx="6" ry="4.5"/><ellipse cx="144" cy="150" rx="6" ry="4.5"/><ellipse cx="200" cy="140" rx="6" ry="4.5"/><ellipse cx="256" cy="130" rx="6" ry="4.5"/>
+        </g>
+        <rect x="300" y="18" width="110" height="150" rx="6" fill="none" stroke="{{t.warnText}}" stroke-width="1.5" stroke-dasharray="{{frameDash}}" opacity="{{frameOpacity}}"/>
+      </svg>
+      <p style="margin:8px 0 0;font-size:12px;color:{{t.muted}}">{{frameNote}}</p>
+    </section>
+    <aside aria-label="Things to check" style="padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
+      <h2 style="margin:0 0 8px;font-size:14px">Check these ({{openCount}} open)</h2>
+      <ul style="list-style:none;margin:0;padding:0">
+        <sc-for list="{{issues}}" as="it">
+          <li style="padding:8px 0;border-bottom:1px solid {{t.border}};display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span style="font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:{{it.tagBg}};color:{{it.tagText}}">{{it.tag}}</span>
+              <span style="font-size:14px;{{it.textStyle}}">{{it.text}}</span>
+            </div>
+            <button type="button" onClick="{{ it.toggle }}" style="align-self:flex-start;min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.muted}};background:{{t.bg}};color:{{t.text}}">{{it.actionLabel}}</button>
+          </li>
+        </sc-for>
+      </ul>
+      <p style="margin:12px 0 0;font-size:12px;color:{{t.muted}}">Accepting merges this page into the score. Unchecked items stay in the report.</p>
+    </aside>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const s = this.state || {};
+    const dark = !!s.dark;
+    const engine = s.engine || 'oemer';
+    const resolved = s.resolved || {};
+    const running = !!s.running;
+    const accepted = !!s.accepted;
+    const LIGHT = { bg: '#ffffff', panel: '#f4f6fa', text: '#15171c', muted: '#4b5563', border: '#d5dce6', accent: '#0072ce', flagWhite: '#ffffff', warnText: '#7a5300', tint: '#eaf2fb', accentText: '#005fae' };
+    const DARK = { bg: '#101217', panel: '#1a1e27', text: '#eef2f7', muted: '#b4bdcb', border: '#2e3645', accent: '#0072ce', flagWhite: '#101217', warnText: '#f2c14e', tint: '#1b2b40', accentText: '#7fbcf5' };
+    const t = dark ? DARK : LIGHT;
+    const base = [
+      { id: 'bar12', tag: 'Must fix', text: 'Bar 12, alto: three notes read; the photo shows two quavers and a rest.', severity: 'bad', fixedBy: 'audiveris' },
+      { id: 'bar5', tag: 'Check', text: 'Bar 5, tenor: clef read as treble; the photo shows a tenor clef.', severity: 'warn' },
+      { id: 'staves', tag: 'Note', text: 'Staves: oemer found 2 on this page; Audiveris found 4 (S, A, T, B).', severity: 'info' },
+    ];
+    const tagStyle = {
+      bad: { tagBg: t.tint === '#eaf2fb' ? '#f9e3e1' : '#3a1c1a', tagText: dark ? '#f09a94' : '#a8322d' },
+      warn: { tagBg: dark ? '#3a2d0c' : '#fbf0d2', tagText: dark ? '#f2c14e' : '#7a5300' },
+      info: { tagBg: t.tint, tagText: t.accentText },
+    };
+    const issues = base.map((it) => {
+      const fixedByEngine = it.fixedBy && engine === 'audiveris' && running === false && accepted === false && s.rerunDone;
+      const done = !!resolved[it.id] || !!fixedByEngine;
+      return {
+        tag: it.tag,
+        text: done ? it.text + ' Resolved.' : it.text,
+        textStyle: done ? 'text-decoration:line-through;color:' + t.muted : '',
+        tagBg: tagStyle[it.severity].tagBg,
+        tagText: tagStyle[it.severity].tagText,
+        actionLabel: done ? 'Mark as open' : 'Mark resolved',
+        toggle: () => this.setState({ resolved: { ...resolved, [it.id]: !done } }),
+      };
+    });
+    const openCount = issues.filter((it) => it.actionLabel === 'Mark resolved').length;
+    const bar12Done = !!resolved.bar12 || (engine === 'audiveris' && !!s.rerunDone);
+    return {
+      t,
+      flagWhite: t.flagWhite,
+      dark,
+      darkLabel: dark ? 'Light theme' : 'Dark theme',
+      toggleDark: () => this.setState({ dark: !dark }),
+      isOemer: engine === 'oemer',
+      isAudiveris: engine === 'audiveris',
+      oemerBg: engine === 'oemer' ? t.tint : 'transparent',
+      audBg: engine === 'audiveris' ? t.tint : 'transparent',
+      useOemer: () => this.setState({ engine: 'oemer', rerunDone: false }),
+      useAudiveris: () => this.setState({ engine: 'audiveris', rerunDone: false }),
+      running,
+      rerunLabel: running ? 'Re-running…' : 'Re-run with this engine',
+      rerun: () => {
+        this.setState({ running: true });
+        setTimeout(() => this.setState({ running: false, rerunDone: true }), 1200);
+      },
+      staves: engine === 'audiveris' ? 4 : 2,
+      frameDash: bar12Done ? '0' : '5 4',
+      frameOpacity: bar12Done ? 0.35 : 1,
+      frameNote: bar12Done ? 'Bar 12 is resolved for this engine.' : 'Dashed frame: bar 12, the alto has three notes where the photo shows two.',
+      issues,
+      openCount,
+      accepted,
+      acceptLabel: accepted ? 'Accepted' : 'Accept score',
+      accept: () => this.setState({ accepted: true }),
+      saveXml: () => this.setState({ saved: true }),
+      statusLabel: accepted ? 'Accepted' : openCount + ' to check',
+      statusBg: accepted ? (dark ? '#17301f' : '#e4f2e8') : (dark ? '#3a2d0c' : '#fbf0d2'),
+      statusText: accepted ? (dark ? '#8fd3a4' : '#1e6b3a') : (dark ? '#f2c14e' : '#7a5300'),
+    };
+  }
+}
+</script>
+</body>
+</html>

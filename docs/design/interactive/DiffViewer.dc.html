@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Diff Viewer</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width:100%;min-height:820px;box-sizing:border-box;background:{{t.bg}};color:{{t.text}};font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;display:flex;flex-direction:column">
+  <div style="height:3px;background:linear-gradient(#0072ce 0 33.33%,#15171c 33.33% 66.66%,{{t.flagWhite}} 66.66% 100%)"></div>
+  <header style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 16px;background:{{t.panel}};border-bottom:1px solid {{t.border}}">
+    <strong style="font-size:16px">Diff Viewer</strong>
+    <span style="font-size:12px;color:{{t.muted}}">Edition A (1962) vs Edition B (2024)</span>
+    <span style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:999px;background:{{t.tint}};color:{{t.accentText}}">Similarity 92%</span>
+    <button type="button" aria-pressed="{{ dark }}" onClick="{{ toggleDark }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">{{darkLabel}}</button>
+  </header>
+  <div role="toolbar" aria-label="Diff filters" style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:8px 16px;border-bottom:1px solid {{t.border}}">
+    <div role="group" aria-label="Filter by kind" style="display:flex;flex-wrap:wrap;gap:8px">
+      <sc-for list="{{kinds}}" as="k">
+        <button type="button" aria-pressed="{{ k.on }}" onClick="{{ k.toggle }}" style="min-height:40px;padding:6px 12px;border-radius:999px;border:1px solid {{t.muted}};background:{{k.bg}};color:{{t.text}}">{{k.name}}</button>
+      </sc-for>
+    </div>
+    <span style="width:1px;align-self:stretch;background:{{t.border}}"></span>
+    <span style="font-size:12px;color:{{t.muted}}">{{countLabel}}</span>
+    <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" onClick="{{ makeReport }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.muted}};background:{{t.bg}};color:{{t.text}}">Report</button>
+      <button type="button" onClick="{{ exportScores }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.accent}};background:{{t.accent}};color:#ffffff;font-weight:600">{{exportLabel}}</button>
+    </div>
+  </div>
+  <p role="status" aria-live="polite" style="margin:0;padding:6px 16px;font-size:12px;color:{{t.muted}}">{{statusNote}}</p>
+  <main style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;padding:16px;align-items:start">
+    <section aria-label="Changes side by side" style="min-width:0;padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
+      <h2 style="margin:0 0 6px;font-size:14px">Bars 17 to 18, alto</h2>
+      <p style="margin:0 0 8px;font-size:12px;color:{{t.muted}}">
+        <span style="color:{{t.accentText}}">━━</span> only in A (solid) &nbsp;&nbsp; <span style="color:{{t.warnText}}">╍╍</span> only in B (dashed)
+      </p>
+      <svg viewBox="0 0 600 170" role="img" aria-label="Bars 17 and 18 in both editions" style="display:block;width:100%;height:auto;color:{{t.text}}">
+        <path d="M20 40H580M20 50H580M20 60H580M20 70H580M20 80H580" stroke="currentColor" stroke-width="1" fill="none"/>
+        <path d="M96 80V50M150 70V40M206 65V35M262 60V30M340 80V50M396 70V40" stroke="currentColor" stroke-width="1.2" fill="none"/>
+        <g fill="currentColor">
+          <ellipse cx="90" cy="80" rx="6" ry="4.5"/><ellipse cx="144" cy="70" rx="6" ry="4.5"/><ellipse cx="200" cy="65" rx="6" ry="4.5"/><ellipse cx="256" cy="60" rx="6" ry="4.5"/>
+          <ellipse cx="334" cy="80" rx="6" ry="4.5"/>
+        </g>
+        <ellipse cx="390" cy="70" rx="6" ry="4.5" fill="none" stroke="{{t.accentText}}" stroke-width="2"/>
+        <ellipse cx="390" cy="66" rx="6" ry="4.5" fill="none" stroke="{{t.warnText}}" stroke-width="2" stroke-dasharray="3 2"/>
+      </svg>
+      <p style="margin:8px 0 0;font-size:12px;color:{{t.muted}}">{{focusNote}}</p>
+    </section>
+    <aside aria-label="Change list" style="padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
+      <h2 style="margin:0 0 8px;font-size:14px">Changes ({{shownCount}})</h2>
+      <ul style="list-style:none;margin:0;padding:0">
+        <sc-for list="{{changes}}" as="c">
+          <li style="padding:8px 0;border-bottom:1px solid {{t.border}}">
+            <button type="button" aria-current="{{ c.selected }}" onClick="{{ c.pick }}" style="width:100%;text-align:left;min-height:40px;padding:8px;border-radius:6px;border:1px solid {{c.border}};background:{{c.bg}};color:{{t.text}}">
+              <span style="font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:{{c.tagBg}};color:{{c.tagText}}">{{c.kind}}</span>
+              <strong style="margin-left:6px">{{c.where}}</strong>
+              <span style="display:block;font-size:12px;color:{{t.muted}};margin-top:4px">{{c.detail}}</span>
+            </button>
+          </li>
+        </sc-for>
+      </ul>
+      <p style="margin:12px 0 0;font-size:12px;color:{{t.muted}}">Choose a change to move the score to its bar. Filters keep the list and the score in step.</p>
+    </aside>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const s = this.state || {};
+    const dark = !!s.dark;
+    const kindOn = s.kindOn || { Pitch: true, Rhythm: true, Lyrics: true, Dynamics: true };
+    const selectedId = s.selectedId || 1;
+    const exported = !!s.exported;
+    const reported = !!s.reported;
+    const LIGHT = { bg: '#ffffff', panel: '#f4f6fa', text: '#15171c', muted: '#4b5563', border: '#d5dce6', accent: '#0072ce', accentText: '#005fae', warnText: '#7a5300', tint: '#eaf2fb', flagWhite: '#ffffff', tagBg: '#eaf2fb', tagText: '#005fae' };
+    const DARK = { bg: '#101217', panel: '#1a1e27', text: '#eef2f7', muted: '#b4bdcb', border: '#2e3645', accent: '#0072ce', accentText: '#7fbcf5', warnText: '#f2c14e', tint: '#1b2b40', flagWhite: '#101217', tagBg: '#1b2b40', tagText: '#7fbcf5' };
+    const t = dark ? DARK : LIGHT;
+    const all = [
+      { id: 1, kind: 'Pitch', where: 'Bar 18, beat 2 · alto', detail: 'E♭ in A, E♮ in B', bar: 18 },
+      { id: 2, kind: 'Rhythm', where: 'Bar 20 · tenor', detail: 'dotted quaver in A, two semiquavers in B', bar: 20 },
+      { id: 3, kind: 'Lyrics', where: 'Bar 21 · soprano', detail: '“cor-pus” in A, “cor-pus-” in B', bar: 21 },
+      { id: 4, kind: 'Dynamics', where: 'Bar 22 · bass', detail: 'mp in A, mf in B', bar: 22 },
+      { id: 5, kind: 'Pitch', where: 'Bar 23, beat 1 · soprano', detail: 'A♭ in A, A♮ in B', bar: 23 },
+      { id: 6, kind: 'Rhythm', where: 'Bar 24 · alto', detail: 'crotchet rest in A, quaver rest in B', bar: 24 },
+    ];
+    const kinds = ['Pitch', 'Rhythm', 'Lyrics', 'Dynamics'].map((name) => ({
+      name,
+      on: !!kindOn[name],
+      bg: kindOn[name] ? t.tint : 'transparent',
+      toggle: () => this.setState({ kindOn: { ...kindOn, [name]: !kindOn[name] } }),
+    }));
+    const visible = all.filter((c) => kindOn[c.kind]);
+    const changes = visible.map((c) => {
+      const sel = c.id === selectedId;
+      return {
+        kind: c.kind,
+        where: c.where,
+        detail: c.detail,
+        selected: sel,
+        bg: sel ? t.tint : 'transparent',
+        border: sel ? t.accent : t.border,
+        tagBg: t.tagBg,
+        tagText: t.tagText,
+        pick: () => this.setState({ selectedId: c.id }),
+      };
+    });
+    const current = all.find((c) => c.id === selectedId) || all[0];
+    return {
+      t,
+      flagWhite: t.flagWhite,
+      dark,
+      darkLabel: dark ? 'Light theme' : 'Dark theme',
+      toggleDark: () => this.setState({ dark: !dark }),
+      kinds,
+      changes,
+      shownCount: visible.length + ' of ' + all.length,
+      countLabel: visible.length + ' changes shown',
+      focusNote: 'Selected: ' + current.where + ' (' + current.detail + '). Bar ' + current.bar + ' is in the score view when it is in bars 17 to 18.',
+      makeReport: () => this.setState({ reported: true }),
+      exportScores: () => this.setState({ exported: true }),
+      exportLabel: exported ? 'Annotated scores exported' : 'Export annotated scores',
+      statusNote: exported ? 'Two annotated MusicXML files are ready to open in the Score Viewer.' : reported ? 'Report ready: ' + all.length + ' changes, filtered by the kinds you chose.' : 'Filters keep the list and the score in step.',
+    };
+  }
+}
+</script>
+</body>
+</html>

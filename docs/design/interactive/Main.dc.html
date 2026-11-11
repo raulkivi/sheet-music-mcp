@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kannel start</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#005fae}a:hover{color:#00508f}
+</style>
+</helmet>
+<div style="width:100%;min-height:820px;box-sizing:border-box;background:#ffffff;color:#15171c;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;display:flex;flex-direction:column">
+  <div style="height:3px;background:linear-gradient(#0072ce 0 33.33%,#15171c 33.33% 66.66%,#ffffff 66.66% 100%)"></div>
+  <div style="padding:56px 64px;display:flex;flex-direction:column;gap:20px;max-width:960px">
+    <p style="margin:0;font-size:14px;color:#4b5563">Kannel · visual identity for the MCP Apps</p>
+    <h1 style="margin:0;font-size:40px;line-height:1.15">Seven apps, clickable</h1>
+    <p style="margin:0;font-size:16px;line-height:1.5;color:#4b5563">Each board is a working prototype of one app. Buttons, chips, toggles and sliders respond; the data is sample data. Start with the Score Viewer, or jump to any app below.</p>
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:8px">
+      <a href="ScoreViewer.dc.html" style="display:block;padding:16px;border:1px solid #d5dce6;border-radius:8px;text-decoration:none;color:#15171c"><strong style="color:#005fae">Score Viewer</strong><br><span style="font-size:14px;color:#4b5563">render-mcp · built · page turns, zoom, theme</span></a>
+      <a href="PracticePlayer.dc.html" style="display:block;padding:16px;border:1px solid #d5dce6;border-radius:8px;text-decoration:none;color:#15171c"><strong style="color:#005fae">Practice Player</strong><br><span style="font-size:14px;color:#4b5563">synth-mcp · parts, tempo, loop, playhead</span></a>
+      <a href="RecognitionReview.dc.html" style="display:block;padding:16px;border:1px solid #d5dce6;border-radius:8px;text-decoration:none;color:#15171c"><strong style="color:#005fae">Recognition Review</strong><br><span style="font-size:14px;color:#4b5563">omr-mcp · issues, engine, accept</span></a>
+      <a href="AbcWorkbench.dc.html" style="display:block;padding:16px;border:1px solid #d5dce6;border-radius:8px;text-decoration:none;color:#15171c"><strong style="color:#005fae">ABC Workbench</strong><br><span style="font-size:14px;color:#4b5563">musicxml-abc-mcp · accept or reject edits</span></a>
+      <a href="PracticeCoach.dc.html" style="display:block;padding:16px;border:1px solid #d5dce6;border-radius:8px;text-decoration:none;color:#15171c"><strong style="color:#005fae">Practice Coach</strong><br><span style="font-size:14px;color:#4b5563">pitch-mcp · live meter, start and stop</span></a>
+      <a href="DiffViewer.dc.html" style="display:block;padding:16px;border:1px solid #d5dce6;border-radius:8px;text-decoration:none;color:#15171c"><strong style="color:#005fae">Diff Viewer</strong><br><span style="font-size:14px;color:#4b5563">comparer-mcp · filter and select changes</span></a>
+      <a href="SetupDoctor.dc.html" style="display:block;padding:16px;border:1px solid #d5dce6;border-radius:8px;text-decoration:none;color:#15171c"><strong style="color:#005fae">Setup Doctor</strong><br><span style="font-size:14px;color:#4b5563">all servers · checks and fix-it steps</span></a>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

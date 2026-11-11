@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ABC Workbench</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width:100%;min-height:820px;box-sizing:border-box;background:{{t.bg}};color:{{t.text}};font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;display:flex;flex-direction:column">
+  <div style="height:3px;background:linear-gradient(#0072ce 0 33.33%,#15171c 33.33% 66.66%,{{t.flagWhite}} 66.66% 100%)"></div>
+  <header style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 16px;background:{{t.panel}};border-bottom:1px solid {{t.border}}">
+    <strong style="font-size:16px">ABC Workbench</strong>
+    <span style="font-size:12px;color:{{t.muted}}">Proposed edit by the assistant · alto, bars 9 to 12</span>
+    <span style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:999px;background:{{t.okTint}};color:{{t.okText}}">Valid ABC</span>
+    <button type="button" aria-pressed="{{ dark }}" onClick="{{ toggleDark }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">{{darkLabel}}</button>
+  </header>
+  <div role="toolbar" aria-label="Review controls" style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:8px 16px;border-bottom:1px solid {{t.border}}">
+    <button type="button" aria-pressed="{{ changesOnly }}" onClick="{{ showChanges }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.muted}};background:{{changesBg}};color:{{t.text}}">Changes only</button>
+    <button type="button" aria-pressed="{{ fullText }}" onClick="{{ showFull }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.muted}};background:{{fullBg}};color:{{t.text}}">Full text</button>
+    <span style="font-size:12px;color:{{t.muted}}">{{changeSummary}}</span>
+    <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" onClick="{{ reject }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.muted}};background:{{t.bg}};color:{{t.text}}">Reject all</button>
+      <button type="button" onClick="{{ accept }}" disabled="{{ decided }}" style="min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.accent}};background:{{t.accent}};color:#ffffff;font-weight:600">{{acceptLabel}}</button>
+    </div>
+  </div>
+  <main style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;padding:16px;align-items:start">
+    <section aria-label="Original ABC" style="min-width:0;padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
+      <h2 style="margin:0 0 8px;font-size:14px">Original (score as it is)</h2>
+      <pre style="margin:0;padding:10px;background:{{t.bg}};border-radius:6px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;white-space:pre-wrap">{{originalText}}</pre>
+    </section>
+    <section aria-label="Proposed ABC with changes" style="min-width:0;padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
+      <h2 style="margin:0 0 8px;font-size:14px">Proposed (with changes)</h2>
+      <div style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;background:{{t.bg}};border-radius:6px;padding:6px 0">
+        <sc-for list="{{rows}}" as="r">
+          <div style="padding:0 10px;white-space:pre;border-left:3px solid {{r.edge}};background:{{r.bg}};color:{{r.color}};text-decoration:{{r.deco}}">{{r.prefix}}{{r.text}}</div>
+        </sc-for>
+      </div>
+      <p style="margin:6px 0 0;font-size:12px;color:{{t.muted}}">{{choiceNote}}</p>
+      <div style="margin-top:12px;padding:8px 0;border-top:1px solid {{t.border}};display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:14px;font-weight:600;padding:2px 8px;border-radius:999px;background:{{t.warnTint}};color:{{t.warnText}}">Check</span>
+        <span style="font-size:14px">Bar 12 changes from a rest to a G. Is the alto meant to sing here?</span>
+      </div>
+      <button type="button" onClick="{{ toggleBar12 }}" style="margin-top:8px;min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.muted}};background:{{t.bg}};color:{{t.text}}">{{bar12Label}}</button>
+      <p role="status" aria-live="polite" style="margin:12px 0 0;font-size:14px;font-weight:600">{{outcome}}</p>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const s = this.state || {};
+    const dark = !!s.dark;
+    const view = s.view || 'changes';
+    const keep = s.keepBar12 !== false;
+    const decided = s.decision === 'accepted' || s.decision === 'rejected';
+    const LIGHT = { bg: '#ffffff', panel: '#f4f6fa', text: '#15171c', muted: '#4b5563', border: '#d5dce6', accent: '#0072ce', flagWhite: '#ffffff', tint: '#eaf2fb', okTint: '#e4f2e8', okText: '#1e6b3a', warnTint: '#fbf0d2', warnText: '#7a5300', addText: '#1e6b3a', addBg: '#e4f2e8', delText: '#a8322d', delBg: '#f9e3e1' };
+    const DARK = { bg: '#101217', panel: '#1a1e27', text: '#eef2f7', muted: '#b4bdcb', border: '#2e3645', accent: '#0072ce', flagWhite: '#101217', tint: '#1b2b40', okTint: '#17301f', okText: '#8fd3a4', warnTint: '#3a2d0c', warnText: '#f2c14e', addText: '#8fd3a4', addBg: '#17301f', delText: '#f09a94', delBg: '#3a1c1a' };
+    const t = dark ? DARK : LIGHT;
+    const before = ['M:4/4', 'L:1/8', 'K:Eb', 'V:A  name="Alto"', '|: d2 c2 B2 A2 | G4 z4 |', '   c2 d2 e2 f2 | g4 z4 :|'];
+    const after = ['M:4/4', 'L:1/8', 'K:Eb', 'V:A  name="Alto"', '|: d2 c2 B2 A2 | G4 z4 |', '   c2 d2 e2 f2 | g4 G4 :|'];
+    const changedIndex = 5;
+    const rows = [];
+    after.forEach((line, i) => {
+      const changed = i === changedIndex;
+      if (view === 'changes' && !changed) return;
+      if (changed && keep) {
+        rows.push({ prefix: '− ', text: before[i], edge: t.delText, bg: t.delBg, color: t.delText, deco: 'line-through' });
+        rows.push({ prefix: '+ ', text: line, edge: t.addText, bg: t.addBg, color: t.addText, deco: 'none' });
+      } else if (changed) {
+        rows.push({ prefix: '  ', text: before[i], edge: 'transparent', bg: 'transparent', color: t.text, deco: 'none' });
+      } else {
+        rows.push({ prefix: '  ', text: line, edge: 'transparent', bg: 'transparent', color: t.text, deco: 'none' });
+      }
+    });
+    return {
+      t,
+      flagWhite: t.flagWhite,
+      dark,
+      darkLabel: dark ? 'Light theme' : 'Dark theme',
+      toggleDark: () => this.setState({ dark: !dark }),
+      changesOnly: view === 'changes',
+      fullText: view === 'full',
+      changesBg: view === 'changes' ? t.tint : 'transparent',
+      fullBg: view === 'full' ? t.tint : 'transparent',
+      showChanges: () => this.setState({ view: 'changes' }),
+      showFull: () => this.setState({ view: 'full' }),
+      changeSummary: keep ? '1 line changed · 1 added · 1 removed' : 'no change kept',
+      originalText: before.join('\n'),
+      rows,
+      choiceNote: keep ? 'The bar 12 edit is kept in the proposal.' : 'The bar 12 edit is undone in the proposal.',
+      toggleBar12: () => this.setState({ keepBar12: !keep }),
+      bar12Label: keep ? 'Undo the bar 12 edit' : 'Put the bar 12 edit back',
+      decided,
+      accept: () => this.setState({ decision: 'accepted' }),
+      reject: () => this.setState({ decision: 'rejected' }),
+      acceptLabel: s.decision === 'accepted' ? 'Accepted' : 'Accept and write MusicXML',
+      outcome: s.decision === 'accepted' ? (keep ? 'Accepted: MusicXML written with the bar 12 edit.' : 'Accepted: MusicXML written without the bar 12 edit.') : s.decision === 'rejected' ? 'Rejected: the original score stays as it is.' : '',
+    };
+  }
+}
+</script>
+</body>
+</html>
