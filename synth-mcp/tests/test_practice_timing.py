@@ -227,7 +227,7 @@ def _velocities(tracks):
 class TestGainsPerPart:
     def test_each_part_gets_its_own_gain_as_cc7(self):
         _, tracks = _midi(SATB, part_gains={"S": 0.25, "A": 0.75, "T": 1.25, "B": 1.75})
-        assert [cc7(t) for t in melodic_tracks(tracks)] == [[16], [48], [79], [111]]
+        assert [cc7(t) for t in melodic_tracks(tracks)] == [[25], [75], [107], [120]]
 
     def test_cc7_is_on_the_channel_the_part_plays_on(self):
         _, tracks = _midi(SATB, preset="learning", focus_part="Tenor")
@@ -247,7 +247,7 @@ class TestGainsPerPart:
 
     def test_one_cc7_per_part_even_when_repeated(self):
         _, tracks = _midi(SATB, preset="learning", focus_part="S", repeat=3)
-        assert [cc7(t) for t in melodic_tracks(tracks)] == [[95], [32], [32], [32]]
+        assert [cc7(t) for t in melodic_tracks(tracks)] == [[114], [50], [50], [50]]
 
     def test_click_track_has_no_channel_volume(self):
         _, tracks = _midi(SATB, preset="karaoke", focus_part="S", count_in_bars=1, metronome=True)

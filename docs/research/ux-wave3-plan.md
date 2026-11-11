@@ -117,7 +117,9 @@ Pipeline in `extract_midi` (each step its own small function, so each is testabl
 6. Export to MIDI with music21, then post-process the `MidiFile` per melodic track: `timbre`
    sets one program change (piano 0, choir 52, organ 19) on every melodic channel; gains insert one
    CC7 at tick 0 per melodic channel: `cc7 = round(127 × gain / 2)` (0 → 0, 1.0 → 64, 1.5 → 95,
-   2.0 → 127). No melodic track uses channel 10.
+   2.0 → 127). No melodic track uses channel 10. *(Changed 2026-11-11: 1.0 → 64 was 7.7 dB below a render
+   without gains, which keeps the default CC7 100; the mapping is now 0 → 0, 1.0 → 100, 2.0 → 127,
+   see docs/conventions.md, Practice Audio.)*
 
 Gains: `preset` + `focus_part` give the base gains (W3-2): learning focus 1.5 / others 0.5,
 karaoke focus 0 / others 1.0, equal all 1.0. `part_gains` entries (resolved with

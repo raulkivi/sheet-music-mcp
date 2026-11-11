@@ -55,3 +55,44 @@ jobs:
       - run: uv sync --frozen --extra dev
       # Deterministic, numpy-only, no audio hardware. `-m manual` (real microphone) never runs in CI.
       - run: uv run --frozen --no-sync pytest -q -m integration
+
+  synth-integration:
+    name: synth-mcp integration + synth-to-pitch round trip
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SYNTH_SOUNDFONT_PATH: /usr/share/sounds/sf2/TimGM6mb.sf2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Ubuntu's timgm6mb-soundfont is GPL-2 (its Debian copyright file; synth-mcp/docs/soundfonts.md).
+      # An apt package is signed by the archive, so no download cache or pinned checksum is needed.
+      - name: Install FluidSynth and the TimGM6mb soundfont
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libfluidsynth3 timgm6mb-soundfont
+          test -f "$SYNTH_SOUNDFONT_PATH"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: '3.13'
+          enable-cache: true
+          cache-dependency-glob: |
+            synth-mcp/uv.lock
+            pitch-mcp/uv.lock
+      # Two venvs, one per server: the round trip runs synth-mcp's interpreter in a subprocess.
+      - run: uv sync --frozen --extra dev
+        working-directory: synth-mcp
+      - run: uv sync --frozen --extra dev
+        working-directory: pitch-mcp
+      # TestIntegration in test_engine.py reads the PDMX samples under omr-mcp/test_samples/,
+      # which are gitignored, so it cannot run in CI.
+      - name: synth-mcp integration
+        working-directory: synth-mcp
+        run: uv run --frozen --no-sync pytest -q -m integration --deselect tests/test_engine.py::TestIntegration
+      - name: synth-mcp to pitch-mcp round trip
+        if: ${{ !cancelled() }}
+        working-directory: pitch-mcp
+        env:
+          PITCH_ROUND_TRIP_REQUIRED: '1' # fail, not skip, if synth-mcp or the soundfont is missing
+        run: uv run --frozen --no-sync pytest -q -m integration tests/test_round_trip.py

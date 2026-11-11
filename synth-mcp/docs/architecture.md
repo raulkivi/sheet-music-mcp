@@ -99,7 +99,7 @@ No MCP imports; each step is a no-op at its default.
 |----------|-------------|
 | `validate_options(repeat, count_in_bars, metronome, timbre)` | Bounds for direct engine calls; returns the timbre's GM program (None for `score`) |
 | `resolve_gains(parts, part_gains, preset, focus_part)` | One gain per selected part (preset base, `part_gains` overrides via `resolve_parts`), or None |
-| `cc7_value(gain)` | `round(127 × gain / 2)` |
+| `cc7_value(gain)` | 0 → 0, 1.0 → `DEFAULT_CC7` (100, MIDI's default channel volume), 2.0 → 127; linear on each side of 1.0 |
 | `expand_repeats(score)` | Written repeats played out before clicks are laid (music21's export would do it anyway) |
 | `repeat_music(score, times)` | Appends each part's bars `times − 1` more times; ties cut at the joins |
 | `scale_tempo(score, factor)` | Scales `number` and `numberSounding` of every MetronomeMark; default 120 × factor when none |

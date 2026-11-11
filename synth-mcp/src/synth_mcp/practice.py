@@ -23,6 +23,9 @@ PRESETS = ("learning", "karaoke", "equal")
 _PRESET_GAINS = {"learning": (1.5, 0.5), "karaoke": (0.0, 1.0), "equal": (1.0, 1.0)}
 _FOCUS_PRESETS = ("learning", "karaoke")
 MAX_GAIN = 2.0
+# Channel volume (CC7) of a MIDI channel nothing has set: the GM default, which FluidSynth uses.
+DEFAULT_CC7 = 100
+MAX_CC7 = 127
 
 # GM program per timbre (0-indexed); "score" keeps music21's instruments.
 TIMBRES = {"score": None, "piano": 0, "choir": 52, "organ": 19}
@@ -68,8 +71,14 @@ def _check_int(value, name: str, low: int, high: int) -> None:
 
 
 def cc7_value(gain: float) -> int:
-    """MIDI channel volume for a gain of 0.0–2.0: 0 → 0, 1.0 → 64, 2.0 → 127."""
-    return round(127 * gain / 2)
+    """MIDI channel volume for a gain of 0.0–2.0: 0 → 0, 1.0 → 100, 2.0 → 127.
+
+    Linear in two pieces around ``DEFAULT_CC7``, the channel volume a render without gains keeps,
+    so gain 1.0 ("no change") sounds exactly like no gain at all.
+    """
+    if gain <= 1.0:
+        return round(DEFAULT_CC7 * gain)
+    return round(DEFAULT_CC7 + (MAX_CC7 - DEFAULT_CC7) * (gain - 1.0) / (MAX_GAIN - 1.0))
 
 
 def resolve_gains(

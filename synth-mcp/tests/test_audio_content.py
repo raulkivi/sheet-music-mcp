@@ -5,9 +5,9 @@ when ``SYNTH_SOUNDFONT_PATH`` is unset. Run with::
 
     SYNTH_SOUNDFONT_PATH=/usr/share/sounds/sf2/TimGM6mb.sf2 .venv/bin/pytest tests/test_audio_content.py -m integration
 
-Tolerances, not byte equality: FluidSynth output drifts between versions. Not covered yet:
-note onsets within +-20 ms of the MIDI (needs an RMS-envelope cross-correlation; add it once a
-soundfont runs in CI, plan item P6).
+Tolerances, not byte equality: FluidSynth output drifts between versions. Tuned against real
+renders with TimGM6mb.sf2 and libfluidsynth 2.3.4 (P6, 2026-11-11): every render runs 3.00-3.01 s
+past the last MIDI note-off, and a render's start moves by up to about 3 ms between runs.
 """
 
 import math
@@ -17,8 +17,14 @@ import pytest
 
 from synth_mcp.engine import extract_midi, synthesize_midi
 
-from .audio_features import analyze_wav
-from .midi_helpers import fixture, last_melodic_note_off_tick, read_midi, tempos
+from .audio_features import analyze_wav, onsets_near, read_wav
+from .midi_helpers import (
+    fixture,
+    last_melodic_note_off_tick,
+    melodic_tracks,
+    read_midi,
+    tempos,
+)
 
 pytestmark = [
     pytest.mark.integration,
@@ -29,29 +35,46 @@ pytestmark = [
 ]
 
 SATB = fixture("satb_4bars.musicxml")
-RELEASE_TAIL_S = 3.0  # FluidSynth renders reverb and release after the last note-off
+RELEASE_TAIL_S = 3.5  # measured 3.00-3.01 s of release and reverb after the last note-off
 LEVEL_TOLERANCE_DB = 1.5
+ONSET_TOLERANCE_S = 0.02
 
 
-def midi_seconds(midi_bytes: bytes) -> float:
-    """Seconds from the start of the MIDI to the last melodic note-off, following tempo changes."""
-    tpq, tracks = read_midi(midi_bytes)
-    end = last_melodic_note_off_tick(tracks)
+def tick_seconds(tick: int, tpq: int, tracks) -> float:
+    """Seconds from the start of the MIDI to ``tick``, following tempo changes."""
     changes = tempos(tracks) or [(0, 120.0)]
     if changes[0][0] != 0:
         changes.insert(0, (0, 120.0))
     seconds = 0.0
-    for i, (tick, bpm) in enumerate(changes):
-        upto = min(end, changes[i + 1][0]) if i + 1 < len(changes) else end
-        if upto > tick:
-            seconds += (upto - tick) / tpq * 60.0 / bpm
+    for i, (at, bpm) in enumerate(changes):
+        upto = min(tick, changes[i + 1][0]) if i + 1 < len(changes) else tick
+        if upto > at:
+            seconds += (upto - at) / tpq * 60.0 / bpm
     return seconds
 
 
-def render(tmp_path, name: str, **kwargs):
+def midi_seconds(midi_bytes: bytes) -> float:
+    """Seconds from the start of the MIDI to the last melodic note-off."""
+    tpq, tracks = read_midi(midi_bytes)
+    return tick_seconds(last_melodic_note_off_tick(tracks), tpq, tracks)
+
+
+def midi_onsets(midi_bytes: bytes) -> list[float]:
+    """Seconds of each distinct melodic note-on time."""
+    tpq, tracks = read_midi(midi_bytes)
+    ticks = sorted({e.tick for t in melodic_tracks(tracks) for e in t.of("note_on")})
+    return [tick_seconds(tick, tpq, tracks) for tick in ticks]
+
+
+def render_wav(tmp_path, name: str, **kwargs):
     midi = extract_midi(SATB, kwargs.pop("parts", None), kwargs.pop("tempo", 1.0), **kwargs)
     wav = tmp_path / f"{name}.wav"
     synthesize_midi(midi, str(wav))
+    return midi, wav
+
+
+def render(tmp_path, name: str, **kwargs):
+    midi, wav = render_wav(tmp_path, name, **kwargs)
     return midi, analyze_wav(wav)
 
 
@@ -108,3 +131,24 @@ def test_part_gain_moves_only_that_part(tmp_path):
         "the other parts keep their level when the bass is silenced"
     )
     assert mean_rms(bass_quiet) < mean_rms(bass_only), "a lower gain makes that part quieter"
+
+
+@pytest.mark.parametrize(
+    "name, kwargs",
+    [
+        ("plain", {}),  # 90 BPM, then 120 BPM from bar 3
+        ("slow", {"tempo": 0.5}),
+        ("count_in", {"count_in_bars": 1}),
+    ],
+)
+def test_note_onsets_follow_the_midi(tmp_path, name, kwargs):
+    midi, wav = render_wav(tmp_path, name, **kwargs)
+    expected = midi_onsets(midi)
+    samples, rate, _ = read_wav(wav)
+    found = onsets_near(samples, rate, expected)
+    late = [
+        (round(e, 3), None if f is None else round(f - e, 3))
+        for e, f in zip(expected, found)
+        if f is None or abs(f - e) > ONSET_TOLERANCE_S
+    ]
+    assert late == [], f"onsets off the MIDI by more than 20 ms: (expected s, error s) {late}"

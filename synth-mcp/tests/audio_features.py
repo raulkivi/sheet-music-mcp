@@ -10,9 +10,12 @@ Conventions:
 - Samples are normalised to floats in [-1.0, 1.0) (16-bit PCM divided by 32768).
 - A sample is *clipped* when ``abs(x) >= CLIP_THRESHOLD`` (0.999, about 32735 in int16).
 - RMS is measured per ``WINDOW_S`` (50 ms) window over all channels pooled; the last window may be
-  shorter than the others and is kept.
+  shorter than the others and is kept. A window is a whole number of samples, so its real length
+  (``window_seconds``) can differ from the nominal one; times are counted in real lengths.
 - A window is *silent* when its RMS is below ``SILENCE_RMS`` (0.001, about -60 dBFS). A silence span
   is a run of silent windows, as ``(start_s, end_s)``, with the end clipped to the file duration.
+- An *onset* is where the RMS envelope (``ONSET_WINDOW_S`` windows) crosses half its rise near an
+  expected time (``onsets_near``): a struck note's attack, even while earlier notes still ring.
 """
 
 import wave
@@ -25,6 +28,8 @@ CLIP_THRESHOLD = 0.999
 WINDOW_S = 0.05
 SILENCE_RMS = 0.001
 MIN_SILENCE_S = 0.1  # analyze_wav ignores gaps shorter than this (note gaps, not dropouts)
+ONSET_WINDOW_S = 0.005
+ONSET_SEARCH_S = 0.1
 
 
 @dataclass(frozen=True)
@@ -58,10 +63,22 @@ def clipped_sample_count(samples: np.ndarray) -> int:
     return int(np.count_nonzero(np.abs(samples) >= CLIP_THRESHOLD))
 
 
+def window_frames(window_s: float, sample_rate: int) -> int:
+    """Samples per RMS window: ``window_s`` rounded to whole samples (220 for 5 ms at 44.1 kHz)."""
+    return max(1, round(window_s * sample_rate))
+
+
+def window_seconds(window_s: float, sample_rate: int) -> float:
+    """The real length of an RMS window. Count window starts with this, never with ``window_s``:
+    at 44.1 kHz a 5 ms window is 220 samples, and nominal 5 ms steps run 1/441 ahead of the audio.
+    """
+    return window_frames(window_s, sample_rate) / sample_rate
+
+
 def rms_per_window(samples: np.ndarray, sample_rate: int, window_s: float = WINDOW_S) -> list[float]:
     """RMS of each consecutive window (all channels pooled); a short final window is kept."""
     frames = samples.reshape(len(samples), -1) if samples.ndim > 1 else samples.reshape(-1, 1)
-    size = max(1, round(window_s * sample_rate))
+    size = window_frames(window_s, sample_rate)
     return [
         float(np.sqrt(np.mean(frames[i : i + size] ** 2)))
         for i in range(0, len(frames), size)
@@ -92,6 +109,43 @@ def silence_spans(
     return spans
 
 
+def onsets_near(
+    samples: np.ndarray,
+    sample_rate: int,
+    expected_s: list[float],
+    *,
+    search_s: float = ONSET_SEARCH_S,
+    window_s: float = ONSET_WINDOW_S,
+) -> list[float | None]:
+    """For each expected time, where the RMS envelope crosses half its rise (None: no rise).
+
+    The rise runs from the quietest window in the ``search_s`` before the expected time to the
+    loudest in the ``search_s`` after it; the onset is the start of the first window, from
+    ``search_s`` before, at or above the halfway level. Robust to the envelope's ripple, unlike the
+    steepest rise.
+    """
+    rms = np.asarray(rms_per_window(samples, sample_rate, window_s))
+    starts = np.arange(len(rms)) * window_seconds(window_s, sample_rate)
+    found: list[float | None] = []
+    for expected in expected_s:
+        before = rms[(starts >= expected - search_s - 1e-9) & (starts <= expected + 1e-9)]
+        after_mask = (starts >= expected - 1e-9) & (starts <= expected + search_s + 1e-9)
+        after = rms[after_mask]
+        if not after.size:
+            found.append(None)
+            continue
+        base = float(before.min()) if before.size else 0.0
+        peak = float(after.max())
+        if peak - base <= SILENCE_RMS:
+            found.append(None)
+            continue
+        level = base + (peak - base) / 2
+        span = np.nonzero((starts >= expected - search_s - 1e-9) & (starts <= expected + search_s + 1e-9))[0]
+        first = next(i for i in span if rms[i] >= level)
+        found.append(float(starts[first]))
+    return found
+
+
 def analyze_wav(
     path: str | Path,
     *,
@@ -102,6 +156,7 @@ def analyze_wav(
     samples, rate, channels = read_wav(path)
     duration = len(samples) / rate
     rms = rms_per_window(samples, rate, window_s)
+    window_s = window_seconds(window_s, rate)
     return AudioFeatures(
         duration_s=duration,
         sample_rate=rate,

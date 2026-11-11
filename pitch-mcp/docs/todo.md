@@ -115,3 +115,33 @@ marker when fixed.
       `tools/release-evidence/README.md`.
 - [ ] **Record evidence before the next pitch-mcp release** (owner, real microphone), then push the
       notes ref. Without it the publish workflow stops at the `evidence` job.
+
+---
+
+## Round trip synth-mcp -> pitch-mcp (2026-11-11, P6 / S3)
+
+`tests/test_round_trip.py` renders each part of `tests/fixtures/satb_round_trip.musicxml` with
+synth-mcp (in synth-mcp's own venv, via `tests/synth_bridge.py`) and reads it back. All 4 parts pass:
+pitch within 10 cents, onsets within about 25 ms, `analyze_recording` grades every note `on_pitch`,
+with the score timbre and with `timbre="choir"`. No pitch-mcp defect found.
+
+Found on the synth side by the same work (recorded here because synth-mcp has no todo file).
+Both fixed 2026-11-11; the assertions are unchanged and `synth-mcp -m integration` is green:
+
+- [x] **~~synth-mcp audio drifts late against its MIDI by about 2.27 ms per second~~ - not a synth
+      defect: the drift was in the test's measurement.** `audio_features.onsets_near` (and
+      `analyze_wav`'s silence spans) counted window starts in nominal 5 ms steps, but a 5 ms window
+      at 44.1 kHz is 220.5 samples, rounded to 220, so every window is 4.989 ms and the time axis ran
+      ahead of the audio by 220.5/220 = 1.00227 (the 1/441, 75 ms at 31.5 s). Evidence: a note-on
+      every 2 s sent by hand with `fluid_synth_write_s16` (no player) "drifted" the same; at 48 kHz
+      (240 whole samples) neither drifts. FluidSynth's player, sample rate (44100 in synth and
+      header) and timing source were all fine. Fixed in `synth-mcp/tests/audio_features.py`: window
+      times use the real window length (`window_seconds`); unit tests at 44.1 kHz and 22.05 kHz in
+      `test_audio_features.py`. The earlier finding that the offline `fluid_file_renderer`
+      drifts too came from the same measurement.
+- [x] **Any `part_gains` value lowered the whole mix by 7.7 dB.** Gain 1.0 mapped to CC7 64 while a
+      render without gains keeps FluidSynth's default CC7 100; FluidSynth's 40 log10 curve gives
+      40 log10(64/100) = -7.7 dB. Fixed in `synth-mcp/src/synth_mcp/practice.py` `cc7_value`:
+      0 -> 0, 1.0 -> `DEFAULT_CC7` 100, 2.0 -> 127, linear on each side of 1.0, so unnamed parts
+      and gain 1.0 keep the default level. Pinned by `test_part_gain_moves_only_that_part` (1.5 dB
+      tolerance kept) and `TestCc7Value`.

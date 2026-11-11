@@ -102,7 +102,7 @@ class TestSynthesize:
         data = _json(result)
         assert "error" not in data
         _, tracks = read_midi(rendered[0])
-        assert [cc7(t) for t in melodic_tracks(tracks)] == [[32], [95], [32], [32]]
+        assert [cc7(t) for t in melodic_tracks(tracks)] == [[50], [114], [50], [50]]
         assert len(click_events(tracks)) == 4
 
     async def test_result_echoes_the_practice_options(self, rendered):

@@ -9,7 +9,7 @@ from sheet_music_mcp_core.errors import ProcessingError
 from sheet_music_mcp_core.parts import PartInfo
 
 from synth_mcp.engine import extract_midi
-from synth_mcp.practice import cc7_value, resolve_gains
+from synth_mcp.practice import DEFAULT_CC7, cc7_value, resolve_gains
 
 from .midi_helpers import (
     cc7,
@@ -71,9 +71,22 @@ def test_defaults_have_no_cc7_and_no_clicks():
 
 
 class TestCc7Value:
-    @pytest.mark.parametrize("gain, value", [(0, 0), (0.0, 0), (0.5, 32), (1.0, 64), (1.5, 95), (2.0, 127)])
+    @pytest.mark.parametrize(
+        "gain, value", [(0, 0), (0.0, 0), (0.5, 50), (1.0, 100), (1.5, 114), (2.0, 127)]
+    )
     def test_mapping(self, gain, value):
         assert cc7_value(gain) == value
+
+    def test_gain_one_is_the_level_without_gains(self):
+        # A render without part_gains keeps FluidSynth's (and GM's) default channel volume, 100.
+        # Gain 1.0 means "no change", so it must send that same value (P6: 64 was 7.7 dB quieter).
+        assert DEFAULT_CC7 == 100
+        assert cc7_value(1.0) == DEFAULT_CC7
+
+    def test_mapping_rises_with_the_gain(self):
+        values = [cc7_value(g / 20) for g in range(41)]
+        assert values == sorted(values)
+        assert len(set(values)) == len(values)
 
 
 class TestResolveGains:
@@ -143,23 +156,23 @@ class TestGainsInMidi:
         _, tracks = _midi(part_gains={"P2": 0})
         alto = _track_by_name(tracks, "Alto")
         assert cc7(alto) == [0]
-        assert all(cc7(_track_by_name(tracks, n)) == [64] for n in ("Soprano", "Tenor", "Bass"))
+        assert all(cc7(_track_by_name(tracks, n)) == [100] for n in ("Soprano", "Tenor", "Bass"))
 
     def test_learning_focus_is_loudest(self):
         # Proposal §7 acceptance test.
         _, tracks = _midi(preset="learning", focus_part="Alto")
         alto = cc7(_track_by_name(tracks, "Alto"))[0]
         others = [cc7(_track_by_name(tracks, n))[0] for n in ("Soprano", "Tenor", "Bass")]
-        assert alto == 95
+        assert alto == 114
         assert all(alto > other for other in others)
 
     def test_karaoke(self):
         _, tracks = _midi(preset="karaoke", focus_part="Alto")
-        assert [cc7(t) for t in melodic_tracks(tracks)] == [[64], [0], [64], [64]]
+        assert [cc7(t) for t in melodic_tracks(tracks)] == [[100], [0], [100], [100]]
 
     def test_part_gains_override_preset(self):
         _, tracks = _midi(preset="learning", focus_part="A", part_gains={"S": 2.0})
-        assert [cc7(t) for t in melodic_tracks(tracks)] == [[127], [95], [32], [32]]
+        assert [cc7(t) for t in melodic_tracks(tracks)] == [[127], [114], [50], [50]]
 
     def test_each_part_gets_its_own_channel_never_ten(self):
         # music21 puts parts with the same instrument on one channel; CC7 needs one per part.
@@ -180,7 +193,7 @@ class TestGainsInMidi:
     def test_gains_follow_the_selected_parts(self):
         _, tracks = _midi(parts=["S", "A"], preset="learning", focus_part="S")
         assert [t.name for t in melodic_tracks(tracks)] == ["Soprano", "Alto"]
-        assert [cc7(t) for t in melodic_tracks(tracks)] == [[95], [32]]
+        assert [cc7(t) for t in melodic_tracks(tracks)] == [[114], [50]]
 
     def test_learning_without_focus_is_invalid_parameter(self):
         error = _error(preset="learning")
@@ -398,7 +411,7 @@ class TestMetronome:
 
     def test_gains_with_clicks_still_follow_parts(self):
         _, tracks = _midi(count_in_bars=1, part_gains={"Tenor": 0})
-        assert [cc7(t) for t in melodic_tracks(tracks)] == [[64], [64], [0], [64]]
+        assert [cc7(t) for t in melodic_tracks(tracks)] == [[100], [100], [0], [100]]
 
 
 # ---------------------------------------------------------------------------
@@ -475,9 +488,9 @@ class TestChannels:
     def test_score_percussion_with_gains(self):
         _, tracks = _midi(WITH_DRUM, part_gains={"Drum": 0.5})
         assert _named(tracks, "Soprano").channels == {1}
-        assert cc7(_named(tracks, "Soprano")) == [64]
+        assert cc7(_named(tracks, "Soprano")) == [100]
         assert _named(tracks, "Percussion").channels == {10}
-        assert cc7(_named(tracks, "Percussion")) == [32]
+        assert cc7(_named(tracks, "Percussion")) == [50]
 
     def test_gains_need_a_channel_per_part(self):
         many = _many_parts(16)

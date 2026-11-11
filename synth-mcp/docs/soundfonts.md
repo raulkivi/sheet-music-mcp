@@ -71,3 +71,21 @@ Open your LLM client config file and change the `SYNTH_SOUNDFONT_PATH` value to 
 The `SYNTH_SOUNDFONT_PATH` line is the only one you need to change — update it to match the exact filename you downloaded, then restart your LLM client.
 
 For other clients (Cursor, Windsurf, VS Code + Continue, Zed) the same `SYNTH_SOUNDFONT_PATH` key applies — see [../SETUP.md](../SETUP.md) for the full config snippets.
+
+---
+
+## Licence of TimGM6mb.sf2 (checked 2026-11-11)
+
+- **Licence:** GPL-2 (Tim Brechbill 2004, David Bolton 2010). Redistribution is allowed.
+- **Primary source:** the Debian/Ubuntu package `timgm6mb-soundfont` 1.3-5, file
+  `/usr/share/doc/timgm6mb-soundfont/copyright`, read from the `.deb` that `apt-get download` fetched
+  from Ubuntu noble/universe (package page: <https://packages.ubuntu.com/noble/timgm6mb-soundfont>).
+  Its upstream is MuseScore's repository
+  (<https://github.com/musescore/musescore-old/commit/90c33ef9d87b3f5ff92efd3b07d89eb455fb1fef>);
+  the author's statement that the samples are his own, public domain or GPL is quoted from
+  <https://musescore.org/en/node/1463#comment-9168>.
+- **SHA-256** of the packaged file (1.3-5): `c5378b62028c920cb11e4803327983fee2f2cdff5dc89c708e39da417e51c854`.
+
+CI (`synth-integration` in `.github/workflows/tests.yml`) installs it with
+`apt-get install timgm6mb-soundfont libfluidsynth3`. The archive signs the package, so the job needs
+no download cache and no pinned checksum.

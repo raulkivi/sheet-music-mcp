@@ -12,6 +12,7 @@ from .audio_features import (
     WINDOW_S,
     analyze_wav,
     clipped_sample_count,
+    onsets_near,
     rms_per_window,
     silence_spans,
 )
@@ -154,3 +155,55 @@ class TestSilenceSpans:
     def test_quiet_noise_below_threshold_counts_as_silence(self, tmp_path):
         noise = np.random.default_rng(0).normal(0, 0.0002, RATE)
         assert len(analyze_wav(write_wav(tmp_path / "q.wav", noise)).silence_spans) == 1
+
+
+def struck(at: list[float], seconds: float, freqs: list[float], rate: int = RATE):
+    """Decaying tones (like piano keys) starting at ``at``; each rings on under the next."""
+    out = np.zeros(int(seconds * rate))
+    t = np.arange(len(out)) / rate
+    for start, freq in zip(at, freqs):
+        on = t >= start
+        out[on] += 0.3 * np.exp(-(t[on] - start) * 3) * np.sin(2 * np.pi * freq * (t[on] - start))
+    return out
+
+
+class TestOnsetsNear:
+    STARTS = [0.3, 0.9, 1.4]
+
+    def test_finds_each_struck_note_within_5_ms(self):
+        signal = struck(self.STARTS, 2.0, [440.0, 494.0, 523.0]).reshape(-1, 1)
+        found = onsets_near(signal, RATE, self.STARTS)
+        assert np.allclose(found, self.STARTS, atol=0.005), found
+
+    def test_finds_an_onset_off_the_expected_time(self):
+        signal = struck([0.33], 1.0, [440.0]).reshape(-1, 1)
+        [found] = onsets_near(signal, RATE, [0.3], search_s=0.1)
+        assert found == pytest.approx(0.33, abs=0.005)
+
+    def test_an_onset_beyond_the_search_window_is_not_found(self):
+        signal = struck([0.6], 1.0, [440.0]).reshape(-1, 1)
+        assert onsets_near(signal, RATE, [0.3], search_s=0.1) == [None]
+
+    def test_stereo_pools_channels(self):
+        mono = struck(self.STARTS, 2.0, [440.0, 494.0, 523.0])
+        found = onsets_near(np.stack([mono, mono], axis=1), RATE, self.STARTS)
+        assert np.allclose(found, self.STARTS, atol=0.005)
+
+    def test_window_starts_stay_on_the_samples_when_the_window_is_not_whole(self):
+        # At 44.1 kHz a 5 ms window is 220.5 samples and is cut to 220: window starts counted
+        # in nominal 5 ms steps run ahead of the audio by 1/441 (75 ms at 33 s).
+        rate = 44100
+        starts = [1.0, 16.0, 31.5]
+        signal = struck(starts, 33.0, [440.0, 494.0, 523.0], rate=rate).reshape(-1, 1)
+        found = onsets_near(signal, rate, starts)
+        assert np.allclose(found, starts, atol=0.005), found
+
+
+def test_silence_spans_stay_on_the_samples_when_the_window_is_not_whole(tmp_path):
+    # At 22.05 kHz a 50 ms window is 1102.5 samples, cut to 1102: 0.1 s off after two minutes.
+    rate = 22050
+    signal = np.concatenate([sine(120.0, rate=rate), silence(1.0, rate=rate), sine(1.0, rate=rate)])
+    f = analyze_wav(write_wav(tmp_path / "long.wav", signal, rate=rate))
+    [(start, end)] = f.silence_spans
+    assert start == pytest.approx(120.0, abs=0.05)
+    assert end == pytest.approx(121.0, abs=0.05)

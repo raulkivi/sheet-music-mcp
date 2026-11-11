@@ -83,7 +83,7 @@ as without the option: no CC7, no program change, no clicks, the whole score.
 - **`timbre`** `score | piano | choir | organ` (C11): GM program 0, 52 or 19, one program change
   at tick 0 on every melodic channel; `score` keeps the score's instruments.
 - **`part_gains`**, **`preset`** and **`focus_part`** (C8): one CC7 at tick 0 per selected part,
-  `round(127 × gain / 2)`. Presets: learning focus 1.5 / others 0.5, karaoke focus 0 / others 1.0,
+  `round(100 × gain)` up to 1.0, then `round(100 + 27 × (gain − 1))` (0 → 0, 0.5 → 50, 1.0 → 100, 1.5 → 114, 2.0 → 127): gain 1.0 is MIDI's default channel volume 100, the level of a render without gains. Presets: learning focus 1.5 / others 0.5, karaoke focus 0 / others 1.0,
   equal 1.0; `part_gains` entries (part ID, name or voice, 0.0–2.0) override them, other parts get
   1.0. With gains each melodic part gets its own MIDI channel (at most 15 pitched parts).
   `learning` / `karaoke` without `focus_part`, an unknown `focus_part` or `part_gains` key, or
