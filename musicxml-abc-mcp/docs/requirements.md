@@ -93,6 +93,11 @@ The server MUST replace a range of bars of one part with edited ABC and keep the
 - A reversed or out-of-range `measures`, or an unknown or ambiguous part, MUST return
   `INVALID_PARAMETER` (with `hint` or `choices`). ABC that fails to parse, several tunes or voices,
   a missing `K:` line or a timewise score MUST return `INVALID_INPUT`. No file is written on error.
+- A parse failure MUST return a fixed message (`Bar N of the ABC could not be parsed; check the bar
+  syntax.`, `INVALID_INPUT`, with `hint`); music21's own text is logged, never returned.
+- Limits: `abc` longer than `MAX_ABC_CHARS` (65536) or more than `MAX_EDIT_BARS` (64) bars in one
+  edit MUST return `INVALID_PARAMETER` with a `hint` to split the edit, before any bar is parsed
+  (each bar costs one music21 parse).
 
 ### FR-4 — Capability reporting
 

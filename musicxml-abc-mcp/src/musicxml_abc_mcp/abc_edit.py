@@ -13,6 +13,7 @@ No MCP imports: unit-testable without the MCP stack.
 from __future__ import annotations
 
 import copy
+import logging
 import math
 import re
 from dataclasses import dataclass
@@ -30,7 +31,16 @@ from sheet_music_mcp_core.scores import parse_score
 from .abc_bars import split_bars
 from .engine import abc_to_musicxml
 
-__all__ = ["apply_abc_edit"]
+__all__ = ["MAX_ABC_CHARS", "MAX_EDIT_BARS", "apply_abc_edit"]
+
+logger = logging.getLogger(__name__)
+
+# 64 KiB of ABC is about 20x a long hymn (a few KB) yet bounds memory and the line scanner.
+MAX_ABC_CHARS = 65536
+# Each bar costs one music21 parse (tens of ms); 64 bars is a full page of a choral part
+# and bounds one call to a few seconds. Longer passages are edited in several calls.
+MAX_EDIT_BARS = 64
+_SPLIT_HINT = "Split the edit into smaller calls: pass fewer bars and the matching shorter measures range."
 
 _TIMED = ("note", "backup", "forward")
 # Content of an ABC bar that the original score decides instead: key, time, clef and divisions
@@ -55,6 +65,10 @@ def apply_abc_edit(musicxml_str: str, part: str, measures: Sequence[int], abc: s
     """
     if measures is None:
         raise ProcessingError("measures is required.", "INVALID_PARAMETER", hint="Pass [start, end], e.g. [12, 14].")
+    if len(abc or "") > MAX_ABC_CHARS:
+        raise ProcessingError(
+            f"The ABC is longer than {MAX_ABC_CHARS} characters.", "INVALID_PARAMETER", hint=_SPLIT_HINT
+        )
     # Checks the score and the range with the same errors and hints as every other measures tool.
     select_measures(musicxml_str, measures)
     start, end = measures
@@ -74,6 +88,12 @@ def apply_abc_edit(musicxml_str: str, part: str, measures: Sequence[int], abc: s
         raise ProcessingError(f"Part {part_id} has fewer measures than the first part.", "INVALID_INPUT")
 
     tunes = split_bars(abc)
+    if len(tunes) > MAX_EDIT_BARS:
+        raise ProcessingError(
+            f"The ABC has {len(tunes)} bars; one edit takes at most {MAX_EDIT_BARS}.",
+            "INVALID_PARAMETER",
+            hint=_SPLIT_HINT,
+        )
     if len(tunes) != len(positions):
         raise ProcessingError(
             f"The ABC has {len(tunes)} bars but measures {start}–{end} are {len(positions)} bars.",
@@ -140,7 +160,11 @@ def _abc_bar(tune: str, index: int) -> _Bar:
     try:
         converted = abc_to_musicxml(tune)["musicxml"]
     except ProcessingError as error:
-        raise ProcessingError(f"Bar {index} of the ABC: {error}", error.error_code, hint=error.hint or _ABC_HINT) from None
+        # music21's text can echo input or internals: log it, show a fixed message.
+        logger.warning("apply_abc_edit: bar %d failed to parse: %s", index, error)
+        raise ProcessingError(
+            f"Bar {index} of the ABC could not be parsed; check the bar syntax.", "INVALID_INPUT", hint=_ABC_HINT
+        ) from None
     parts = parse_score(converted).findall("part")
     divisions = next((_int(found.text) for part in parts for found in part.iter("divisions")), None)
     if len(parts) != 1 or not divisions:
