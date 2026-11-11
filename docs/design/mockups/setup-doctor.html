@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Setup Doctor · Kannel mockup</title>
+    <link rel="stylesheet" href="../tokens.css" />
+    <link rel="stylesheet" href="mockup.css" />
+    <script>
+      (function () {
+        var t = new URLSearchParams(location.search).get("theme");
+        if (t) document.documentElement.setAttribute("data-theme", t);
+      })();
+    </script>
+  </head>
+  <body>
+    <p class="mock-note">Kannel mockup · Setup Doctor (health_check, all servers) · static, sample data</p>
+    <div class="app">
+      <div class="flag-bar" aria-hidden="true"></div>
+      <header class="app-head">
+        <div class="brand">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 12 C7 8 12 9 15 11 L21 6 L19 12 L21 18 L15 13 C12 15 7 16 3 12 Z" />
+            <circle cx="8" cy="11" r="0.9" fill="currentColor" stroke="none" />
+          </svg>
+          <span>Setup Doctor</span>
+          <small>Checked just now · render-mcp, synth-mcp, omr-mcp</small>
+        </div>
+        <div class="head-end">
+          <span class="badge warn">2 to fix · 4 ready</span>
+        </div>
+      </header>
+
+      <div class="toolbar" role="toolbar" aria-label="Setup actions">
+        <button class="btn primary" type="button">Check again</button>
+        <button class="btn" type="button">Copy report for support</button>
+      </div>
+
+      <main class="main split">
+        <section class="panel" aria-label="Checks">
+          <ul class="list">
+            <li>
+              <span class="badge ok">Ready</span>
+              <span><strong>Verovio (music engraving)</strong><br /><span class="caption">Built in. Nothing to do.</span></span>
+            </li>
+            <li>
+              <span class="badge ok">Ready</span>
+              <span><strong>FluidSynth (audio)</strong><br /><span class="caption">Version 2.3 found.</span></span>
+            </li>
+            <li>
+              <span class="badge ok">Ready</span>
+              <span><strong>Soundfont</strong><br /><span class="caption mono">/usr/share/sounds/sf2/TimGM6mb.sf2</span></span>
+            </li>
+            <li>
+              <span class="badge ok">Ready</span>
+              <span><strong>PortAudio (microphone)</strong><br /><span class="caption">Input device found: USB microphone.</span></span>
+            </li>
+            <li>
+              <span class="badge bad">Must fix</span>
+              <span>
+                <strong>Audiveris (keeps SATB parts)</strong><br />
+                <span class="caption">Not found. Without it, OMR uses oemer, which loses the SATB voice structure of choir scores.</span>
+                <span class="group" style="margin-top: 8px">
+                  <button class="btn primary" type="button">Show install steps</button>
+                  <button class="btn" type="button">Use oemer for now</button>
+                </span>
+              </span>
+            </li>
+            <li>
+              <span class="badge warn">Check</span>
+              <span>
+                <strong>Model cache (oemer)</strong><br />
+                <span class="caption">Last used 40 days ago. First run downloads again if the cache was cleared.</span>
+              </span>
+            </li>
+          </ul>
+        </section>
+
+        <aside class="panel" aria-label="Summary">
+          <h2>Before you start</h2>
+          <p style="margin: 0 0 12px">Two things need fixing. Everything else is ready.</p>
+          <ol class="caption" style="padding-left: 18px; color: var(--color-text-primary)">
+            <li>Install Audiveris (steps open in a new view).</li>
+            <li>Check the oemer model cache once.</li>
+          </ol>
+        </aside>
+      </main>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Score Viewer · Kannel mockup</title>
+    <link rel="stylesheet" href="../tokens.css" />
+    <link rel="stylesheet" href="mockup.css" />
+    <script>
+      (function () {
+        var t = new URLSearchParams(location.search).get("theme");
+        if (t) document.documentElement.setAttribute("data-theme", t);
+      })();
+    </script>
+  </head>
+  <body>
+    <p class="mock-note">Kannel mockup · Score Viewer (render-mcp) · static, sample data</p>
+    <div class="app">
+      <div class="flag-bar" aria-hidden="true"></div>
+      <header class="app-head">
+        <div class="brand">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 5 H21 M3 9 H21 M3 13 H21 M3 17 H21 M3 21 H21" />
+            <circle cx="8" cy="15" r="2" />
+            <path d="M10 15 V7" />
+          </svg>
+          <span>Score Viewer</span>
+          <small>Sample: Ave verum, SATB</small>
+        </div>
+        <div class="head-end">
+          <span class="badge info">Engine: in page</span>
+        </div>
+      </header>
+
+      <div class="toolbar" role="toolbar" aria-label="Score controls">
+        <div class="group">
+          <button class="btn icon-only" type="button" aria-label="Previous page">&#8249;</button>
+          <span class="num" aria-live="polite">Page 3 of 12</span>
+          <button class="btn icon-only" type="button" aria-label="Next page">&#8250;</button>
+        </div>
+        <span class="sep" aria-hidden="true"></span>
+        <div class="group">
+          <button class="btn icon-only" type="button" aria-label="Zoom out">&minus;</button>
+          <span class="num">100%</span>
+          <button class="btn icon-only" type="button" aria-label="Zoom in">+</button>
+        </div>
+        <div class="group" style="margin-left: auto">
+          <button class="btn" type="button">Download SVG</button>
+          <button class="btn quiet" type="button" aria-label="Fullscreen">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 9 V4 H9 M15 4 H20 V9 M20 15 V20 H15 M9 20 H4 V15" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <main class="main split">
+        <section class="panel" aria-label="Score page">
+          <svg class="score" viewBox="0 0 600 300" role="img" aria-label="Sample page: four bars of four voices">
+            <path class="staff" d="M20 30H580M20 40H580M20 50H580M20 60H580M20 70H580" />
+            <path class="staff" d="M20 120H580M20 130H580M20 140H580M20 150H580M20 160H580" />
+            <path class="stem" d="M96 70V40 M150 60V30 M206 55V25 M262 50V20" />
+            <ellipse class="notehead" cx="90" cy="70" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="144" cy="60" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="200" cy="55" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="256" cy="50" rx="6" ry="4.5" />
+            <path class="stem" d="M96 160V130 M150 150V120 M206 140V110 M262 130V100" />
+            <ellipse class="notehead" cx="90" cy="160" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="144" cy="150" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="200" cy="140" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="256" cy="130" rx="6" ry="4.5" />
+            <text class="lyric" x="84" y="190">A-ve</text>
+            <text class="lyric" x="138" y="190">ve-rum</text>
+            <text class="lyric" x="194" y="190">cor-pus</text>
+            <text class="lyric" x="250" y="190">na-tum</text>
+            <path class="stem" d="M330 70V40 M384 60V30 M440 55V25 M496 50V20" />
+            <ellipse class="notehead" cx="324" cy="70" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="378" cy="60" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="434" cy="55" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="490" cy="50" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="324" cy="160" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="378" cy="150" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="434" cy="140" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="490" cy="130" rx="6" ry="4.5" />
+          </svg>
+          <p class="caption" style="margin-top: 8px">Page 3 of 12 · zoom 100% · notes and staff lines follow the text colour, so both themes keep 3:1 marks.</p>
+        </section>
+
+        <aside class="panel" aria-label="About this page">
+          <h2>This page</h2>
+          <ul class="list">
+            <li><span class="badge ok">Loaded</span><span>Measures 17 to 24 on this page</span></li>
+            <li><span class="badge info">Saved</span><span class="mono">Ave_verum_p3.svg</span></li>
+          </ul>
+          <p class="caption" style="margin-top: 12px">Keyboard: Tab reaches every control; arrow keys turn the page; Enter activates a focused button.</p>
+        </aside>
+      </main>
+    </div>
+  </body>
+</html>

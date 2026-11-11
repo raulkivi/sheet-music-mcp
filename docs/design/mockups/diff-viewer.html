@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Diff Viewer · Kannel mockup</title>
+    <link rel="stylesheet" href="../tokens.css" />
+    <link rel="stylesheet" href="mockup.css" />
+    <style>
+      /* Edition A: solid mark. Edition B: dashed mark. Both have a word, so colour is not the only signal. */
+      .only-a {
+        color: var(--kannel-accent-text);
+      }
+      .only-b {
+        color: var(--kannel-warning-text);
+      }
+      .change-list li.selected {
+        background: var(--kannel-tint);
+      }
+      .swatch {
+        display: inline-block;
+        width: 24px;
+        height: 0;
+        border-top: 3px solid currentColor;
+        vertical-align: middle;
+      }
+      .swatch.dashed {
+        border-top-style: dashed;
+      }
+      .summary {
+        font-size: 28px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+    <script>
+      (function () {
+        var t = new URLSearchParams(location.search).get("theme");
+        if (t) document.documentElement.setAttribute("data-theme", t);
+      })();
+    </script>
+  </head>
+  <body>
+    <p class="mock-note">Kannel mockup · Diff Viewer (comparer-mcp) · static, sample data</p>
+    <div class="app">
+      <div class="flag-bar" aria-hidden="true"></div>
+      <header class="app-head">
+        <div class="brand">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 7 H11 M3 12 H11 M3 17 H11" />
+            <path d="M13 7 H21 M13 12 H21 M13 17 H21" />
+            <path d="M9 4 L6 7 L9 10 M15 14 L18 17 L15 20" />
+          </svg>
+          <span>Diff Viewer</span>
+          <small>Edition A (1962) vs Edition B (2024)</small>
+        </div>
+        <div class="head-end">
+          <span class="badge info">Similarity 92%</span>
+        </div>
+      </header>
+
+      <div class="toolbar" role="toolbar" aria-label="Diff filters">
+        <div class="group" role="group" aria-label="Filter by kind">
+          <button class="chip" type="button" aria-pressed="true">Pitch</button>
+          <button class="chip" type="button" aria-pressed="true">Rhythm</button>
+          <button class="chip" type="button" aria-pressed="false">Lyrics</button>
+          <button class="chip" type="button" aria-pressed="false">Dynamics</button>
+        </div>
+        <span class="sep" aria-hidden="true"></span>
+        <div class="group" role="group" aria-label="Measures">
+          <label class="caption" for="from">Bars</label>
+          <input id="from" type="number" value="17" min="1" style="width: 64px; min-height: 40px; font: inherit" />
+          <span>to</span>
+          <input type="number" value="24" min="1" aria-label="Last bar" style="width: 64px; min-height: 40px; font: inherit" />
+        </div>
+        <div class="group" style="margin-left: auto">
+          <button class="btn" type="button">Report</button>
+          <button class="btn primary" type="button">Export annotated scores</button>
+        </div>
+      </div>
+
+      <main class="main split">
+        <section class="panel" aria-label="Changes side by side">
+          <h2>Bars 17 to 18, alto</h2>
+          <p class="caption" style="margin-bottom: 8px">
+            <span class="swatch only-a" aria-hidden="true"></span> only in A (solid)
+            &nbsp;&nbsp;
+            <span class="swatch only-b dashed" aria-hidden="true"></span> only in B (dashed)
+          </p>
+          <svg class="score" viewBox="0 0 600 170" role="img" aria-label="Bars 17 and 18 in both editions; bar 18 beat 2 differs: A has E flat, B has E natural">
+            <path class="staff" d="M20 40H580M20 50H580M20 60H580M20 70H580M20 80H580" />
+            <path class="stem" d="M96 80V50 M150 70V40 M206 65V35 M262 60V30 M340 80V50 M396 70V40" />
+            <ellipse class="notehead" cx="90" cy="80" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="144" cy="70" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="200" cy="65" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="256" cy="60" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="334" cy="80" rx="6" ry="4.5" />
+            <ellipse class="notehead only-a" cx="390" cy="70" rx="6" ry="4.5" stroke="currentColor" stroke-width="2" />
+            <ellipse class="notehead only-b" cx="390" cy="66" rx="6" ry="4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2" />
+          </svg>
+          <p class="caption" style="margin-top: 8px">Bar 18, beat 2: A reads E♭, B reads E♮. Both notes are drawn; the mark tells them apart.</p>
+        </section>
+
+        <aside class="panel" aria-label="Change list">
+          <h2>Changes (6)</h2>
+          <ul class="list change-list">
+            <li class="selected" aria-current="true">
+              <span class="badge info">Pitch</span>
+              <span><strong>Bar 18, beat 2</strong> · alto<br /><span class="caption">E♭ in A, E♮ in B</span></span>
+            </li>
+            <li>
+              <span class="badge info">Rhythm</span>
+              <span><strong>Bar 20</strong> · tenor<br /><span class="caption">dotted quaver in A, two semiquavers in B</span></span>
+            </li>
+            <li>
+              <span class="badge warn">Lyrics</span>
+              <span><strong>Bar 21</strong> · soprano<br /><span class="caption">"cor-pus" in A, "cor-pus-" in B</span></span>
+            </li>
+          </ul>
+          <p class="caption" style="margin-top: 12px">Choose a change to move the score to its bar. Filters keep the list and the score in step.</p>
+        </aside>
+      </main>
+    </div>
+  </body>
+</html>

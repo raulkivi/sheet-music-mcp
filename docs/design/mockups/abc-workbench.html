@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ABC Workbench · Kannel mockup</title>
+    <link rel="stylesheet" href="../tokens.css" />
+    <link rel="stylesheet" href="mockup.css" />
+    <style>
+      /* Change marks: a rule on the left, a word, and a stroke style, so colour is not the only signal. */
+      .add,
+      .del {
+        display: block;
+        padding: 0 6px;
+        border-left: 3px solid;
+      }
+      .add {
+        color: var(--kannel-success-text);
+        background: var(--kannel-success-tint);
+        border-color: var(--kannel-success-text);
+      }
+      .del {
+        color: var(--kannel-danger-text);
+        background: var(--kannel-danger-tint);
+        border-color: var(--kannel-danger-text);
+        text-decoration: line-through;
+        text-decoration-thickness: 1px;
+      }
+      .add::before {
+        content: "+ ";
+      }
+      .del::before {
+        content: "− ";
+      }
+    </style>
+    <script>
+      (function () {
+        var t = new URLSearchParams(location.search).get("theme");
+        if (t) document.documentElement.setAttribute("data-theme", t);
+      })();
+    </script>
+  </head>
+  <body>
+    <p class="mock-note">Kannel mockup · ABC Workbench (musicxml-abc-mcp) · static, sample data</p>
+    <div class="app">
+      <div class="flag-bar" aria-hidden="true"></div>
+      <header class="app-head">
+        <div class="brand">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <text x="1" y="16" font-size="9" font-family="ui-monospace, monospace" fill="none" stroke="none" style="fill: currentColor">abc</text>
+            <path d="M3 20 H21" />
+          </svg>
+          <span>ABC Workbench</span>
+          <small>Proposed edit by the assistant · alto, bars 9–12</small>
+        </div>
+        <div class="head-end">
+          <span class="badge ok">Valid ABC</span>
+          <span class="badge warn">1 warning</span>
+        </div>
+      </header>
+
+      <div class="toolbar" role="toolbar" aria-label="Review controls">
+        <button class="btn" type="button" aria-pressed="true">Changes only</button>
+        <button class="btn" type="button" aria-pressed="false">Full text</button>
+        <span class="sep" aria-hidden="true"></span>
+        <span class="caption">3 lines changed · 2 added · 1 removed</span>
+        <div class="group" style="margin-left: auto">
+          <button class="btn" type="button">Reject</button>
+          <button class="btn primary" type="button">Accept and write MusicXML</button>
+        </div>
+      </div>
+
+      <main class="main split-wide">
+        <section class="panel" aria-label="Original ABC">
+          <h2>Original (score as it is)</h2>
+          <pre class="mono" style="margin: 0; padding: 8px; background: var(--color-background-primary); border-radius: 6px"><span>M:4/4
+L:1/8
+K:Eb
+V:A  name="Alto"
+|: d2 c2 B2 A2 | G4 z4 |
+   c2 d2 e2 f2 | g4 z4 :|</span></pre>
+        </section>
+
+        <section class="panel" aria-label="Proposed ABC with changes">
+          <h2>Proposed (with changes)</h2>
+          <pre class="mono" style="margin: 0; padding: 8px; background: var(--color-background-primary); border-radius: 6px"><span>M:4/4
+L:1/8
+K:Eb
+V:A  name="Alto"
+|: d2 c2 B2 A2 | G4 z4 |
+<span class="del">   c2 d2 e2 f2 | g4 z4 :|</span><span class="add">   c2 d2 e2 f2 | g4 G4 :|</span></pre>
+          <ul class="list" style="margin-top: 12px">
+            <li><span class="badge warn">Check</span><span>Bar 12 changed from a rest to a G. Is the alto meant to sing here?</span></li>
+            <li><span class="badge info">Note</span><span>Key, time and part names are unchanged.</span></li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
