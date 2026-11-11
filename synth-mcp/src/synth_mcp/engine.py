@@ -350,6 +350,53 @@ def synthesize_midi(midi_bytes: bytes, output_path: str) -> float:
 # Helpers
 # ---------------------------------------------------------------------------
 
+def wav_format(wav_path: str) -> tuple[int, int]:
+    """``(sample_rate, channels)`` of a WAV file, as the player needs them to decode it."""
+    with wave.open(wav_path, "r") as wf:
+        return wf.getframerate(), wf.getnchannels()
+
+
+def describe_mix(
+    musicxml_str: str,
+    part_ids: Optional[list[str]],
+    *,
+    part_gains: Optional[dict] = None,
+    preset: Optional[str] = None,
+    focus_part: Optional[str] = None,
+) -> list[dict]:
+    """Every part of the score with whether ``extract_midi`` plays it and at which gain.
+
+    Takes the same selection and gain options as ``extract_midi`` and resolves them with the
+    same functions, so the player's mixer shows what was really rendered. A part that was left
+    out reports gain 0.0 (it is silent in the track).
+
+    Raises:
+        ProcessingError: on parse failure, unknown part or invalid gain option.
+    """
+    try:
+        import music21.converter
+        score = music21.converter.parseData(musicxml_str, format="musicxml")
+    except ImportError as e:
+        raise ProcessingError(f"music21 is not available: {e}", "PROCESSING_FAILED")
+    except Exception as e:
+        raise ProcessingError(f"Failed to parse MusicXML: {e}", "INVALID_INPUT")
+
+    infos = music21_part_infos(score.parts)
+    wanted = {info.id for info in infos} if part_ids is None else set(resolve_parts(part_ids, infos))
+    chosen = [info for info in infos if info.id in wanted]
+    gains = resolve_gains(chosen, part_gains, preset, focus_part) or [1.0] * len(chosen)
+    gain_of = {info.id: gain for info, gain in zip(chosen, gains)}
+    return [
+        {
+            "id": info.id,
+            "name": info.name or info.id,
+            "included": info.id in wanted,
+            "gain": float(gain_of.get(info.id, 0.0)),
+        }
+        for info in infos
+    ]
+
+
 def _get_wav_duration(wav_path: str) -> float:
     """Return the duration of a WAV file in seconds."""
     with wave.open(wav_path, "r") as wf:

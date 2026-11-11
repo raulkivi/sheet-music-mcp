@@ -8,8 +8,9 @@ version/arrangement comparison, OMR quality evaluation, round-trip fidelity test
 
 **Status:** Phase 4 (Advanced features) complete — all originally-scoped phases done. UX Wave 2
 (score references) complete. UX Wave 3: `options.measures` / `list_changes.measures` (old name
-`measure_range` kept as a deprecated alias). 279 unit tests pass (+7 integration). `server.py`
-exposes all 9 tools.
+`measure_range` kept as a deprecated alias). 314 unit tests pass (+7 integration). `server.py`
+exposes all 9 tools. MCP Apps Diff Viewer server side done (`ui://comparer/diff-viewer`,
+`structuredContent`, output schemas; page not built yet).
 
 ---
 
@@ -34,6 +35,8 @@ comparer-mcp/
 │   ├── score_inputs.py      # Reference/target pair: schema and loading (inline or path)
 │   ├── engine.py            # Comparison orchestration — NO mcp imports
 │   ├── models.py            # Dataclasses: ComparisonResult, NoteDiff, etc.
+│   ├── presenter.py         # content + structuredContent + output schemas (Diff Viewer)
+│   ├── result_schema.py     # JSON Schema generated from the models dataclasses
 │   ├── part_matcher.py      # Part matching (name, instrument, range)
 │   ├── measure_comparator.py # Measure-level structural comparison
 │   ├── note_aligner.py      # Edit-distance note alignment

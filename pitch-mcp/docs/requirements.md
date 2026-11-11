@@ -300,6 +300,35 @@ If the idle timeout closed the session less than 1 hour ago, `stop_monitoring` r
 taken at that moment with `timed_out: true`. Like a normal stop, it does so once; a second call,
 or a call after the hour, gives `SESSION_NOT_FOUND`.
 
+### IR-5a — MCP Apps: Practice Coach (`structuredContent`)
+
+`load_score`, `start_practice`, `get_current_position` and `analyze_recording` declare an
+`output_schema` and return `structuredContent` next to the unchanged `content` text
+(`tests/test_content_golden.py` pins `content`). Errors keep the `{error, error_code}` content, set
+`isError: true` and carry no `structuredContent`. Shapes (`presenter.py`):
+
+```
+load_score, start_practice (SESSION_OUTPUT_SCHEMA):
+  session_id, part_id, part_name, measure_count, duration_seconds, tempo_bpm
+  tempo_bpm is a number: the score's tempo, or the start_practice override. It is not in
+  `content` (kept byte-identical); `status` from start_practice is not in structuredContent.
+get_current_position: the snapshot `content` already carries
+  session_id, measure, beat, expected_note, sung_pitch_hz|null, accuracy_cents|null, status
+analyze_recording: the result `content` already carries, every note included
+  part_id, part_name, measures_covered, avg_accuracy_cents, note_accuracy[], accuracy_histogram, highlights[]
+```
+
+`load_score`, `start_practice` and `analyze_recording` link `ui://pitch/practice-coach`
+(`_meta.ui.resourceUri`) only while `src/pitch_mcp/ui/assets/practice-coach.html` is packaged;
+otherwise they carry no `_meta.ui` and the resource is not listed (AC-P1, AC-P2). Server-microphone
+only (decision D2): the app never captures audio.
+
+**`get_score_for_session`** (app-only, `_meta.ui.visibility: ["app"]`, listed only to clients that
+support MCP Apps; `tools/call` still finds it). Input `{session_id}` and nothing else (no paths,
+`additionalProperties: false`); output `{session_id, musicxml}`, the session's score cut to its
+`measures`. Unknown or timed-out session: `SESSION_NOT_FOUND`. `content` is a one-line note, not
+the document.
+
 ### IR-6a — Tool: `list_sessions`
 
 ```
@@ -415,6 +444,10 @@ Unit tests MUST cover:
   count, printed numbers, timeline and carried tempo, range errors with hint), `start_practice`
   fields, tempo and orphan-free mic failures with a fake `sounddevice` module, `<sound tempo>`-only
   scores
+- Practice Coach (`tests/test_practice_coach.py`, `tests/test_content_golden.py`): tool linking with
+  and without a packaged page (`InMemoryAssetSource`), resource list/read, `structuredContent`
+  shapes against their schemas, `get_score_for_session` (app-only, no paths, unknown session), errors
+  as `isError` without `structuredContent`, `content` identical to the pre-Apps golden file
 - Highlights (`tests/test_highlights.py`): runs, splitting, ranking, text, frame-level history
 
 Unit tests MUST mock sounddevice (no real audio hardware in CI). `dtaidistance` is pure-Python-

@@ -108,22 +108,22 @@ class TestGenerateOutputPath:
         with pytest.raises(ValueError):
             generate_output_path("/tmp/my_output.wav")
 
-    def test_generates_path_when_none(self, tmp_path, monkeypatch):
-        import synth_mcp.utils as utils_mod
-
-        monkeypatch.setattr(utils_mod, "SYNTH_OUTPUT_DIR", str(tmp_path))
-        result = generate_output_path(None)
-        assert result.endswith(".wav")
-        assert str(tmp_path) in result
-
-    def test_generated_path_is_in_output_dir(self, tmp_path, monkeypatch):
-        import synth_mcp.utils as utils_mod
-
-        monkeypatch.setattr(utils_mod, "SYNTH_OUTPUT_DIR", str(tmp_path))
+    def test_generates_path_in_the_output_root_when_none(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("SHEET_MUSIC_OUTPUT_ROOT", str(tmp_path))
         result = generate_output_path(None)
         from pathlib import Path
 
-        assert Path(result).parent == tmp_path
+        assert result.endswith(".wav")
+        assert Path(result).parent == tmp_path.resolve() / "audio"
+
+    def test_generated_paths_are_distinct(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("SHEET_MUSIC_OUTPUT_ROOT", str(tmp_path))
+        first = generate_output_path(None)
+        from pathlib import Path
+
+        Path(first).write_bytes(b"x")
+
+        assert generate_output_path(None) != first
 
 
 class TestConfineOutputPath:

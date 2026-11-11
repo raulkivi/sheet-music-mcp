@@ -386,6 +386,8 @@ comparer-mcp/
 │       ├── measure_comparator.py # Measure-level structural comparison
 │       ├── note_aligner.py      # Voice/note alignment using edit distance
 │       ├── models.py            # Dataclasses: ComparisonResult, NoteDiff, etc.
+│       ├── result_schema.py     # JSON Schema generated from the models dataclasses
+│       ├── presenter.py         # content + structuredContent + output schemas (MCP Apps)
 │       ├── report.py            # Phase 4: human-readable comparison report (pure ComparisonResult -> str)
 │       ├── annotator.py         # Phase 4: colored MusicXML diff export (music21, no mcp import)
 │       └── utils.py             # Validation, pitch names, duration formatting
@@ -436,6 +438,12 @@ All error responses use `{"error": "...", "error_code": "..."}` per conventions.
 | `describe_score` | `musicxml` or `musicxml_path` | Shared core tool: title, key, time, tempo, parts (ID, name, clef, range), measures, duration |
 | `health_check` | — | `{ "status": "ok", "music21_version": "..."}` |
 | `list_capabilities` | — | Server metadata per conventions |
+
+MCP Apps (Diff Viewer): `server.py` registers `ui://comparer/diff-viewer` in a `UiRegistry` over
+`PackageAssetSource("comparer_mcp")`. `call_tool_result()` returns `CallToolResult`: the three linked
+tools via `presenter.py` (`content` = the original JSON text, `structuredContent` = the same data,
+`output_schema` from `result_schema.json_schema_for(ComparisonResult)`), every failure as
+`isError` without `structuredContent`. `call_tool()` keeps returning the content blocks.
 
 "Reference, target" means each score is given inline or by path: `reference_xml` or
 `reference_path`, and `target_xml` or `target_path`, exactly one of each (`allOf` of two

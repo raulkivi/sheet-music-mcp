@@ -7,7 +7,8 @@ or any combination) and an optional tempo factor. Returns a path to a rendered W
 
 **Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references: `musicxml_path`, `describe_score`)
 + UX Wave 3 (practice tracks: `measures`, `repeat`, count-in/metronome, `timbre`, part gains and
-presets; new `starting_pitches` tool) complete. 306 unit + 10 integration tests (integration needs
+presets; new `starting_pitches` tool) complete. MCP Apps Practice Player server side done
+(`structuredContent`, app-only `read_audio_chunk` and `get_score_xml`; page not built yet). 383 unit + 10 integration tests (integration needs
 a soundfont, libfluidsynth and, for most, the omr-mcp MXL fixtures).
 
 ---
@@ -38,6 +39,7 @@ synth-mcp/
 │   ├── test_server.py       # protocol tests
 │   ├── test_engine.py       # unit + integration tests
 │   ├── test_utils.py        # unit tests
+│   ├── test_practice_player.py, test_scorebook.py, test_content_golden.py  # MCP Apps
 │   ├── test_score_references.py  # musicxml_path, read policy, describe_score
 │   ├── test_practice_midi.py     # practice options at MIDI level (music21.midi.MidiFile)
 │   ├── test_practice_server.py   # practice options through synthesize, schema

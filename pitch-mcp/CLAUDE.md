@@ -8,8 +8,8 @@ status while a singer sings.
 
 **Status:** Phase A (offline analysis) + Phase B (real-time, audio-driven position tracking)
 complete, plus UX Wave 2 (score references: `musicxml_path`, `describe_score`) and UX Wave 3
-(`measures` ranges, `start_practice`, `highlights`). 292 unit
-(+2 skipped) + 4 integration tests pass (`-m integration`); 2 manual mic tests (`-m manual`)
+(`measures` ranges, `start_practice`, `highlights`). 331 unit
+(+6 skipped) + 4 integration tests pass (`-m integration`); 2 manual mic tests (`-m manual`)
 require real hardware.
 
 ---
@@ -18,7 +18,7 @@ require real hardware.
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v                 # 292 unit tests (integration/manual skipped by default)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v                 # 331 unit tests (integration/manual skipped by default)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration   # offline analysis against the committed fixture pair
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m manual        # real mic tests — skip in CI
 ```
@@ -32,6 +32,7 @@ Install dependencies: `uv sync`
 | File | Purpose |
 |------|---------|
 | `src/pitch_mcp/server.py` | MCP tool definitions and handlers |
+| `src/pitch_mcp/presenter.py` | `structuredContent` + output schemas for the Practice Coach tools |
 | `src/pitch_mcp/engine.py` | Session management, offline/real-time orchestration (no MCP imports) |
 | `src/pitch_mcp/pitch_detector.py` | librosa pYIN backend (+ optional crepe) |
 | `src/pitch_mcp/aligner.py` | DTW (dtaidistance) alignment, accuracy classification |
@@ -55,6 +56,7 @@ Install dependencies: `uv sync`
 | `get_current_position` | B | Current measure/beat/pitch/accuracy from active session |
 | `stop_monitoring` | B | Stop stream, return summary (with `highlights`), clean up session (`timed_out: true` if the idle timeout closed it) |
 | `list_sessions` | B | Open sessions: part, state (`loaded`/`monitoring`), idle seconds |
+| `get_score_for_session` | Apps | App-only: the session's MusicXML for the Practice Coach (`session_id` only, no paths) |
 | `list_capabilities` | — | Server metadata, pitch backend version |
 | `health_check` | — | Runtime dependency status |
 

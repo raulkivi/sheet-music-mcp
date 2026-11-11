@@ -1,7 +1,7 @@
 [project]
 name = "sheet-music-mcp-core"
 version = "0.3.1"
-description = "Shared helpers for the sheet-music MCP servers: errors, part selection, annotations, result content, handler wiring, score references, measure ranges and MCP Apps UI resources"
+description = "Shared helpers for the sheet-music MCP servers: errors, part selection, annotations, result content, handler wiring, score references, measure ranges, MCP Apps UI resources and artifact handles"
 readme = "README.md"
 authors = [
     { name = "Raul Kivi", email = "raulkivi@users.noreply.github.com" },

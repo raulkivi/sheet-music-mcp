@@ -1,6 +1,29 @@
 """pytest configuration for pitch-mcp tests."""
 
 import pytest
+from sheet_music_mcp_core.ui import InMemoryAssetSource, UiRegistry
+
+import pitch_mcp.server as server
+
+COACH_HTML = "<!doctype html><title>Practice Coach</title>"
+
+
+def registry(*, packaged: bool) -> UiRegistry:
+    """The server's UI registry over in-memory assets, with or without the built coach."""
+    assets = {server.PRACTICE_COACH.asset: COACH_HTML} if packaged else {}
+    return UiRegistry([server.PRACTICE_COACH], InMemoryAssetSource(assets))
+
+
+@pytest.fixture(autouse=True)
+def unpackaged_ui(monkeypatch):
+    """Tests see a source checkout without a UI build, whatever a local build left behind."""
+    monkeypatch.setattr(server, "ui_registry", registry(packaged=False))
+
+
+@pytest.fixture
+def packaged_ui(monkeypatch):
+    """The Practice Coach HTML is packaged, as in a released wheel."""
+    monkeypatch.setattr(server, "ui_registry", registry(packaged=True))
 
 
 def pytest_collection_modifyitems(config, items):

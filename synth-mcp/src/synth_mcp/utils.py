@@ -2,17 +2,13 @@ import os
 import logging
 import stat
 import xml.etree.ElementTree as ET
-from datetime import datetime
 from pathlib import Path
 
 # Moved to the core in Wave 2; re-exported so existing imports and tests keep working. It raises
 # PathPolicyError, a ValueError, so callers catching ValueError are unchanged.
-from sheet_music_mcp_core.paths import confine_output_path  # noqa: F401
+from sheet_music_mcp_core.paths import confine_output_path, new_output_path  # noqa: F401
 
 logger = logging.getLogger(__name__)
-
-# Per-user path; ensure_private_dir() rejects one that another user pre-created.
-SYNTH_OUTPUT_DIR = f"/tmp/synth-mcp-{os.getuid()}"
 
 
 def ensure_private_dir(path: str | Path) -> Path:
@@ -76,10 +72,14 @@ def validate_tempo_factor(tempo_factor: float) -> tuple[bool, str]:
 
 
 def generate_output_path(output_path: str | None) -> str:
-    """Return output_path if provided, otherwise generate one in SYNTH_OUTPUT_DIR."""
+    """Return output_path (confined to the output root) if provided, else a new, unused
+    ``audio/output-<timestamp>.wav`` in the output root.
+
+    The default lives in the output root, not /tmp, because the Practice Player reads the WAV back
+    through the artifact store, which only accepts files inside it; a timestamp with microseconds
+    and a counter keep one track from overwriting another (a stored file must not change).
+    """
     if output_path:
         return confine_output_path(output_path, (".mid", ".midi", ".wav"))
 
-    output_dir = ensure_private_dir(SYNTH_OUTPUT_DIR)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return str(output_dir / f"output_{timestamp}.wav")
+    return str(new_output_path("output", ".wav", subdir="audio"))

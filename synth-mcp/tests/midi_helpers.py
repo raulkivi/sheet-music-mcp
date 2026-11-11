@@ -1,5 +1,6 @@
 """Read MIDI bytes back into plain tuples for MIDI-level assertions (no FluidSynth needed)."""
 
+import wave
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,6 +11,16 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 def fixture(name: str) -> str:
     return (FIXTURES / name).read_text(encoding="utf-8")
+
+
+def fake_render(midi_bytes: bytes, output_path: str) -> float:
+    """Stands in for ``synthesize_midi``: writes a tiny mono WAV, so the server can store it."""
+    with wave.open(output_path, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(8000)
+        w.writeframes(b"\0\0" * 400)
+    return 4.0
 
 
 @dataclass(frozen=True)

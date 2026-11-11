@@ -131,6 +131,17 @@ Every tool sets a human-readable `title` and an annotation preset from `sheet-mu
 The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The server sends
 `instructions` at initialize ([conventions: Server Instructions](../../docs/conventions.md#server-instructions)).
 
+### MCP Apps: Diff Viewer
+
+`ui://comparer/diff-viewer` (proposal 5.4). `compare_musicxml`, `compare_musicxml_files` and
+`generate_comparison_report` link it through `_meta.ui.resourceUri` when the HTML is packaged;
+without a UI build the resource is unlisted and the tools carry no `_meta.ui`. Those tools also
+return `structuredContent` and declare an `output_schema`: the full `ComparisonResult` (schema
+generated from `models.py`, AC-C1) or `{report, similarity_score}`. `content` is unchanged text
+(golden test). The viewer reuses `list_changes` and `export_annotated_musicxml` as ordinary
+app-callable tools; no app-only tools exist. Failures stay `{error, error_code}` with `isError: true`
+and no `structuredContent`. Open: AC-C2 (size-bounded `content`, proposal P7) is not implemented.
+
 ### Input formats
 
 - MusicXML string (`<score-partwise>` or `<score-timewise>`)

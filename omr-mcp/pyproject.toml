@@ -47,6 +47,7 @@ dependencies = [
     "onnx>=1.17.0,<2.0.0",
     "opencv-python-headless==4.14.0.94",
     "Pillow>=10.0.0",
+    "numpy>=1.26",
     "defusedxml>=0.7.0",
     "sheet-music-mcp-core>=0.3.0,<0.4.0",
 ]
@@ -63,6 +64,10 @@ Repository = "https://github.com/raulkivi/sheet-music-mcp"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build]
+# The Recognition Review HTML is built by ui/ and gitignored; artifacts packages it anyway.
+artifacts = ["src/omr_mcp/ui/assets/*.html"]
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.4.0",
@@ -70,6 +75,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 markers = [
     "integration: marks tests as slow integration tests that require real backends (run with '-m integration')",
 ]

@@ -4,7 +4,7 @@ import logging
 
 import mcp.server.stdio
 from mcp.server import Server
-from mcp.types import TextContent, Tool, ToolAnnotations
+from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from sheet_music_mcp_core.content import error_content, processing_error_content
 from sheet_music_mcp_core.measures import MEASURES_PROPERTY, parse_range
@@ -16,11 +16,18 @@ from sheet_music_mcp_core.references import (
     deliver_score,
     describe_score_tool,
 )
-from sheet_music_mcp_core.wiring import make_handlers
+from sheet_music_mcp_core.ui import PackageAssetSource, UiRegistry, UiResource
+from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 
 from . import __version__
 from .annotator import annotate
 from .engine import ProcessingError, compare, health_check
+from .presenter import (
+    COMPARISON_OUTPUT_SCHEMA,
+    REPORT_OUTPUT_SCHEMA,
+    present_comparison,
+    present_report,
+)
 from .report import generate_report
 from .score_inputs import INPUT_PARAMETERS, load_pair, pair_schema
 
@@ -72,6 +79,19 @@ INSTRUCTIONS = (
 )
 
 
+DIFF_VIEWER = UiResource(
+    "ui://comparer/diff-viewer",
+    "diff-viewer.html",
+    "Diff Viewer",
+    "Shows two scores side by side with their differences marked, a filterable change list and the report.",
+)
+
+# Reads the HTML packaged under comparer_mcp/ui/assets/; tests replace ui_registry with in-memory
+# assets. Without a UI build the viewer is hidden and the tools carry no _meta.ui.
+DEFAULT_UI_REGISTRY = UiRegistry([DIFF_VIEWER], PackageAssetSource("comparer_mcp"))
+ui_registry = DEFAULT_UI_REGISTRY
+
+
 async def list_tools():
     return [
         Tool(
@@ -85,6 +105,8 @@ async def list_tools():
                 "per-part/measure/note detail."
             ),
             input_schema=pair_schema({"options": _OPTIONS_SCHEMA}),
+            output_schema=COMPARISON_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(DIFF_VIEWER),
         ),
         Tool(
             name="compare_musicxml_files",
@@ -111,6 +133,8 @@ async def list_tools():
                 },
                 "required": ["reference_path", "target_path"],
             },
+            output_schema=COMPARISON_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(DIFF_VIEWER),
         ),
         Tool(
             name="quick_similarity",
@@ -159,6 +183,8 @@ async def list_tools():
                 "'transposed by 3 semitones in measures 17-24')."
             ),
             input_schema=pair_schema({"options": _OPTIONS_SCHEMA}),
+            output_schema=REPORT_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(DIFF_VIEWER),
         ),
         Tool(
             name="export_annotated_musicxml",
@@ -229,23 +255,47 @@ def _filter_changes(result, part, measures) -> list[dict]:
     return changes
 
 
-async def call_tool(name: str, arguments: dict, ctx=None):
+def _error(message: str, code: str) -> CallToolResult:
+    # isError, so clients skip output_schema validation of the absent structured content.
+    return CallToolResult(content=error_content(message, code), is_error=True)
+
+
+def _processing_error(error: ProcessingError) -> CallToolResult:
+    return CallToolResult(content=processing_error_content(error), is_error=True)
+
+
+def _result(presented: tuple[list, dict]) -> CallToolResult:
+    content, structured = presented
+    return CallToolResult(content=content, structured_content=structured)
+
+
+async def call_tool(name: str, arguments: dict, ctx=None) -> list:
+    """The tool's text content blocks; ``call_tool_result`` also carries structuredContent."""
+    return (await call_tool_result(name, arguments, ctx)).content
+
+
+async def call_tool_result(name: str, arguments: dict, ctx=None) -> CallToolResult:
+    result = await _dispatch(name, arguments, ctx)
+    return result if isinstance(result, CallToolResult) else CallToolResult(content=result)
+
+
+async def _dispatch(name: str, arguments: dict, ctx=None):
     if name == "compare_musicxml":
         options = arguments.get("options")
 
         try:
             reference_xml, target_xml = await load_pair(arguments, ctx)
         except ProcessingError as e:
-            return processing_error_content(e)
+            return _processing_error(e)
 
         try:
             result = compare(reference_xml, target_xml, options)
-            return [TextContent(type="text", text=json.dumps(result.to_dict(), indent=2))]
+            return _result(present_comparison(result))
         except ProcessingError as e:
-            return processing_error_content(e)
+            return _processing_error(e)
         except Exception as e:
             logger.error("compare_musicxml unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "compare_musicxml_files":
         reference_path = arguments.get("reference_path", "")
@@ -253,28 +303,28 @@ async def call_tool(name: str, arguments: dict, ctx=None):
         options = arguments.get("options")
 
         if not reference_path:
-            return error_content("reference_path is required.", "INVALID_PARAMETER")
+            return _error("reference_path is required.", "INVALID_PARAMETER")
         if not target_path:
-            return error_content("target_path is required.", "INVALID_PARAMETER")
+            return _error("target_path is required.", "INVALID_PARAMETER")
 
         try:
             # Same read policy as every score path (plan decision W2-2), then the text engine:
             # compare_files() gives the same result for the same content (.mxl included).
             reference_xml, target_xml = await load_pair(arguments, ctx)
             result = compare(reference_xml, target_xml, options)
-            return [TextContent(type="text", text=json.dumps(result.to_dict(), indent=2))]
+            return _result(present_comparison(result))
         except ProcessingError as e:
-            return processing_error_content(e)
+            return _processing_error(e)
         except Exception as e:
             logger.error("compare_musicxml_files unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "quick_similarity":
 
         try:
             reference_xml, target_xml = await load_pair(arguments, ctx)
         except ProcessingError as e:
-            return processing_error_content(e)
+            return _processing_error(e)
 
         try:
             result = compare(reference_xml, target_xml)
@@ -284,10 +334,10 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             }
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
         except ProcessingError as e:
-            return processing_error_content(e)
+            return _processing_error(e)
         except Exception as e:
             logger.error("quick_similarity unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "list_changes":
         part = arguments.get("part")
@@ -296,7 +346,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             reference_xml, target_xml = await load_pair(arguments, ctx)
             measures = parse_range(aliased(arguments, "measures", "measure_range"))
         except ProcessingError as e:
-            return processing_error_content(e)
+            return _processing_error(e)
 
         try:
             result = compare(reference_xml, target_xml)
@@ -304,10 +354,10 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             payload = {"changes": changes, "count": len(changes)}
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
         except ProcessingError as e:
-            return processing_error_content(e)
+            return _processing_error(e)
         except Exception as e:
             logger.error("list_changes unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "generate_comparison_report":
         options = arguments.get("options")
@@ -315,17 +365,17 @@ async def call_tool(name: str, arguments: dict, ctx=None):
         try:
             reference_xml, target_xml = await load_pair(arguments, ctx)
         except ProcessingError as e:
-            return processing_error_content(e)
+            return _processing_error(e)
 
         try:
             result = compare(reference_xml, target_xml, options)
             payload = {"report": generate_report(result), "similarity_score": result.similarity_score}
-            return [TextContent(type="text", text=json.dumps(payload, indent=2))]
+            return _result(present_report(payload))
         except ProcessingError as e:
-            return processing_error_content(e)
+            return _processing_error(e)
         except Exception as e:
             logger.error("generate_comparison_report unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "export_annotated_musicxml":
         options = arguments.get("options")
@@ -333,7 +383,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
         try:
             reference_xml, target_xml = await load_pair(arguments, ctx)
         except ProcessingError as e:
-            return processing_error_content(e)
+            return _processing_error(e)
 
         try:
             payload = annotate(reference_xml, target_xml, options)
@@ -344,10 +394,10 @@ async def call_tool(name: str, arguments: dict, ctx=None):
                 stem="annotated",
             )
         except ProcessingError as e:
-            return processing_error_content(e)
+            return _processing_error(e)
         except Exception as e:
             logger.error("export_annotated_musicxml unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     elif name == "list_capabilities":
         backend_version = "unknown"
@@ -383,7 +433,7 @@ async def call_tool(name: str, arguments: dict, ctx=None):
         try:
             return await describe_score_tool(arguments, ctx)
         except ProcessingError as e:
-            return processing_error_content(e)
+            return _processing_error(e)
 
     elif name == "health_check":
         try:
@@ -391,18 +441,31 @@ async def call_tool(name: str, arguments: dict, ctx=None):
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except Exception as e:
             logger.error("health_check unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
+            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
     raise ValueError(f"Unknown tool: {name}")
 
 
-_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool, pass_context=True, logger=logger)
+class _CurrentUiRegistry:
+    """Serves whichever registry ``ui_registry`` holds at request time, so tests can swap it."""
+
+    def list_resources(self):
+        return ui_registry.list_resources()
+
+    def read(self, uri: str):
+        return ui_registry.read(uri)
+
+
+_on_list_tools, _on_call_tool = make_handlers(list_tools, call_tool_result, pass_context=True, logger=logger)
+_on_list_resources, _on_read_resource = make_resource_handlers(_CurrentUiRegistry(), logger=logger)
 
 app = Server(
     "comparer-mcp",
     instructions=INSTRUCTIONS,
     on_list_tools=_on_list_tools,
     on_call_tool=_on_call_tool,
+    on_list_resources=_on_list_resources,
+    on_read_resource=_on_read_resource,
 )
 
 

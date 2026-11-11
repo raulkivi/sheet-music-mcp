@@ -44,7 +44,9 @@ The server MUST accept a `tempo_factor` parameter and scale the score tempo acco
 
 ### FR-5 — Output path
 
-The server MUST write the WAV file to the specified output path. If no path is provided, the server MUST auto-generate a path in the system temporary directory.
+The server MUST write the WAV file to the specified output path. If no path is provided, the server MUST auto-generate a new, unused path `audio/output-<timestamp>.wav` inside the output root (the artifact store only accepts files there).
+
+**Behaviour change (MCP Apps):** the default output moved from `/tmp/synth-mcp-<uid>/output_*.wav` to `<output root>/audio/output-<timestamp>.wav`, where the output root is `SHEET_MUSIC_OUTPUT_ROOT` (default: the working directory). Callers that read the default location must use the `audio_path` in the result. Each render is written to a temporary file beside the target and renamed onto it, so a path always gets a new inode and an `audio_id` of an earlier WAV there can never read the new bytes.
 
 The response MUST include the final output path.
 
@@ -174,7 +176,8 @@ Input (exactly one of musicxml / musicxml_path, JSON Schema oneOf):
   tempo_factor  float         optional  0.25–4.0; default: 1.0
   output_path   string        optional  path to write WAV inside SHEET_MUSIC_OUTPUT_ROOT
                                         (.wav, .mid or .midi; always written as WAV);
-                                        auto-generated in /tmp/synth-mcp-<uid>/ if omitted
+                                        auto-generated as <output root>/audio/output-<timestamp>.wav if omitted
+                                        (behaviour change: earlier releases used /tmp/synth-mcp-<uid>/)
   measures      [int, int]    optional  inclusive printed bar numbers; default: whole score
   repeat        integer       optional  1–20; default: 1
   count_in_bars integer       optional  0–4; default: 0
@@ -196,6 +199,44 @@ Output:
 Content blocks: `content[0]` is the JSON text above. On success it is followed by a
 `resource_link` to the WAV file (`file://` URI of the resolved path, MIME type `audio/wav`;
 [conventions](../../docs/conventions.md#result-content)). Errors return only the error JSON.
+
+### IR-3c — MCP Apps: Practice Player (`structuredContent`)
+
+`synthesize` and `get_parts` declare an `output_schema` and return `structuredContent` next to the
+unchanged `content` (`tests/test_content_golden.py` pins `content`, AC-S4). Errors keep the
+`{error, error_code}` content, set `isError: true` and carry no `structuredContent`. Shapes
+(`presenter.py`):
+
+```
+synthesize (SYNTH_OUTPUT_SCHEMA):
+  audio_id          opaque handle of the stored WAV (kind audio/wav); never a path
+  duration_seconds  as in content (rounded to 0.01)
+  sample_rate, channels, byte_length   read from the written WAV file
+  parts[]           every part of the score, in score order:
+                    {id, name, included, gain}
+                    included = the engine rendered it; gain = the volume it used (1.0 without
+                    part_gains/preset; preset and part_gains resolved as for the MIDI). A part left
+                    out reports gain 0.0.
+  tempo_factor      number (1.0 when not given)
+get_parts: {parts: [{id, name, measure_count}]}, the same data as content
+```
+
+`synthesize` links `ui://synth/practice-player` (`_meta.ui.resourceUri`) only while
+`src/synth_mcp/ui/assets/practice-player.html` is packaged; otherwise it carries no `_meta.ui` and the
+resource is not listed. After the WAV is written, `synthesize` stores it (`artifact_store.put`) and
+remembers the score the audio was made from (the `measures` cut, if any) in `ScoreBook`.
+
+**`read_audio_chunk`** (app-only, `_meta.ui.visibility: ["app"]`, listed only to clients that support
+MCP Apps; `tools/call` still finds it). Input `{audio_id, offset >= 0, length 1..1 MiB}` and nothing
+else (`additionalProperties: false`, no paths). Output `chunk_payload(...)`:
+`{artifact_id, offset, length, byte_length, eof, data_b64}`; chunks over `[0, byte_length)` reassemble
+to the WAV (AC-S3). `content` is one short line, never the base64. Unknown or expired id, or a WAV that
+vanished: `INVALID_PARAMETER` (AC-S2).
+
+**`get_score_xml`** (app-only). Input `{audio_id}`; output `{audio_id, musicxml}`. Unknown or expired
+id: `INVALID_PARAMETER`. `content` is a one-line note, not the document.
+
+Ids and scores live for one hour (`DEFAULT_TTL_SECONDS`), at most 64 at a time, and are lost on restart.
 
 ### IR-3b — Tool: `starting_pitches`
 
@@ -318,6 +359,10 @@ Unit tests MUST cover:
   link, no-soundfont result
 
 Unit tests MUST mock pyfluidsynth. They MUST NOT synthesize real audio.
+
+- Practice Player (`tests/test_practice_player.py`, `tests/test_scorebook.py`, `tests/test_content_golden.py`): tool linking with and
+  without a packaged page, resource list/read, `structuredContent` against the schemas, the app-only tools (no paths,
+  unknown/expired id), chunk reassembly, `content` identical to the pre-Apps golden file
 
 ### TR-2 — Integration tests
 

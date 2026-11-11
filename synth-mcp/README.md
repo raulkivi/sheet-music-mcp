@@ -63,7 +63,7 @@ SYNTH_SOUNDFONT_PATH=/usr/share/sounds/sf2/TimGM6mb.sf2 uv run synth-mcp
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SYNTH_SOUNDFONT_PATH` | Yes | Path to an SF2 soundfont file |
-| `SHEET_MUSIC_OUTPUT_ROOT` | No | Folder `output_path` must be inside; also readable by `musicxml_path` (default: working directory) |
+| `SHEET_MUSIC_OUTPUT_ROOT` | No | Folder `output_path` must be inside; also readable by `musicxml_path` (default: working directory). Without `output_path`, `synthesize` writes `audio/output-<timestamp>.wav` here (earlier releases used `/tmp/synth-mcp-<uid>/`; use the returned `audio_path`) |
 | `SHEET_MUSIC_INPUT_ROOTS` | No | Extra folders `musicxml_path` may read (`:`-separated; `;` on Windows) |
 
 ## Claude Desktop configuration

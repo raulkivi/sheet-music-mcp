@@ -330,6 +330,10 @@ omr-mcp/
 │       ├── __init__.py
 │       ├── server.py        ← MCP layer (tool registration, dispatch)
 │       ├── omr_engine.py    ← Business logic (oemer, merge)
+│       ├── presenter.py     ← content + structuredContent, output schemas (MCP Apps)
+│       ├── previews.py      ← source-preview JPEG and job-id table
+│       ├── staff_estimate.py ← staff count from the image
+│       ├── ui/assets/       ← built recognition-review.html (gitignored, packaged)
 │       └── utils.py         ← Input validation, base64, image info
 └── tests/
     ├── test_server.py
@@ -338,3 +342,26 @@ omr-mcp/
     └── test_samples/
         └── pdmx_satb_samples/  ← PNG + MXL fixture pairs
 ```
+
+---
+
+## MCP Apps: Recognition Review
+
+| Module | Role |
+|---|---|
+| `presenter.py` | `present_recognition` / `present_score` / `present_preview`: `content` plus `structuredContent`; the output schemas |
+| `previews.py` | `write_source_preview()` (JPEG of at most 1600 px into the output root) and `ReviewJobs` (job id to the score and per-page artifact ids; bounded, with a TTL) |
+| `staff_estimate.py` | `estimate_staves()`: counts staff lines in the image with numpy; no engine run |
+| `server.py` | `ui_registry`, `artifact_store`, `review_jobs`; `call_tool_result` returns `CallToolResult` |
+
+Runtime flow of `recognize_sheet`: decode or take the image path, run the engine off the event loop
+(`_run_with_progress`), then on success build `content` as before. Only if the client advertises MCP
+Apps (`client_supports_ui(ctx)`): `_prepare_review` (preview JPEG and staff count per page, in a
+worker thread) and `ReviewJobs.register` (stores each preview and the score, returns `job_id`); then
+`present_recognition`. Other clients get `{metadata, pages}` and nothing is written. The app later
+calls `get_recognized_score(job_id)` and `get_source_preview(job_id, page, offset, length)`, which
+resolve the id and return the score or `chunk_payload(...)`. Neither the table nor the store hands
+out a path, and the score is not re-sent in results.
+
+`recognize_images()` adds an internal `_pages` list (per-page `staves_detected` and `measures`); the
+server moves it into `structuredContent.pages` and drops it from the text, so `content` is unchanged.
