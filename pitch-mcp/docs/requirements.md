@@ -1,5 +1,7 @@
 # pitch-mcp Requirements
 
+**Last changed:** 2026-11-11 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## Purpose
 
 Detect a singer's pitch from microphone audio and compare it against a reference MusicXML score. Report the singer's current position in the score and their pitch accuracy in real time.
@@ -58,7 +60,7 @@ Each response MUST include:
 - Expected note name at that position
 - Detected pitch in Hz
 - Deviation in cents from expected pitch
-- Status: `on_pitch`, `sharp`, `flat`, or `no_signal`
+- Status: `on_pitch`, `sharp`, `flat`, `uncertain`, or `no_signal`
 
 ### FR-5 — Real-time monitoring stop
 
@@ -207,11 +209,12 @@ Output:
     expected         string   note name, e.g. "G4"
     sung_hz          float
     accuracy_cents   float
-    status           string   "on_pitch" | "sharp" | "flat" | "no_signal"
+    status           string   "on_pitch" | "sharp" | "flat" | "uncertain" | "no_signal"
   accuracy_histogram  object
     on_pitch   integer
     sharp      integer
     flat       integer
+    uncertain  integer   voiced frames the engine would not grade; not in the average
     no_signal  integer
   highlights          list[object]   up to 3 worst flat/sharp runs (FR-11)
     direction  string        "flat" | "sharp"
@@ -313,7 +316,7 @@ Output:
   expected_note   string   e.g. "E4"
   sung_pitch_hz   float
   accuracy_cents  float
-  status          string   "on_pitch" | "sharp" | "flat" | "no_signal"
+  status          string   "on_pitch" | "sharp" | "flat" | "uncertain" | "no_signal"
 ```
 
 Before the first detected pitch, `measure`, `beat` and `expected_note` are those of the
@@ -323,7 +326,8 @@ Status thresholds:
 - `on_pitch`: deviation within ±25 cents
 - `sharp`: deviation > +25 cents
 - `flat`: deviation < −25 cents
-- `no_signal`: no detectable pitch in the audio window
+- `uncertain`: voiced, but not graded: YIN confidence 0.3-0.6, or the sung pitch within 100 cents of a whole number of octaves from the matched note (octave slip or true note unknown). `accuracy_cents` is null; summaries count it in `accuracy_histogram.uncertain` only, never in the average or highlights
+- `no_signal`: unvoiced (YIN confidence < 0.3) or no detectable pitch in the audio window
 
 ### IR-6 — Tool: `stop_monitoring`
 

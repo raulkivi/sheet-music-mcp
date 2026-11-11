@@ -1,13 +1,13 @@
 {
   "analyze": [
     {
-      "text": "{\n  \"part_id\": \"P1\",\n  \"part_name\": \"Soprano\",\n  \"measures_covered\": 2,\n  \"avg_accuracy_cents\": 12.5,\n  \"note_accuracy\": [\n    {\n      \"measure\": 1,\n      \"beat\": 1.0,\n      \"expected\": \"C4\",\n      \"expected_hz\": 261.63,\n      \"sung_hz\": 258.0,\n      \"accuracy_cents\": -24,\n      \"status\": \"on_pitch\"\n    },\n    {\n      \"measure\": 2,\n      \"beat\": 1.0,\n      \"expected\": \"D4\",\n      \"expected_hz\": 293.66,\n      \"sung_hz\": null,\n      \"accuracy_cents\": null,\n      \"status\": \"no_signal\"\n    }\n  ],\n  \"accuracy_histogram\": {\n    \"on_pitch\": 1,\n    \"sharp\": 0,\n    \"flat\": 0,\n    \"no_signal\": 1\n  },\n  \"highlights\": []\n}",
+      "text": "{\n  \"part_id\": \"P1\",\n  \"part_name\": \"Soprano\",\n  \"measures_covered\": 2,\n  \"avg_accuracy_cents\": 12.5,\n  \"note_accuracy\": [\n    {\n      \"measure\": 1,\n      \"beat\": 1.0,\n      \"expected\": \"C4\",\n      \"expected_hz\": 261.63,\n      \"sung_hz\": 258.0,\n      \"accuracy_cents\": -24,\n      \"status\": \"on_pitch\"\n    },\n    {\n      \"measure\": 2,\n      \"beat\": 1.0,\n      \"expected\": \"D4\",\n      \"expected_hz\": 293.66,\n      \"sung_hz\": null,\n      \"accuracy_cents\": null,\n      \"status\": \"no_signal\"\n    }\n  ],\n  \"accuracy_histogram\": {\n    \"on_pitch\": 1,\n    \"sharp\": 0,\n    \"flat\": 0,\n    \"uncertain\": 0,\n    \"no_signal\": 1\n  },\n  \"highlights\": []\n}",
       "type": "text"
     }
   ],
   "analyze_from_path": [
     {
-      "text": "{\n  \"part_id\": \"P1\",\n  \"part_name\": \"Soprano\",\n  \"measures_covered\": 2,\n  \"avg_accuracy_cents\": 12.5,\n  \"note_accuracy\": [\n    {\n      \"measure\": 1,\n      \"beat\": 1.0,\n      \"expected\": \"C4\",\n      \"expected_hz\": 261.63,\n      \"sung_hz\": 258.0,\n      \"accuracy_cents\": -24,\n      \"status\": \"on_pitch\"\n    },\n    {\n      \"measure\": 2,\n      \"beat\": 1.0,\n      \"expected\": \"D4\",\n      \"expected_hz\": 293.66,\n      \"sung_hz\": null,\n      \"accuracy_cents\": null,\n      \"status\": \"no_signal\"\n    }\n  ],\n  \"accuracy_histogram\": {\n    \"on_pitch\": 1,\n    \"sharp\": 0,\n    \"flat\": 0,\n    \"no_signal\": 1\n  },\n  \"highlights\": []\n}",
+      "text": "{\n  \"part_id\": \"P1\",\n  \"part_name\": \"Soprano\",\n  \"measures_covered\": 2,\n  \"avg_accuracy_cents\": 12.5,\n  \"note_accuracy\": [\n    {\n      \"measure\": 1,\n      \"beat\": 1.0,\n      \"expected\": \"C4\",\n      \"expected_hz\": 261.63,\n      \"sung_hz\": 258.0,\n      \"accuracy_cents\": -24,\n      \"status\": \"on_pitch\"\n    },\n    {\n      \"measure\": 2,\n      \"beat\": 1.0,\n      \"expected\": \"D4\",\n      \"expected_hz\": 293.66,\n      \"sung_hz\": null,\n      \"accuracy_cents\": null,\n      \"status\": \"no_signal\"\n    }\n  ],\n  \"accuracy_histogram\": {\n    \"on_pitch\": 1,\n    \"sharp\": 0,\n    \"flat\": 0,\n    \"uncertain\": 0,\n    \"no_signal\": 1\n  },\n  \"highlights\": []\n}",
       "type": "text"
     }
   ],
@@ -91,7 +91,7 @@
   ],
   "stop": [
     {
-      "text": "{\n  \"session_id\": \"<SESSION>\",\n  \"summary\": {\n    \"measures_covered\": 0,\n    \"avg_accuracy_cents\": null,\n    \"accuracy_histogram\": {\n      \"on_pitch\": 0,\n      \"sharp\": 0,\n      \"flat\": 0,\n      \"no_signal\": 0\n    },\n    \"highlights\": []\n  },\n  \"timed_out\": false\n}",
+      "text": "{\n  \"session_id\": \"<SESSION>\",\n  \"summary\": {\n    \"measures_covered\": 0,\n    \"avg_accuracy_cents\": null,\n    \"accuracy_histogram\": {\n      \"on_pitch\": 0,\n      \"sharp\": 0,\n      \"flat\": 0,\n      \"uncertain\": 0,\n      \"no_signal\": 0\n    },\n    \"highlights\": []\n  },\n  \"timed_out\": false\n}",
       "type": "text"
     }
   ]

@@ -629,9 +629,9 @@ class ScoreSession:
 
     def _process_pitch_frame(self, freq_hz: float, confidence: float, elapsed_sec: float) -> None:
         """Update current position/history from one detected pitch frame."""
-        from .aligner import _classify, _hz_to_cents_deviation
+        from .aligner import VOICING_CONFIDENCE, _hz_to_cents_deviation, frame_status
 
-        if freq_hz <= 0 or confidence < 0.3 or freq_hz < 50 or freq_hz > 2100:
+        if freq_hz <= 0 or confidence < VOICING_CONFIDENCE or freq_hz < 50 or freq_hz > 2100:
             with self._lock:
                 if self._current_position is not None:
                     self._current_position = {
@@ -654,13 +654,14 @@ class ScoreSession:
 
         note = self.note_sequence[note_idx]
         cents = _hz_to_cents_deviation(freq_hz, note["freq_hz"])
-        status = _classify(cents)
+        status = frame_status(freq_hz, confidence, cents)
         new_pos = {
             "measure": note["measure"],
             "beat": note["beat"],
             "expected_note": note["note_name"],
             "sung_pitch_hz": round(freq_hz, 2),
-            "accuracy_cents": cents,
+            # An uncertain frame carries no cents: nothing downstream can grade it.
+            "accuracy_cents": None if status == "uncertain" else cents,
             "status": status,
         }
 

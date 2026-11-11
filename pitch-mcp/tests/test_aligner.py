@@ -229,3 +229,51 @@ class TestSummarize:
         assert s["accuracy_histogram"]["no_signal"] == 1
         # avg of abs(10), abs(50), abs(-30) = (10+50+30)/3 = 30
         assert s["avg_accuracy_cents"] == 30
+
+
+class TestFrameStatus:
+    """frame_status grades one live frame, or declines to when it cannot be trusted."""
+
+    def test_no_voicing_is_no_signal(self):
+        from pitch_mcp.aligner import frame_status
+        assert frame_status(0.0, 0.0, 0) == "no_signal"
+        assert frame_status(440.0, 0.1, 0) == "no_signal"
+
+    def test_clear_frame_is_graded(self):
+        from pitch_mcp.aligner import frame_status
+        assert frame_status(440.0, 0.9, 5) == "on_pitch"
+        assert frame_status(440.0, 0.9, 40) == "sharp"
+        assert frame_status(440.0, 0.9, -40) == "flat"
+
+    def test_low_confidence_voiced_frame_is_uncertain(self):
+        from pitch_mcp.aligner import frame_status
+        assert frame_status(440.0, 0.4, 0) == "uncertain"
+        assert frame_status(440.0, 0.4, 60) == "uncertain"
+
+    def test_octave_ambiguous_frame_is_uncertain(self):
+        from pitch_mcp.aligner import frame_status
+        assert frame_status(220.0, 0.9, -1200) == "uncertain"
+        assert frame_status(880.0, 0.9, 1195) == "uncertain"
+
+    def test_status_set_lists_every_state(self):
+        from pitch_mcp.aligner import STATUSES
+        assert STATUSES == ("on_pitch", "sharp", "flat", "uncertain", "no_signal")
+
+
+class TestSummarizeUncertain:
+    def _result(self, status, cents):
+        return {"measure": 1, "beat": 1.0, "expected": "A4", "expected_hz": 440.0,
+                "sung_hz": 440.0, "accuracy_cents": cents, "status": status}
+
+    def test_uncertain_counted_separately_and_excluded_from_average(self):
+        s = summarize([self._result("on_pitch", 10), self._result("uncertain", None)])
+        assert s["accuracy_histogram"]["uncertain"] == 1
+        assert s["accuracy_histogram"]["on_pitch"] == 1
+        assert s["avg_accuracy_cents"] == 10
+
+    def test_uncertain_cents_never_reach_average_even_if_present(self):
+        s = summarize([self._result("on_pitch", 10), self._result("uncertain", 900)])
+        assert s["avg_accuracy_cents"] == 10
+
+    def test_histogram_always_has_uncertain_key(self):
+        assert summarize([])["accuracy_histogram"]["uncertain"] == 0
