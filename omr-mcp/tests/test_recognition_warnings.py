@@ -13,6 +13,12 @@ from omr_mcp.server import call_tool_result, list_tools
 
 from .test_recognition_review import _ctx, _page_image
 
+@pytest.fixture(autouse=True)
+def output_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("SHEET_MUSIC_OUTPUT_ROOT", str(tmp_path / "out"))
+    return tmp_path / "out"
+
+
 NOTE = "<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration></note>"
 REST = "<note><rest/><duration>4</duration></note>"
 
