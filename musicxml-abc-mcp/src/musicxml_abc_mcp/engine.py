@@ -194,7 +194,27 @@ def validate_abc(abc_str: str) -> dict:
 _STEP_LETTERS = {"C": "C", "D": "D", "E": "E", "F": "F", "G": "G", "A": "A", "B": "B"}
 
 
-def _pitch_to_abc(pitch) -> str:
+class _Accidentals:
+    """Tracks which letters are altered so naturals are written where ABC would otherwise
+    apply the key signature or an earlier accidental in the bar."""
+
+    def __init__(self, key_sig=None):
+        self.key = {}
+        if key_sig is not None:
+            self.key = {p.step: (p.alter or 0) for p in key_sig.alteredPitches}
+        self.bar: dict[tuple[str, int], int] = {}
+
+    def new_bar(self) -> None:
+        self.bar = {}
+
+    def needs_natural(self, step: str, octave: int, alter: int) -> bool:
+        """Record the note; True when alter 0 must be written as '='."""
+        current = self.bar.get((step, octave), self.key.get(step, 0))
+        self.bar[(step, octave)] = alter
+        return alter == 0 and current != 0
+
+
+def _pitch_to_abc(pitch, accidentals: Optional[_Accidentals] = None) -> str:
     """Convert a music21 Pitch to an ABC note token (without duration).
 
     ABC octave convention (standard v2.1 §4.1, also how music21 parses ABC):
@@ -218,6 +238,10 @@ def _pitch_to_abc(pitch) -> str:
         acc = "__"
     else:
         acc = ""
+        if accidentals is not None and accidentals.needs_natural(step, pitch.octave or 4, 0):
+            acc = "="
+    if accidentals is not None and alter != 0:
+        accidentals.needs_natural(step, pitch.octave or 4, alter)
 
     # Note letter and octave modifiers (ABC standard v2.1 §4.1)
     # Uppercase C = middle C (C4); lowercase c = one octave above (C5).
@@ -277,7 +301,7 @@ def _key_to_abc(key_sig) -> str:
         return "C"
 
 
-def _note_to_abc_token(note_or_chord) -> str:
+def _note_to_abc_token(note_or_chord, accidentals: Optional[_Accidentals] = None) -> str:
     """Convert a music21 Note, Chord, or Rest to one or more ABC tokens."""
     import music21.note
     import music21.chord
@@ -291,12 +315,12 @@ def _note_to_abc_token(note_or_chord) -> str:
         pitches = note_or_chord.pitches
         if not pitches:
             return f"z{dur}"
-        inner = "".join(_pitch_to_abc(p) for p in pitches)
+        inner = "".join(_pitch_to_abc(p, accidentals) for p in pitches)
         return f"[{inner}]{dur}"
 
     # Single note
     if isinstance(note_or_chord, music21.note.Note):
-        return _pitch_to_abc(note_or_chord.pitch) + dur
+        return _pitch_to_abc(note_or_chord.pitch, accidentals) + dur
 
     return f"z{dur}"  # unknown — treat as rest
 
@@ -329,6 +353,7 @@ def _part_to_abc_tune(part, tune_num: int, score, part_name: str) -> tuple[str, 
     # Key signature
     key_sig = _first_element(part, ("Key", "KeySignature")) or _first_element(score, ("Key", "KeySignature"))
     k_field = _key_to_abc(key_sig) if key_sig else "C"
+    accidentals = _Accidentals(key_sig)
 
     # Tempo
     tempo_mark = _first_element(part, "MetronomeMark") or _first_element(score, "MetronomeMark")
@@ -356,7 +381,7 @@ def _part_to_abc_tune(part, tune_num: int, score, part_name: str) -> tuple[str, 
                 if _is_dynamic(elem):
                     has_dynamics = True
                     continue
-                bar_tokens.append(_note_to_abc_token(elem))
+                bar_tokens.append(_note_to_abc_token(elem, accidentals))
             lines.append(" ".join(bar_tokens) + " |]")
         else:
             lines.append("z4 |]")  # empty part
@@ -364,11 +389,12 @@ def _part_to_abc_tune(part, tune_num: int, score, part_name: str) -> tuple[str, 
         bar_lines: list[str] = []
         for measure in measures:
             tokens: list[str] = []
+            accidentals.new_bar()
             for elem in measure.notesAndRests:
                 if _is_dynamic(elem):
                     has_dynamics = True
                     continue
-                tokens.append(_note_to_abc_token(elem))
+                tokens.append(_note_to_abc_token(elem, accidentals))
             if tokens:
                 bar_lines.append(" ".join(tokens))
             else:

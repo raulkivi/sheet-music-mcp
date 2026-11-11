@@ -92,8 +92,8 @@ class TestEngine:
         assert len(tunes) == 4
         for tune in tunes:
             assert len(_bars(tune)) == 2
-        assert _bars(tunes[0]) == ["e6", "f6"]
-        assert _bars(tunes[3]) == ["E,6", "F,6"]
+        assert _bars(tunes[0]) == ["e6", "=f6"]
+        assert _bars(tunes[3]) == ["E,6", "=F,6"]
 
     def test_key_meter_and_tempo_in_force_at_the_first_bar_are_carried(self):
         tune = _tunes(musicxml_to_abc(SATB_SIX_BARS, measures=[3, 4])["abc"])[0]

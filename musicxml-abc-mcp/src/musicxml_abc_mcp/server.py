@@ -23,15 +23,18 @@ from sheet_music_mcp_core.ui import PackageAssetSource, UiRegistry, UiResource
 from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 
 from . import __version__
+from .abc_edit import apply_abc_edit
 from .abc_store import AbcStore
 from .engine import ProcessingError, abc_to_musicxml, health_check, musicxml_to_abc, validate_abc
 from .health import build_health_report
 from .presenter import (
     ABC_OUTPUT_SCHEMA,
     CONVERSION_OUTPUT_SCHEMA,
+    EDIT_OUTPUT_SCHEMA,
     VALIDATION_OUTPUT_SCHEMA,
     present_abc,
     present_conversion,
+    present_edit,
     present_stored_abc,
     present_validation,
 )
@@ -49,6 +52,9 @@ INSTRUCTIONS = (
     "drops dynamics and complex articulations. "
     "Pass measures [start, end] (printed bar numbers, pickup 0) to musicxml_to_abc to export only "
     "those bars. "
+    "To change a few bars of one part, export them with musicxml_to_abc (part, measures), edit the "
+    "ABC and pass it to apply_abc_edit with the same part and measures: other parts, dynamics, "
+    "lyrics and layout outside those bars are kept. "
     "Prefer musicxml_path over inline musicxml text, pass on the musicxml_path that "
     "abc_to_musicxml returns for large scores, and use describe_score to learn part IDs cheaply."
 )
@@ -141,6 +147,46 @@ async def list_tools():
             },
             output_schema=CONVERSION_OUTPUT_SCHEMA,
             meta=ui_registry.meta_for(ABC_WORKBENCH),
+        ),
+        Tool(
+            name="apply_abc_edit",
+            title="Apply ABC edit",
+            # Writes the edited score to a file in 'path' mode, or in 'auto' mode when it is large.
+            annotations=ToolAnnotations(**WRITES_FILE),
+            description=(
+                "Replace some bars of one part of a score with edited ABC and return the new "
+                "score. Only those bars of that part change: other parts, the header and all "
+                "other bars are kept byte for byte, and the edited bars keep their layout, "
+                "attributes and bar lines. Export the bars first with musicxml_to_abc (same part "
+                "and measures), edit that ABC, then pass it here; it must hold exactly one bar "
+                "per measure in the range. Key, time, clef and tempo come from the score, not "
+                "the ABC header. warnings lists dynamics, lyrics or articulations the edited bars "
+                "lost and bars whose length changed. With return 'auto' (default) a small score "
+                "comes back as musicxml text and a large one as musicxml_path plus a short "
+                "score_summary. Pass the score as musicxml_path (preferred) or musicxml."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    **_musicxml_input_properties(),
+                    "part": {
+                        "type": "string",
+                        "description": "The part to edit: a part ID, name or voice (e.g. 'P1', 'Soprano', 'S').",
+                    },
+                    **MEASURES_PROPERTY,
+                    "abc": {
+                        "type": "string",
+                        "description": (
+                            "One ABC tune (X:, M:, L:, K: headers) with the new bars, one per "
+                            "measure in the range, such as an edited musicxml_to_abc export."
+                        ),
+                    },
+                    **RETURN_PROPERTY,
+                },
+                "required": ["part", "measures", "abc"],
+                **exactly_one("musicxml", "musicxml_path"),
+            },
+            output_schema=EDIT_OUTPUT_SCHEMA,
         ),
         Tool(
             name="validate_abc",
@@ -263,6 +309,27 @@ async def _abc_to_musicxml(arguments: dict, ctx) -> CallToolResult:
         return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
 
 
+async def _apply_abc_edit(arguments: dict, ctx) -> CallToolResult:
+    try:
+        musicxml = await load_score(arguments, ctx)
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    ok, err = validate_musicxml(musicxml)
+    if not ok:
+        return _error(error_content(err, "INVALID_INPUT"))
+
+    try:
+        # The whole edit is built before anything is delivered, so an error never writes a file.
+        result = apply_abc_edit(musicxml, arguments["part"], arguments["measures"], arguments["abc"])
+        content = deliver_score(result, field="musicxml", mode=arguments.get("return"), stem="abc-edit")
+        return _result(present_edit(content, result))
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("apply_abc_edit unexpected error: %s", e)
+        return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
+
+
 async def _validate_abc(arguments: dict, ctx) -> CallToolResult:
     # validate_abc handles an empty string itself
     try:
@@ -290,6 +357,7 @@ _RESULT_TOOLS = {
     "abc_to_musicxml": _abc_to_musicxml,
     "validate_abc": _validate_abc,
     "get_abc": _get_abc,
+    "apply_abc_edit": _apply_abc_edit,
 }
 
 
@@ -323,7 +391,8 @@ async def _plain_tool(name: str, arguments: dict, ctx) -> list:
             "input_formats": ["musicxml", "mxl", "abc"],
             "output_formats": ["abc", "musicxml"],
             # Scores are taken as inline text or as a .musicxml/.xml/.mxl file path;
-            # musicxml_to_abc can export a range of printed bars (measures).
+            # musicxml_to_abc can export a range of printed bars (measures);
+            # apply_abc_edit replaces that range of one part.
             "input_parameters": ["musicxml", "musicxml_path", "measures"],
             "tools": [
                 "musicxml_to_abc",
@@ -333,6 +402,7 @@ async def _plain_tool(name: str, arguments: dict, ctx) -> list:
                 "health_check",
                 "describe_score",
                 "get_abc",
+                "apply_abc_edit",
             ],
             "backend": "music21",
             "backend_version": backend_version,
@@ -403,7 +473,7 @@ def main():
 
     logger.info(
         "musicxml-abc-mcp ready. Tools: musicxml_to_abc, abc_to_musicxml, "
-        "validate_abc, list_capabilities, health_check, describe_score (app-only: get_abc)"
+        "validate_abc, apply_abc_edit, list_capabilities, health_check, describe_score (app-only: get_abc)"
     )
 
     async def _run():

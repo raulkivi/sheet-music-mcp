@@ -1,5 +1,7 @@
 # musicxml-abc-mcp Requirements
 
+**Last changed:** 2026-11-11 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## Purpose
 
 Convert between MusicXML and ABC notation. ABC is a compact, text-based music format that large language models can read and edit directly. This server enables AI-assisted score editing: MusicXML → ABC → Claude edits → ABC → MusicXML.
@@ -63,6 +65,34 @@ Scores MAY be passed and returned as file paths instead of inline text
   `INVALID_PARAMETER` with a `hint` naming the score's first and last bar numbers
   (`"This score has measures 1–32."`).
 - Without `measures` the output MUST be unchanged.
+
+### FR-3c — Bar edits merged into the score (C16, `apply_abc_edit`)
+
+The server MUST replace a range of bars of one part with edited ABC and keep the rest of the score.
+
+- Inputs: the score (`musicxml` or `musicxml_path`, read with `references.load_score`), `part`
+  (the shared part resolver; MusicXML score-part IDs), `measures: [start, end]` (printed numbers,
+  as FR-3b) and `abc` (one tune, one part). Output through `references.deliver_score`
+  (`return: auto|path|inline`).
+- Every other part MUST stay byte-identical, and so MUST the header (declaration, DOCTYPE,
+  comments, part list) and the part's bars outside the range. The one exception: when an edited bar
+  needs finer `divisions` (an eighth note in a part counted in quarters), the first untouched bar
+  after it gets a `<divisions>` element restoring the part's own value.
+- The ABC MUST be split at its own bar lines (music21 re-bars by meter), one ABC bar per measure in
+  the range; any other count MUST return `INVALID_INPUT` with a `hint` giving the expected count.
+- An edited bar MUST keep the original bar's shell: measure attributes (`number`, `width`,
+  `implicit`), `<print>` layout, its leading `<attributes>` (key, time, clef changes), left and
+  right bar lines, and tempo, rehearsal, segno and coda directions before its first note. Key,
+  time, clef and tempo from the ABC header MUST NOT be written into the score.
+- Durations MUST be rescaled to the part's `divisions`. A tie across an ABC bar line MUST keep its
+  stop.
+- The result MUST carry `warnings[]` in the shared contract
+  ([conventions: Warnings](../../docs/conventions.md#warnings)): `DYNAMICS_DROPPED`,
+  `LYRICS_DROPPED` and `ARTICULATION_DROPPED` when an edited bar had them and the edit has none, and
+  `MEASURE_DURATION_MISMATCH` when an edited bar's length differs from the original bar.
+- A reversed or out-of-range `measures`, or an unknown or ambiguous part, MUST return
+  `INVALID_PARAMETER` (with `hint` or `choices`). ABC that fails to parse, several tunes or voices,
+  a missing `K:` line or a timewise score MUST return `INVALID_INPUT`. No file is written on error.
 
 ### FR-4 — Capability reporting
 
@@ -161,6 +191,33 @@ Output (path: "path", or "auto" above the limit):
 
 The annotation preset is `WRITES_FILE` (it writes in `auto` mode; plan decision W2-5).
 
+### IR-3a — Tool: `apply_abc_edit`
+
+Title "Apply ABC edit", preset `WRITES_FILE` (it writes in `path` mode, or `auto` above the limit).
+
+```
+Input:
+  musicxml       string      one of    MusicXML document as a string
+  musicxml_path  string      one of    path to a .musicxml, .xml or .mxl file (preferred)
+  part           string      required  the part to edit: ID, name or voice
+  measures       [int, int]  required  inclusive [start, end] printed bar numbers (pickup 0)
+  abc            string      required  one ABC tune with one bar per measure in the range
+  return         string      optional  "auto" (default) | "path" | "inline"
+
+Output (inline):
+  part               string        MusicXML part ID that was edited (e.g. "P2")
+  measures           [int, int]    the range, as given
+  measures_replaced  int           bars replaced
+  warnings           list[object]  {code, severity, message, measure, part} (conventions: Warnings)
+  musicxml           string        the whole edited score
+
+Output (path): musicxml_path, score_summary and a ResourceLink replace musicxml, as in IR-3
+(file stem `abc-edit`).
+```
+
+`structuredContent` (`EDIT_OUTPUT_SCHEMA`) holds `part`, `measures`, `measures_replaced`,
+`warnings`, `delivery` and `musicxml_bytes`, never the score.
+
 ### IR-4 — Tool: `validate_abc`
 
 ```
@@ -182,7 +239,7 @@ Output:
   input_formats    list[string]   ["musicxml", "mxl", "abc"]
   output_formats   list[string]   ["abc", "musicxml"]
   input_parameters list[string]   ["musicxml", "musicxml_path", "measures"]
-  tools            list[string]   includes "describe_score"
+  tools            list[string]   includes "describe_score" and "apply_abc_edit"
   backend          string         "music21"
   backend_version  string
   abc_standard     string         "2.1"
@@ -280,6 +337,12 @@ Unit tests MUST cover:
   output schemas, no score in `structuredContent`, fresh `abc_id` per call, app-only `get_abc`
   visibility per client kind, no paths accepted, error envelope without `structuredContent`,
   store TTL and bound
+- `apply_abc_edit` (`tests/test_abc_edit.py`, `tests/test_abc_bars.py`,
+  `tests/test_apply_abc_edit_tool.py`, fixture `tests/edit_fixtures.py`): untouched parts identical
+  both byte for byte and after C14N 2.0 canonicalisation, header and untouched bars byte-identical,
+  bar shell kept, divisions rescaled and restored, ties across bar lines, warnings, every error
+  path, no file written on error, ABC bar splitting (bar-line kinds, chords, quotes, inline fields,
+  key and length changes)
 
 Unit tests MUST mock music21 `converter.parse`.
 
@@ -292,6 +355,8 @@ Integration tests MUST:
 - Assert note count in the output is within ±2% of the input
 - Perform the same round-trip on a 4-part SATB fixture
 - Assert all four parts appear in the output MusicXML
+- Re-apply an unchanged `musicxml_to_abc` export of two bars of a SATB part with `apply_abc_edit`
+  and assert the other parts are identical and the edited bars keep their pitches
 - Assert the `warnings` field is populated when dynamic markings are present in the input
 
 ### TR-3 — Test fixtures

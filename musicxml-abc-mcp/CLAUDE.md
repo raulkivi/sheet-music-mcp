@@ -6,7 +6,7 @@ Converts between MusicXML and ABC notation. ABC is compact and text-based — Cl
 edit it directly in its context window, which is impractical with verbose MusicXML.
 
 **Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references) + UX Wave 3 (`measures`) complete.
-233 unit tests pass (`-m "not integration"`) + 4 integration. MCP Apps ABC Workbench server side done (`structuredContent`, output schemas, app-only `get_abc`); the page is not built yet.
+306 unit tests pass (`-m "not integration"`) + 6 integration. MCP Apps ABC Workbench server side done (`structuredContent`, output schemas, app-only `get_abc`); the page is not built yet. `apply_abc_edit` (C16) merges an ABC bar edit back into the score.
 
 ---
 
@@ -14,7 +14,7 @@ edit it directly in its context window, which is impractical with verbose MusicX
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v               # 233 unit tests (integration deselected)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v               # 306 unit tests (integration deselected)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration # round-trip conversion tests
 ```
 
@@ -30,6 +30,8 @@ Install dependencies: `uv sync --extra dev` (note: `--extra dev`, not `--group d
 | `src/musicxml_abc_mcp/presenter.py` | `structuredContent` + output schemas for the ABC Workbench tools |
 | `src/musicxml_abc_mcp/abc_store.py` | `AbcStore`: bounded, expiring `abc_id` handles to `musicxml_to_abc` results (no MCP imports) |
 | `src/musicxml_abc_mcp/engine.py` | Conversion pipeline + custom ABC serializer (no MCP imports) |
+| `src/musicxml_abc_mcp/abc_edit.py` | `apply_abc_edit`: splices edited bars into the score text (no MCP imports) |
+| `src/musicxml_abc_mcp/abc_bars.py` | Splits ABC at its bar lines, one tune per bar (no MCP imports) |
 | `src/musicxml_abc_mcp/utils.py` | Input validation helpers |
 | `docs/HANDOVER.md` | Status, remaining work, definition of done |
 | `docs/PLAN.md` | Architecture decisions and rationale |
@@ -44,6 +46,7 @@ Install dependencies: `uv sync --extra dev` (note: `--extra dev`, not `--group d
 |------|-------------|
 | `musicxml_to_abc` | MusicXML (`musicxml` text or `musicxml_path`, `.mxl` too) → ABC notation (all parts or one specific part; `measures` [start, end] for a range of printed bars) |
 | `abc_to_musicxml` | ABC notation → MusicXML; `return` `auto` (default) / `path` / `inline` — large scores come back as `musicxml_path` + `score_summary` (`WRITES_FILE`) |
+| `apply_abc_edit` | Replace bars `measures` [start, end] of one `part` with edited ABC; other parts, the header and all other bars stay byte-identical; `warnings[]` for lost dynamics, lyrics, articulations or changed bar lengths; `return` `auto` / `path` / `inline` (`WRITES_FILE`) |
 | `validate_abc` | Check ABC syntax, return errors/warnings |
 | `list_capabilities` | Server metadata and format support |
 | `health_check` | MusicXML → ABC → MusicXML round-trip self-test |
@@ -118,6 +121,18 @@ asyncio.run(_run())
   `{warnings, delivery, musicxml_bytes}`. Every `musicxml_to_abc` success stores its result in
   `server.abc_store` under a fresh `abc_id` (only in `structuredContent`, never `content`); the
   app-only `get_abc` returns it. Tests get a fresh store from an autouse fixture.
+- **`apply_abc_edit` (C16).** Never re-serialise the whole score: `abc_edit._splice` finds each
+  `<measure>` byte span with `expat` (after defusedxml parsed the score) and swaps only the edited
+  bars, so other parts stay byte-identical. music21 re-bars ABC by its `M:` meter (overfull bars
+  split, short bars merged), so `abc_bars.split_bars` cuts the ABC at its own bar lines and each bar
+  is converted alone under `M:64/4` (a much longer meter such as 1024/4 makes music21 take seconds
+  per bar). Edited bars keep the original shell (`<print>`, leading `<attributes>`, bar lines,
+  tempo); durations are rescaled to the part's divisions, and finer divisions are restored on the
+  next untouched bar. Warnings use the structured contract (`code`, `severity`, `message`,
+  `measure`, `part`), unlike the string `warnings` of the older tools.
+- **Naturals under a key signature are lost by `musicxml_to_abc`.** The serializer writes no `=`,
+  so B natural in E-flat major exports as `B` and comes back as B flat (seen on a PDMX SATB sample).
+  This also affects an unchanged `musicxml_to_abc` → `apply_abc_edit` round trip. Open bug.
 - **`X:` header required.** music21's ABC parser requires the tune-number header. It adds it
   automatically on output but may fail to parse input that lacks it.
 
