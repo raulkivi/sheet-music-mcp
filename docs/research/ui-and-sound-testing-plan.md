@@ -1,6 +1,6 @@
 # UI and sound testing: improvement plan
 
-Analysis date: 2026-11-11. Status: **P1 done (U1, U6)**; the other phases are still proposals.
+Analysis date: 2026-11-11. Status: **P1 to P8 done** (U9 visual regression deferred by decision 5). Open: the two pitch-mcp grading defects (strict xfail, pitch-mcp/docs/todo.md), the perf budget is a CI warning until the runner's numbers are stable, and the release gate runs only on a pitch-mcp or render-mcp release tag.
 
 Compared against the testing in `agent-cost-analyzer` (MIT, same owner):
 `packages/mcp-apps/e2e/` (Playwright fake MCP Apps host), `packages/mcp-apps/test/theme/` (contrast tests),
