@@ -155,6 +155,19 @@ test("with wasm-unsafe-eval the page renders itself and calls no tool", async ({
   expect(await messages(page, "tools/call")).toEqual([]);
 });
 
+test("M2: paging and zooming on the WASM path make no tool call", async ({ page }) => {
+  const frame = await openHost(page);
+  await expect(frame.locator("#score svg").first()).toBeVisible();
+  await expect(frame.locator("#engine")).toHaveAttribute("data-engine", "wasm");
+  await frame.locator("#next").click();
+  await expect(frame.locator("#page-label")).toHaveText(/^Page 2 \//);
+  await frame.locator("#prev").click();
+  await expect(frame.locator("#page-label")).toHaveText(/^Page 1 \//);
+  await frame.locator("#zoom-in").click();
+  await frame.locator("#zoom-out").click();
+  expect(await messages(page, "tools/call")).toEqual([]);
+});
+
 test("under the spec's default CSP (no wasm-unsafe-eval) pages come from render_page_svg", async ({ page }) => {
   const frame = await openHost(page, { csp: "spec" });
   await expect(frame.locator("#score svg[data-server-page='1']")).toBeVisible();

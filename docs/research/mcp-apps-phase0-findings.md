@@ -84,7 +84,7 @@ Policy: a check is automated wherever the behaviour is reproducible in the mock 
 |---|---|---|
 | M0 | Engine line shows `wasm` or `server` | `score-viewer.spec.ts`: `#engine` `data-engine` is `wasm` under `wasm-unsafe-eval`; the default-CSP test expects the `render_page_svg` path |
 | M1 | Viewer renders inline; model answers from text | `real-server.spec.ts` R1 (real render-mcp over stdio renders a page); `score-viewer.spec.ts` handshake test. Text `content` is byte-identical (golden test, §1) |
-| M2 | Navigation and zoom need no model turn | WASM path: `score-viewer.spec.ts` "calls no tool". Paging also updates model context via `ui/update-model-context` (AC-R3 test). Server path does call `tools/call` per page, by design. **Gap:** no test asserts zero `tools/call` while paging on the WASM path |
+| M2 | Navigation and zoom need no model turn | `score-viewer.spec.ts` "M2: paging and zooming on the WASM path make no tool call" (Next, Prev, zoom in and out; zero `tools/call`). Server path does call `tools/call` per page, by design |
 | M3 | Light and dark themes followed | `u3-host-themes.spec.ts`; `score-viewer.spec.ts` dark-theme test; `ui/test/theme/contrast.test.ts` |
 | M4 | Fullscreen works, or button hidden | `score-viewer.spec.ts` (offered only when the host lists `fullscreen`); `u4`/`u5` specs |
 | M5 | Download saves, or fallback shown | `score-viewer.spec.ts` Download and `allow-downloads` cases; `u4` download-fallback stop |
@@ -97,7 +97,7 @@ Policy: a check is automated wherever the behaviour is reproducible in the mock 
 | R1 | M0 repeated in the real host: which engine it picks under its own CSP | Real host CSP is not in the mock | ☐ | ☐ |
 | R2 | M1 repeated: viewer appears inline in the real host | Host iframe and sandbox are not in the mock | ☐ | ☐ |
 | R3 | M5 repeated: `allow-downloads` in the real iframe sandbox | Sandbox flags are host-set | ☐ | ☐ |
-| R4 | M6: first render on a phone, plus any host size warnings | Real device timing; CI measures only a throttled desktop profile | ☐ | ☐ |
+| R4 | M6 on a real phone, plus any host size warnings | Real device and real host. The throttled phone profile is automated: `npm run perf` (`ui/perf-budget.json`, phone first page ≤ 9 s; measured ~2.1 s). CI runs it as a warning only | ☐ | ☐ |
 
 Run render-mcp from the spike branch with the UI built:
 
