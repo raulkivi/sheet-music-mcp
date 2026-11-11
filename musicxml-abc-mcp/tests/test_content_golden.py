@@ -23,13 +23,18 @@ GOLDEN = Path(__file__).parent / "golden" / "abc_content.json"
 TIMESTAMP = re.compile(r"\d{8}-\d{6}-\d{6}(-\d+)?")
 # music21 gives parsed ABC parts random ids; they are not part of the contract.
 RANDOM_PART_ID = re.compile(r"P[0-9a-f]{32}")
+# music21 stamps the MusicXML it writes with the current date, so the golden file would expire daily.
+DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+# The software stamp names the music21 version, which changes with every backend bump.
+MUSIC21_VERSION = re.compile(r"music21 v\.[\d.]+")
 BIG_ABC = "X:1\nT:Big\nM:4/4\nL:1/8\nK:C\n" + "CDEFGABc|" * 600 + "]"
 
 
 def _normalise(blocks, tmp_path: Path) -> list[dict]:
     dumped = json.dumps([b.model_dump(mode="json", by_alias=True, exclude_none=True) for b in blocks])
     dumped = dumped.replace(str(tmp_path.resolve()), "<TMP>").replace(str(tmp_path), "<TMP>")
-    return json.loads(RANDOM_PART_ID.sub("<PID>", TIMESTAMP.sub("<STAMP>", dumped)))
+    masked = MUSIC21_VERSION.sub("music21 v.<VERSION>", DATE.sub("<DATE>", TIMESTAMP.sub("<STAMP>", dumped)))
+    return json.loads(RANDOM_PART_ID.sub("<PID>", masked))
 
 
 async def _all_contents(tmp_path, monkeypatch) -> dict:

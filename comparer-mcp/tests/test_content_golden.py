@@ -58,7 +58,8 @@ async def _all_contents(tmp_path, monkeypatch) -> dict:
     await record("report", "generate_comparison_report", pair)
     await record("export_inline", "export_annotated_musicxml", {**pair, "return": "inline"})
     await record("export_path", "export_annotated_musicxml", {**pair, "return": "path"})
-    await record("capabilities", "list_capabilities", {})
+    # list_capabilities is not recorded: it carries the backend version, which changes with every
+    # music21 bump and is not part of the content contract (see musicxml-abc-mcp's golden test).
     await record("describe", "describe_score", {"musicxml": REFERENCE_XML})
 
     await record("compare_bad_xml", "compare_musicxml", {"reference_xml": "<nope/>", "target_xml": TARGET_XML})
