@@ -81,3 +81,23 @@ not previously derive from the singer's actual performance in either phase:
       matching `soprano_phrase.wav` — but the WAV is a synthesized sine-tone proxy, not a real human
       recording (can't record a human voice in this environment). Recording a real take to replace
       it — same filenames — is still open; see `docs/HANDOVER.md` step 4.
+
+---
+
+## Defects found by the simulated singer (2026-11-11, P5 / S4)
+
+`tests/test_simulated_singer.py` renders `reference.musicxml` with one fault at a time (helper:
+`tests/simulated_singer.py`). `docs/HANDOVER.md` does not exist in this checkout, so the findings are
+recorded here. Each is an `xfail(strict=True)` test written to the intended behaviour; remove the
+marker when fixed.
+
+- [ ] **Octave slips are not graded.** An octave-up note is detected at half its pitch (pYIN) and
+      graded `on_pitch` at 0 cents; for both directions the DTW aligner hands the slipped note a
+      neighbour's frames (`sung_hz` = a neighbouring note). Expected: `sharp` / `flat` near +-1200.
+- [ ] **A note that repeats the previous pitch can get one frame.** On the final C4 (after another
+      C4) DTW assigned a single frame, so one vibrato extreme (+50 cents) was graded `sharp`. The same
+      vibrato on a note between different pitches grades `on_pitch`.
+- Deliberate tolerances, asserted as documented: a note 150 ms late stays `on_pitch` (grading is by
+  pitch; the aligner has no timing metric); +25 cents is on the `|cents| <= 25` `on_pitch` edge, so
+  that test asserts the deviation, not the label; a 150 ms breath gap or 20 dB SNR noise does not
+  change the grade.

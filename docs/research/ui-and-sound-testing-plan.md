@@ -134,7 +134,7 @@ configuration, which only a real run can test.
 | P2 | U2, U4, U5: real fallback path, 360 px, axe, keyboard | medium | P1 | Each AC id has a spec; CI job green |
 | P3 | U3: host theme sets and contrast (R3) | medium | P1 | Contrast tests green in each recorded set |
 | P4 | S1 + S2: audio feature module and synth content tests | medium | — | Module unit-tested; synth integration asserts content (done 2026-11-11: `synth-mcp/tests/audio_features.py` + `test_audio_content.py`; content tests unrun here, no soundfont; onset check deferred to P6) |
-| P5 | S4 + S7 (pitch part): simulated-singer grading, pitch integration job in CI | medium | — | Each fault case has a spec; integration job green |
+| P5 ✅ | S4 + S7 (pitch part): simulated-singer grading, pitch integration job in CI | medium | — | Each fault case has a spec; integration job green (done 2026-11-11: 6 fault cases as unit tests in `pitch-mcp/tests/test_simulated_singer.py`, 2 defects (3 strict xfail tests) recorded in `pitch-mcp/docs/todo.md`; job `pitch-integration` added, not yet run on GitHub) |
 | P6 | S3 + S7 (synth part): pitch round-trip, soundfont in CI | medium-high | P4, P5, P0 | Round-trip green in CI |
 | P7 | S5, S6, R7/R8 evidence record | medium | P4 | Manual runs write records; a check reads them |
 | P8 | U7, U8 (per page, with each page), U9 optional | ongoing | P2 | Each new page ships its spec file |

@@ -20,6 +20,13 @@ Most unit tests don't use these files at all — they use synthetic sine wave WA
 generated in-memory (via numpy/scipy) and inline MusicXML, both defined directly
 in the test files that need them.
 
+## Simulated singer (S4)
+
+`tests/simulated_singer.py` renders `reference.musicxml` as a harmonic tone with one known fault
+injected (sharp note, late note, octave slip, vibrato, noise at 20 dB SNR, breath gap), fixed seed,
+no files committed. `tests/test_simulated_singer.py` grades each take with `analyze_recording`.
+Unit tests (about 1 s each). Known defects are `xfail(strict=True)`; see `docs/todo.md`.
+
 ## Phase A Integration Tests
 
 `tests/test_integration.py` (`@pytest.mark.integration`) runs `analyze_recording`
