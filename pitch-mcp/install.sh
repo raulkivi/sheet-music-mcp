@@ -13,15 +13,13 @@ fi
 
 echo "✓ apt-based distro detected"
 
-# ── 2. Install uv if not already present ──────────────────────────────────────
+# ── 2. Require uv ──────────────────────────────────────
 if command -v uv &>/dev/null; then
     echo "✓ uv already installed: $(uv --version)"
 else
-    echo "→ Installing uv..."
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    # Add uv to PATH for the rest of this script
-    export PATH="$HOME/.local/bin:$PATH"
-    echo "✓ uv installed: $(uv --version)"
+    echo "ERROR: uv is not installed. Install it, then re-run this script:"
+    echo "       https://docs.astral.sh/uv/getting-started/installation/"
+    exit 1
 fi
 
 # ── 3. Install libportaudio2 (optional — real-time mic mode only) ──────────────

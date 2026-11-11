@@ -30,7 +30,7 @@ uv sync --extra dev
 
 Note: use `--extra dev` (not `--group dev`) to install pytest.
 
-For a guided setup (installs `uv` if needed, then syncs dependencies), run `./install.sh` —
+For a guided setup (checks for `uv`, then syncs dependencies), run `./install.sh` —
 see [SETUP.md](SETUP.md) for step-by-step instructions. Ready-made client configs (Claude
 Desktop, Cursor, Windsurf, Continue, Zed) are in [examples/](examples/). If something doesn't
 work, check [TROUBLESHOOTING.md](TROUBLESHOOTING.md).

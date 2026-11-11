@@ -46,7 +46,7 @@ These are handled by a small per-server `install.sh` that has nothing to do with
 
 | Blocker | Severity | Resolution |
 |---------|----------|------------|
-| ~~No PyPI packages — users must clone the repo and manage paths manually~~ | High | ✅ All five servers published to PyPI; `uvx` handles install |
+| ~~No PyPI packages — users must clone the repo and manage paths manually~~ | High | ✅ All six servers published to PyPI; `uvx` handles install |
 | ~~Must install `uv` manually — not a standard tool~~ | High | ✅ `install.sh` per server installs `uv` |
 | ~~System libs (`libfluidsynth`, `libcairo`, `libportaudio2`) require `apt` commands~~ | High | ✅ `install.sh` per server installs required packages |
 | ~~Must download a soundfont and know the path (synth-mcp)~~ | High | ✅ `install.sh` auto-downloads TimGM6mb.sf2; `soundfonts.md` documents alternatives |
@@ -79,7 +79,7 @@ Once published, the installation step for the user is simply handled by `uvx` at
 The only thing `uvx` cannot handle is OS-level libraries. Each server gets a minimal `install.sh` that:
 
 1. Checks the distro is apt-based; exits with a clear message otherwise
-2. Installs `uv` if missing (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
+2. Checks `uv` is installed; exits with a link to the uv install docs otherwise (no `curl | sh`, per OpenSSF Scorecard Pinned-Dependencies)
 3. Installs only the system libraries **this server** needs
 
 System library matrix:
@@ -111,7 +111,7 @@ Each server gets a `SETUP.md` written for non-technical users. With PyPI distrib
 │   ├── OS: Ubuntu / Debian / Linux Mint
 │   └── System libraries (server-specific, if any)
 ├── Installation
-│   └── Run ./install.sh  ← installs uv + system libs only
+│   └── Run ./install.sh  ← checks uv, installs system libs only
 ├── Connect to your LLM client
 │   ├── Claude Desktop  ← paste config snippet, uvx handles the rest
 │   ├── Cursor

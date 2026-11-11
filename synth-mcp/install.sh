@@ -37,19 +37,13 @@ if ! command -v apt-get &>/dev/null && [[ ! -f /etc/debian_version ]]; then
        manually, then paste the config snippet below into your LLM client."
 fi
 
-# ── 2. install uv if not present ─────────────────────────────────────────────
+# ── 2. require uv ─────────────────────────────────────────────
 echo -e "${CYAN}[1/4]${NC} Checking for uv..."
 if command -v uv &>/dev/null; then
     ok "uv already installed  ($(uv --version 2>&1 | head -1))"
 else
-    echo "     Installing uv..."
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    # make uv available in this session
-    export PATH="$HOME/.local/bin:$PATH"
-    command -v uv &>/dev/null \
-        || die "uv installation failed.  Install manually and re-run this script:
-       curl -LsSf https://astral.sh/uv/install.sh | sh"
-    ok "uv installed"
+    die "uv is not installed.  Install it, then re-run this script:
+       https://docs.astral.sh/uv/getting-started/installation/"
 fi
 
 # ── 3. install system packages ───────────────────────────────────────────────
