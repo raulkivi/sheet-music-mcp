@@ -86,7 +86,7 @@ Policy: a check is automated wherever the behaviour is reproducible in the mock 
 | M1 | Viewer renders inline; model answers from text | `real-server.spec.ts` R1 (real render-mcp over stdio renders a page); `score-viewer.spec.ts` handshake test. Text `content` is byte-identical (golden test, §1) |
 | M2 | Navigation and zoom need no model turn | `score-viewer.spec.ts` "M2: paging and zooming on the WASM path make no tool call" (Next, Prev, zoom in and out; zero `tools/call`). Server path does call `tools/call` per page, by design |
 | M3 | Light and dark themes followed | `u3-host-themes.spec.ts`; `score-viewer.spec.ts` dark-theme test; `ui/test/theme/contrast.test.ts` |
-| M4 | Fullscreen works, or button hidden | `score-viewer.spec.ts` (offered only when the host lists `fullscreen`); `u4`/`u5` specs |
+| M4 (optional, not a release blocker) | Fullscreen works, or button hidden | `score-viewer.spec.ts` (offered only when the host lists `fullscreen`); `u4`/`u5` specs |
 | M5 | Download saves, or fallback shown | `score-viewer.spec.ts` Download and `allow-downloads` cases; `u4` download-fallback stop |
 | M7 | No MCP Apps client: `render_page_svg` not listed | `render-mcp/tests/test_render_page_svg.py::TestVisibility.test_hidden_from_clients_without_ui`; `render-mcp/tests/test_mcp_protocol.py` (client without apps sees no app-only tools). Tool-behaves-as-before is covered by the render-mcp unit suite |
 
