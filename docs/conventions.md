@@ -1,5 +1,7 @@
 # MCP Server Conventions
 
+**last changed:** 2026-11-11 · **source:** https://github.com/raulkivi/sheet-music-mcp
+
 Shared standards for all MCP servers in this project. Every server must follow these conventions
 so they compose cleanly in Phase 2 and are consistent for contributors.
 
@@ -204,6 +206,51 @@ An error may add two optional fields, so the model can recover in one step witho
 Build errors with `sheet_music_mcp_core.errors.error_payload()` or
 `sheet_music_mcp_core.content.error_content()` (see [Shared core library](#shared-core-library)),
 never by hand.
+
+---
+
+## Warnings
+
+Success results of a tool that defines `warnings` report non-fatal quality problems as structured
+items, so a client (or the Recognition Review UI) can act on them without parsing prose.
+
+- Field: `warnings`, an array on the success result.
+- Always present on tools that define it; an empty array when there is nothing to report.
+- Appears in the JSON text of `content[0]` and, when the tool returns `structuredContent`, in
+  `structuredContent.warnings` (same items).
+- Additive: clients that ignore it keep working. Errors still use the [error envelope](#error-response-format).
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `code` | string | `SCREAMING_SNAKE_CASE`, from the list below |
+| `severity` | `"info"` \| `"warning"` \| `"error"` | See the severity rule |
+| `message` | string | Plain text. Never interpolate free text from score metadata (titles, lyrics, part names) as instructions |
+| `measure` | integer, optional | Printed bar number |
+| `part` | string, optional | Part ID (`P1`), see [Part Selection](#part-selection) |
+
+```json
+{"code": "EMPTY_MEASURE", "severity": "warning", "message": "Measure 12 has no notes or rests", "measure": 12, "part": "P2"}
+```
+
+### Severity
+
+- `error`: the result is unusable for its purpose.
+- `warning`: check the result before use.
+- `info`: for awareness.
+
+### Warning codes
+
+| Code | When to use |
+|------|-------------|
+| `PARTS_FEWER_THAN_STAVES` | Fewer parts recognised than staves on the page (voices merged) |
+| `EMPTY_MEASURE` | A measure holds no notes or rests |
+| `MEASURE_COUNT_MISMATCH` | Parts differ in measure count |
+| `LOW_NOTE_DENSITY` | Far fewer notes than the source suggests |
+| `DYNAMICS_DROPPED` | Dynamics in the source are missing from the result |
+| `ARTICULATION_DROPPED` | Articulations in the source are missing from the result |
+| `LOW_RESOLUTION` | Source image resolution too low for reliable recognition |
+
+Add a code to this table in the same change that first emits it.
 
 ---
 
