@@ -22,6 +22,9 @@ from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 
 from . import __version__
 from .engine import (
+    AUDIO_SOURCES,
+    MAX_PUSH_SAMPLE_RATE,
+    MIN_PUSH_SAMPLE_RATE,
     ProcessingError,
     analyze_recording,
     describe_session,
@@ -30,6 +33,7 @@ from .engine import (
     health_check,
     list_sessions,
     load_score,
+    push_audio_chunk,
     start_monitoring,
     start_practice,
     stop_monitoring,
@@ -41,6 +45,7 @@ from .presenter import (
     SESSION_OUTPUT_SCHEMA,
     present_analysis,
     present_position,
+    present_pushed_position,
     present_score,
     present_session,
 )
@@ -182,7 +187,8 @@ async def list_tools():
             annotations=ToolAnnotations(**SESSION_STATE),
             description=(
                 "Open the microphone and begin pitch detection against the loaded score. "
-                "Requires a session_id from load_score."
+                "Requires a session_id from load_score. source 'pushed' is for the Practice "
+                "Coach app, which sends the browser's microphone audio itself."
             ),
             input_schema={
                 "type": "object",
@@ -195,9 +201,49 @@ async def list_tools():
                         "type": "integer",
                         "description": "Override tempo in BPM (default: score tempo)",
                     },
+                    "source": {
+                        "type": "string",
+                        "enum": list(AUDIO_SOURCES),
+                        "default": "server_mic",
+                        "description": (
+                            "'server_mic' (default): this machine's microphone. 'pushed': the "
+                            "Practice Coach pushes browser audio with push_audio_chunk."
+                        ),
+                    },
                 },
                 "required": ["session_id"],
             },
+        ),
+        Tool(
+            name="push_audio_chunk",
+            title="Push microphone audio",
+            annotations=ToolAnnotations(**SESSION_STATE),
+            description=(
+                "For the Practice Coach app only: one chunk (about 100 ms) of the browser's "
+                "microphone audio for a session started with source 'pushed', as base64 16-bit "
+                "little-endian mono PCM. Returns the position it leads to, like get_current_position."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID from load_score"},
+                    "pcm_b64": {
+                        "type": "string",
+                        "contentEncoding": "base64",
+                        "description": "16-bit little-endian mono PCM, base64; at most about 1 s of audio",
+                    },
+                    "sample_rate": {
+                        "type": "integer",
+                        "minimum": MIN_PUSH_SAMPLE_RATE,
+                        "maximum": MAX_PUSH_SAMPLE_RATE,
+                        "description": "Samples per second of pcm_b64 (16000 is usual)",
+                    },
+                },
+                "required": ["session_id", "pcm_b64", "sample_rate"],
+                "additionalProperties": False,
+            },
+            output_schema=POSITION_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(PRACTICE_COACH, app_only=True),
         ),
         Tool(
             name="get_current_position",
@@ -324,43 +370,6 @@ async def _plain_tool(name: str, arguments: dict, ctx=None) -> list:
         except ProcessingError as e:
             return processing_error_content(e)
 
-    elif name == "start_monitoring":
-        session_id = arguments.get("session_id", "")
-        tempo_bpm = arguments.get("tempo_bpm")
-
-        ok, err = validate_session_id(session_id)
-        if not ok:
-            return error_content(err, "INVALID_INPUT")
-
-        try:
-            result = start_monitoring(session_id, tempo_bpm)
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
-        except ProcessingError as e:
-            return processing_error_content(e)
-        except Exception as e:
-            logger.error("start_monitoring unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
-
-    elif name == "stop_monitoring":
-        session_id = arguments.get("session_id", "")
-
-        ok, err = validate_session_id(session_id)
-        if not ok:
-            return error_content(err, "INVALID_INPUT")
-
-        try:
-            result = stop_monitoring(session_id)
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
-        except ProcessingError as e:
-            return processing_error_content(e)
-        except Exception as e:
-            logger.error("stop_monitoring unexpected error: %s", e)
-            return error_content(f"Unexpected error: {e}", "PROCESSING_FAILED")
-
-    elif name == "list_sessions":
-        result = list_sessions()
-        return [TextContent(type="text", text=json.dumps(result, indent=2))]
-
     elif name == "list_capabilities":
         # Check aubio availability
         pitch_backend = _active_backend()
@@ -385,6 +394,7 @@ async def _plain_tool(name: str, arguments: dict, ctx=None) -> list:
                 "stop_monitoring",
                 "list_sessions",
                 "get_score_for_session",
+                "push_audio_chunk",
                 "list_capabilities",
                 "health_check",
             ],
@@ -509,12 +519,73 @@ async def _get_score_for_session(arguments: dict, ctx) -> CallToolResult:
         return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
 
 
+def _text_result(name: str, call) -> CallToolResult:
+    """A text-only session tool: its JSON as before, or the error envelope with isError set."""
+    try:
+        return CallToolResult(content=[TextContent(type="text", text=json.dumps(call(), indent=2))])
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("%s unexpected error: %s", name, e)
+        return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
+
+
+async def _start_monitoring(arguments: dict, ctx) -> CallToolResult:
+    session_id = arguments.get("session_id", "")
+
+    ok, err = validate_session_id(session_id)
+    if not ok:
+        return _error(error_content(err, "INVALID_INPUT"))
+
+    source = arguments.get("source", "server_mic")
+    # The default call is exactly the one earlier releases made.
+    extra = {} if source == "server_mic" else {"source": source}
+    return _text_result(
+        "start_monitoring", lambda: start_monitoring(session_id, arguments.get("tempo_bpm"), **extra)
+    )
+
+
+async def _stop_monitoring(arguments: dict, ctx) -> CallToolResult:
+    session_id = arguments.get("session_id", "")
+
+    ok, err = validate_session_id(session_id)
+    if not ok:
+        return _error(error_content(err, "INVALID_INPUT"))
+
+    return _text_result("stop_monitoring", lambda: stop_monitoring(session_id))
+
+
+async def _list_sessions(arguments: dict, ctx) -> CallToolResult:
+    return _text_result("list_sessions", list_sessions)
+
+
+async def _push_audio_chunk(arguments: dict, ctx) -> CallToolResult:
+    session_id = arguments.get("session_id", "")
+
+    ok, err = validate_session_id(session_id)
+    if not ok:
+        return _error(error_content(err, "INVALID_INPUT"))
+
+    try:
+        position = push_audio_chunk(session_id, arguments.get("pcm_b64", ""), arguments.get("sample_rate"))
+        return _result(present_pushed_position(position))
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("push_audio_chunk unexpected error: %s", e)
+        return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
+
+
 _RESULT_TOOLS = {
     "analyze_recording": _analyze_recording,
     "load_score": _load_score,
     "start_practice": _start_practice,
     "get_current_position": _get_current_position,
     "get_score_for_session": _get_score_for_session,
+    "push_audio_chunk": _push_audio_chunk,
+    "start_monitoring": _start_monitoring,
+    "stop_monitoring": _stop_monitoring,
+    "list_sessions": _list_sessions,
 }
 
 

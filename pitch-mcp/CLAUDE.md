@@ -8,7 +8,9 @@ status while a singer sings.
 
 **Status:** Phase A (offline analysis) + Phase B (real-time, audio-driven position tracking)
 complete, plus UX Wave 2 (score references: `musicxml_path`, `describe_score`) and UX Wave 3
-(`measures` ranges, `start_practice`, `highlights`). 331 unit
+(`measures` ranges, `start_practice`, `highlights`), the MCP Apps Practice Coach server side
+(`structuredContent`, app-only `get_score_for_session`) and its browser-microphone mode
+(`start_monitoring` `source: "pushed"`, app-only `push_audio_chunk`). 406 unit
 (+6 skipped) + 4 integration tests pass (`-m integration`); 2 manual mic tests (`-m manual`)
 require real hardware.
 
@@ -18,7 +20,7 @@ require real hardware.
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v                 # 331 unit tests (integration/manual skipped by default)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v                 # 406 unit tests (integration/manual skipped by default)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration   # offline analysis against the committed fixture pair
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m manual        # real mic tests — skip in CI
 ```
@@ -33,7 +35,7 @@ Install dependencies: `uv sync`
 |------|---------|
 | `src/pitch_mcp/server.py` | MCP tool definitions and handlers |
 | `src/pitch_mcp/presenter.py` | `structuredContent` + output schemas for the Practice Coach tools |
-| `src/pitch_mcp/engine.py` | Session management, offline/real-time orchestration (no MCP imports) |
+| `src/pitch_mcp/engine.py` | Session management, offline/real-time orchestration, `AudioSource` (`SoundDeviceSource`, `PushedChunkSource`), `PitchFrames` (no MCP imports) |
 | `src/pitch_mcp/pitch_detector.py` | librosa pYIN backend (+ optional crepe) |
 | `src/pitch_mcp/aligner.py` | DTW (dtaidistance) alignment, accuracy classification |
 | `src/pitch_mcp/utils.py` | Note sequence extraction, metronome map, Hz↔note conversion |
@@ -52,11 +54,12 @@ Install dependencies: `uv sync`
 | `load_score` | B | Load MusicXML (`musicxml` or `musicxml_path`, optional `measures`) into a session, return session_id |
 | `start_practice` | W3 | `load_score` + `start_monitoring` in one call (`part`, `tempo_bpm`, `measures`); no orphan session if the mic fails |
 | `describe_score` | W2 | Shared core tool: title, key, tempo, parts with IDs and ranges, without loading a session |
-| `start_monitoring` | B | Open mic stream for a session |
+| `start_monitoring` | B | Open mic stream for a session; `source: "pushed"` takes browser audio instead (option B) |
 | `get_current_position` | B | Current measure/beat/pitch/accuracy from active session |
 | `stop_monitoring` | B | Stop stream, return summary (with `highlights`), clean up session (`timed_out: true` if the idle timeout closed it) |
 | `list_sessions` | B | Open sessions: part, state (`loaded`/`monitoring`), idle seconds |
 | `get_score_for_session` | Apps | App-only: the session's MusicXML for the Practice Coach (`session_id` only, no paths) |
+| `push_audio_chunk` | Apps | App-only: `{session_id, pcm_b64, sample_rate}` (16-bit LE mono PCM) for a pushed session → position snapshot |
 | `list_capabilities` | — | Server metadata, pitch backend version |
 | `health_check` | — | Runtime dependency status |
 
@@ -65,7 +68,8 @@ Install dependencies: `uv sync`
 ## Environment
 
 - **Primary pitch backend:** `librosa.pyin` — pure Python, no system deps, excellent for voice
-- **Real-time (Phase B):** `sounddevice` + YIN autocorrelation in worker thread
+- **Real-time (Phase B):** `sounddevice` + YIN autocorrelation in worker thread, or audio the
+  Practice Coach pushes from the browser (no PortAudio needed)
 - **System dep:** `libportaudio2` required at runtime for real-time streams (Phase B only)
   Offline analysis (Phase A / `analyze_recording`) has no system deps.
 - **MXL fixtures:** `../omr-mcp/test_samples/pdmx_satb_samples/mxl/` (10 SATB files)
@@ -136,11 +140,28 @@ asyncio.run(_run())
   `numberSounding`, else 120. Without that, a cut score (or any score with only `<sound tempo>`)
   silently ran at 120 BPM.
 - **`start_practice` must not leave an orphan.** If `start_monitoring` raises, `_discard` removes
-  the session and calls `stop()` (which also closes a stream that opened but failed to start).
+  the session and calls `stop()`. A stream that opened but failed to start is closed by
+  `SoundDeviceSource.start()` itself before it raises.
   Tests fake `sounddevice` via `sys.modules` (`tests/test_practice.py`); never open a real mic.
 - **Highlights take both result shapes.** Offline results use `expected`, live history
   `expected_note` and has one entry per frame; `aligner.highlights` merges consecutive entries
   with the same (measure, beat, pitch) into one note with the median cents.
+- **Audio comes through an `AudioSource`.** `ScoreSession.start(tempo_bpm, source=None)` takes
+  any object with `start(sink)` / `stop()` / `close()`; the default is the module factory
+  `engine.server_mic_source` (`SoundDeviceSource`, which owns the stream, the queue and the worker).
+  `start_monitoring(..., source="pushed")` opens `engine.pushed_source()` (`PushedChunkSource`)
+  instead. The server-mic call stays `session.start(tempo_bpm=...)` with no `source` keyword, so
+  fakes of `ScoreSession.start` written for it keep working. Tests inject a recording source or
+  `PushedChunkSource(clock=FakeClock())` (`tests/test_audio_source.py`, `tests/test_pushed_audio.py`).
+- **Pushed audio is analysed on the handler's thread**, not queued: the `push_audio_chunk` reply
+  already reflects its chunk, and nothing can pile up. Limits: 8 000–48 000 Hz, a chunk at most
+  `int(rate * 1.25) * 2` bytes (checked on the base64 length before decoding), 25 pushes per second
+  per session. Never persist pushed audio; `stop()` replaces the analysis window.
+- **The live YIN must interpolate at the dip's minimum.** It used to interpolate at the first lag
+  below the threshold and read every note ~40 cents flat; `test_audio_source.py` pins E2–A5 within
+  3 cents.
+- **The Practice Coach does not declare `_meta.ui.permissions.microphone` yet**: the core
+  `UiResource` has no `permissions` field. Add it in `sheet-music-mcp-core` first.
 - **Accuracy thresholds:** on_pitch = ±25 cents; sharp = >+25 cents; flat = <−25 cents.
 
 ---

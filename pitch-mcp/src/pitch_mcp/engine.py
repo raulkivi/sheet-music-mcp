@@ -9,15 +9,19 @@ No MCP SDK imports here.
 
 from __future__ import annotations  # SessionRegistry.list shadows the builtin in its class body
 
+import base64
+import binascii
 import logging
 import os
+import queue
 import threading
 import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Mapping, Optional, Sequence
+from typing import Callable, Mapping, Optional, Protocol, Sequence, runtime_checkable
 
+import numpy as np
 from sheet_music_mcp_core.errors import ProcessingError  # re-exported for server.py
 from sheet_music_mcp_core.measures import select_measures
 
@@ -124,6 +128,355 @@ def _select(musicxml_str: str, measures: Optional[Sequence[int]]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Phase B: live audio, wherever it comes from
+# ---------------------------------------------------------------------------
+
+TRACKER_SAMPLE_RATE = 22050  # the rate the live pitch analysis runs at
+HOP_SIZE = 512  # samples per pitch frame (about 23 ms)
+YIN_WINDOW = 2048  # samples the YIN estimate looks at (about 93 ms)
+
+AudioSink = Callable[[np.ndarray], None]
+
+
+@runtime_checkable
+class AudioSource(Protocol):
+    """Where a monitoring session's audio comes from (proposal §6.4, dependency inversion).
+
+    ``start(sink)`` begins delivering mono float32 chunks at ``TRACKER_SAMPLE_RATE`` to ``sink``
+    and raises ProcessingError when the source cannot open. The sink is called one chunk at a
+    time, from whichever thread the source uses. ``stop`` halts delivery and ``close`` releases
+    what the source holds; both are safe to call more than once, or before ``start``.
+    """
+
+    def start(self, sink: AudioSink) -> None: ...
+
+    def stop(self) -> None: ...
+
+    def close(self) -> None: ...
+
+
+def _yin_pitch(buf: np.ndarray, sr: int) -> tuple[float, float]:
+    """Simple YIN pitch estimate. Returns (freq_hz, confidence)."""
+    # Autocorrelation-based fundamental frequency estimation
+    n = len(buf)
+    half = n // 2
+    # Difference function
+    d = np.zeros(half)
+    for tau in range(1, half):
+        d[tau] = np.sum((buf[:half] - buf[tau:tau + half]) ** 2)
+    # Cumulative mean normalized difference
+    cmnd = np.zeros(half)
+    cmnd[0] = 1.0
+    running_sum = 0.0
+    for tau in range(1, half):
+        running_sum += d[tau]
+        cmnd[tau] = d[tau] * tau / running_sum if running_sum > 0 else 1.0
+    # Find first dip below threshold
+    threshold = 0.15
+    tau_est = 0
+    for tau in range(2, half):
+        if cmnd[tau] < threshold:
+            # Interpolating from the dip's first sample, not its minimum, read about 40 cents
+            # flat on every note; walk down to the minimum first (YIN step 4).
+            while tau + 1 < half and cmnd[tau + 1] < cmnd[tau]:
+                tau += 1
+            tau_est = tau
+            if tau + 1 < half:
+                # Parabolic interpolation through the minimum and its neighbours
+                left, centre, right = cmnd[tau - 1], cmnd[tau], cmnd[tau + 1]
+                curvature = left - 2 * centre + right
+                if curvature > 0:
+                    tau_est = tau + (left - right) / (2 * curvature)
+            break
+    if tau_est < 2:
+        return 0.0, 0.0
+    freq = sr / tau_est
+    confidence = 1.0 - cmnd[min(half - 1, int(round(tau_est)))]
+    return float(freq), max(0.0, float(confidence))
+
+
+class PitchFrames:
+    """Turns audio chunks of any length into pitch frames, one per hop.
+
+    Uses a lightweight autocorrelation-based YIN on a rolling window, since librosa's pYIN needs
+    a full recording. Holds only that window and the samples short of the next hop; elapsed time
+    counts hops, so it is audio time, not wall-clock time.
+    """
+
+    def __init__(self, sample_rate: int = TRACKER_SAMPLE_RATE, hop_size: int = HOP_SIZE, window: int = YIN_WINDOW):
+        self._sample_rate = sample_rate
+        self._hop_size = hop_size
+        self._buffer = np.zeros(window, dtype=np.float32)
+        self._pending = np.zeros(0, dtype=np.float32)
+        self._hops = 0
+
+    def feed(self, chunk: np.ndarray) -> list[tuple[float, float, float]]:
+        """``(freq_hz, confidence, elapsed_sec)`` for every hop the chunk completes."""
+        samples = np.concatenate([self._pending, np.asarray(chunk, dtype=np.float32)])
+        frames = []
+        offset = 0
+        while len(samples) - offset >= self._hop_size:
+            hop = samples[offset:offset + self._hop_size]
+            offset += self._hop_size
+            # Shift the window and add the new hop
+            self._buffer = np.roll(self._buffer, -len(hop))
+            self._buffer[-len(hop):] = hop
+            freq, confidence = _yin_pitch(self._buffer, self._sample_rate)
+            self._hops += 1
+            frames.append((freq, confidence, self._hops * self._hop_size / self._sample_rate))
+        self._pending = samples[offset:].copy()
+        return frames
+
+
+class SoundDeviceSource:
+    """The server host's microphone through sounddevice / PortAudio (Practice Coach option A).
+
+    The PortAudio callback only queues a copy of each block: no analysis, no locks. A daemon
+    worker hands the blocks to the sink, where the pitch analysis runs.
+    """
+
+    def __init__(self, sample_rate: int = TRACKER_SAMPLE_RATE, block_size: int = HOP_SIZE):
+        self._sample_rate = sample_rate
+        self._block_size = block_size
+        self._stream = None
+        self._worker: Optional[threading.Thread] = None
+        self._queue: queue.Queue = queue.Queue()
+        self._stop_event = threading.Event()
+
+    def start(self, sink: AudioSink) -> None:
+        try:
+            import sounddevice as sd
+        except (ImportError, OSError) as e:
+            raise ProcessingError(
+                f"sounddevice is not available: {e}. "
+                "Install libportaudio2 (Linux) or portaudio (macOS).",
+                "PROCESSING_FAILED",
+            )
+
+        self._queue = queue.Queue()
+        self._stop_event.clear()
+
+        def _audio_callback(indata, frames, time_info, status):
+            if status:
+                logger.warning("sounddevice status: %s", status)
+            # Copy audio data to queue (non-blocking)
+            self._queue.put(indata[:, 0].copy() if indata.ndim > 1 else indata.copy())
+
+        try:
+            self._stream = sd.InputStream(
+                samplerate=self._sample_rate,
+                channels=1,
+                dtype="float32",
+                blocksize=self._block_size,
+                callback=_audio_callback,
+            )
+            self._stream.start()
+        except Exception as e:
+            # A stream that opened but failed to start would otherwise hold the device.
+            self.close()
+            raise ProcessingError(
+                f"Failed to open microphone: {e}", "PROCESSING_FAILED"
+            )
+
+        self._worker = threading.Thread(target=self._pump, args=(sink,), daemon=True)
+        self._worker.start()
+
+    def _pump(self, sink: AudioSink) -> None:
+        while not self._stop_event.is_set():
+            try:
+                chunk = self._queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            sink(chunk)
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        if self._stream is not None:
+            self._stream.stop()
+
+    def close(self) -> None:
+        self._stop_event.set()
+        stream, self._stream = self._stream, None
+        worker, self._worker = self._worker, None
+        try:
+            if stream is not None:
+                stream.close()
+        finally:
+            if worker is not None:
+                worker.join(timeout=2.0)
+            self._queue = queue.Queue()  # drop blocks nobody analysed
+
+
+# Pushed audio (proposal §7, memory exhaustion): a chunk holds at most about a second of audio
+# at its stated rate, with margin for a late flush, and a session takes a bounded number of pushes
+# per second. The Practice Coach sends ~100 ms chunks, about 10 per second.
+MIN_PUSH_SAMPLE_RATE = 8000
+MAX_PUSH_SAMPLE_RATE = 48000
+MAX_CHUNK_SECONDS = 1.25
+MAX_PUSHES_PER_SECOND = 25
+_PCM_BYTES_PER_SAMPLE = 2  # 16-bit little-endian mono
+
+
+def max_chunk_bytes(sample_rate: int) -> int:
+    """The largest PCM chunk, in bytes, a push at ``sample_rate`` may carry."""
+    return int(sample_rate * MAX_CHUNK_SECONDS) * _PCM_BYTES_PER_SAMPLE
+
+
+class _LinearResampler:
+    """Streaming linear interpolation to ``target_rate``, continuous across chunk edges.
+
+    Keeps only the last input sample and the fractional read position between calls. Linear
+    interpolation keeps the time base exact, which is all pitch tracking needs; its slight
+    high-frequency roll-off does not move a sung fundamental.
+    """
+
+    def __init__(self, target_rate: int):
+        self._target_rate = target_rate
+        self._rate: Optional[int] = None
+        self._last: Optional[float] = None
+        self._phase = 0.0
+
+    def __call__(self, samples: np.ndarray, rate: int) -> np.ndarray:
+        if rate != self._rate:
+            # A new rate restarts the stream rather than mixing two time bases.
+            self._rate, self._last, self._phase = rate, None, 0.0
+        if rate == self._target_rate or len(samples) == 0:
+            return samples
+        x = samples if self._last is None else np.concatenate([[self._last], samples]).astype(np.float32)
+        step = rate / self._target_rate  # input samples per output sample
+        positions = np.arange(self._phase, len(x) - 1, step)
+        resampled = np.interp(positions, np.arange(len(x)), x).astype(np.float32)
+        next_position = positions[-1] + step if len(positions) else self._phase
+        # The last input sample becomes index 0 of the next call.
+        self._phase = next_position - (len(x) - 1)
+        self._last = float(x[-1])
+        return resampled
+
+
+class PushedChunkSource:
+    """Audio the Practice Coach captured in the browser and pushed (Practice Coach option B).
+
+    ``push`` decodes a base64 chunk of 16-bit little-endian mono PCM, resamples it to
+    ``TRACKER_SAMPLE_RATE`` and hands it to the sink on the caller's thread, so the position the
+    push returns already reflects that chunk, and no queue can grow behind a slow analysis.
+    Nothing is written to disk and no audio is kept once the sink has it (proposal §7,
+    microphone privacy).
+    """
+
+    def __init__(
+        self,
+        clock: Callable[[], float] = time.monotonic,
+        max_pushes_per_second: int = MAX_PUSHES_PER_SECOND,
+    ):
+        self._clock = clock
+        self._max_pushes = max_pushes_per_second
+        self._recent: list[float] = []  # times of the pushes in the last second
+        self._sink: Optional[AudioSink] = None
+        self._resampler = _LinearResampler(TRACKER_SAMPLE_RATE)
+        self._lock = threading.Lock()
+
+    def start(self, sink: AudioSink) -> None:
+        with self._lock:
+            self._sink = sink
+
+    def stop(self) -> None:
+        with self._lock:
+            self._sink = None
+
+    def close(self) -> None:
+        with self._lock:
+            self._sink = None
+            self._resampler = _LinearResampler(TRACKER_SAMPLE_RATE)
+            self._recent = []
+
+    def push(self, pcm_b64: str, sample_rate: int) -> None:
+        """Feed one chunk; raises ProcessingError (INVALID_PARAMETER, INVALID_INPUT) and feeds
+        nothing when the chunk breaks a limit or is not 16-bit PCM in base64."""
+        with self._lock:
+            if self._sink is None:
+                raise ProcessingError(
+                    "This session is no longer listening for pushed audio.",
+                    "INVALID_PARAMETER",
+                    hint="Call start_monitoring with source 'pushed' to listen again.",
+                )
+            _check_sample_rate(sample_rate)
+            # Checked before decoding, so an oversized chunk costs nothing.
+            limit = max_chunk_bytes(sample_rate)
+            if len(pcm_b64) > 4 * -(-limit // 3):
+                raise _chunk_too_large(len(pcm_b64) * 3 // 4, sample_rate)
+            self._admit_push()
+            pcm = _decode_pcm(pcm_b64)
+            if len(pcm) > limit:
+                raise _chunk_too_large(len(pcm), sample_rate)
+            samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
+            resampled = self._resampler(samples, sample_rate)
+            if len(resampled):
+                self._sink(resampled)
+
+    def _admit_push(self) -> None:
+        """Count a push against the per-second budget, or refuse it (it is then not counted)."""
+        now = self._clock()
+        self._recent = [t for t in self._recent if now - t < 1.0]
+        if len(self._recent) >= self._max_pushes:
+            raise ProcessingError(
+                "Too many audio pushes for this session.",
+                "INVALID_PARAMETER",
+                hint=(
+                    f"At most {self._max_pushes} pushes per second per session; "
+                    "send about 100 ms of audio per push."
+                ),
+            )
+        self._recent.append(now)
+
+
+def _check_sample_rate(sample_rate) -> None:
+    if (
+        isinstance(sample_rate, bool)
+        or not isinstance(sample_rate, int)
+        or not MIN_PUSH_SAMPLE_RATE <= sample_rate <= MAX_PUSH_SAMPLE_RATE
+    ):
+        raise ProcessingError(
+            f"sample_rate {sample_rate!r} is not supported.",
+            "INVALID_PARAMETER",
+            hint=(
+                f"Push whole-number rates from {MIN_PUSH_SAMPLE_RATE} to {MAX_PUSH_SAMPLE_RATE} Hz "
+                "(16000 is usual)."
+            ),
+        )
+
+
+def _chunk_too_large(size: int, sample_rate: int) -> ProcessingError:
+    limit = max_chunk_bytes(sample_rate)
+    return ProcessingError(
+        f"Audio chunk of about {size} bytes is too large.",
+        "INVALID_PARAMETER",
+        hint=(
+            f"At {sample_rate} Hz a chunk may hold at most {limit} bytes "
+            f"({MAX_CHUNK_SECONDS} s of 16-bit mono PCM); send about 100 ms per push."
+        ),
+    )
+
+
+def _decode_pcm(pcm_b64: str) -> bytes:
+    try:
+        pcm = base64.b64decode(pcm_b64, validate=True)
+    except (binascii.Error, ValueError) as e:
+        raise ProcessingError(f"pcm_b64 is not valid base64: {e}", "INVALID_INPUT")
+    if len(pcm) % _PCM_BYTES_PER_SAMPLE:
+        raise ProcessingError(
+            f"pcm_b64 holds {len(pcm)} bytes, not whole 16-bit samples.", "INVALID_INPUT"
+        )
+    return pcm
+
+
+# The sources a session opens: the default when none is injected, and the one start_monitoring
+# opens for source "pushed". Tests replace them with fakes or a fake clock.
+server_mic_source: Callable[[], AudioSource] = SoundDeviceSource
+pushed_source: Callable[[], PushedChunkSource] = PushedChunkSource
+AUDIO_SOURCES = ("server_mic", "pushed")
+
+
+# ---------------------------------------------------------------------------
 # Phase B: Real-time monitoring
 # ---------------------------------------------------------------------------
 
@@ -166,10 +519,9 @@ class ScoreSession:
         except Exception:
             self._nominal_bpm = 120.0
 
-        self._stream = None
-        self._audio_queue: "queue.Queue" = None
-        self._worker_thread: Optional[threading.Thread] = None
-        self._stop_event = threading.Event()
+        # The AudioSource while monitoring, None otherwise.
+        self._stream: Optional[AudioSource] = None
+        self._frames = PitchFrames()
         self._lock = threading.Lock()
 
         # Current position state (updated by worker thread)
@@ -189,8 +541,14 @@ class ScoreSession:
 
     @property
     def is_monitoring(self) -> bool:
-        """True while the microphone stream and pitch worker are running."""
-        return self._worker_thread is not None
+        """True while an audio source is feeding the session."""
+        return self._stream is not None
+
+    @property
+    def audio_source(self) -> Optional[AudioSource]:
+        """The source feeding the session, or None when it is not monitoring."""
+        with self._lock:
+            return self._stream
 
     @property
     def measure_count(self) -> int:
@@ -205,123 +563,23 @@ class ScoreSession:
             return 0.0
         return self.note_sequence[-1]["end_sec"]
 
-    def start(self, tempo_bpm: Optional[int] = None):
-        """Open the microphone stream and begin pitch detection."""
-        import queue
+    def start(self, tempo_bpm: Optional[int] = None, source: Optional[AudioSource] = None):
+        """Begin pitch detection on ``source`` (default: a new ``server_mic_source()``).
 
-        try:
-            import sounddevice as sd
-        except (ImportError, OSError) as e:
-            raise ProcessingError(
-                f"sounddevice is not available: {e}. "
-                "Install libportaudio2 (Linux) or portaudio (macOS).",
-                "PROCESSING_FAILED",
-            )
-
-        from .pitch_detector import get_backend
-        from .utils import extract_note_sequence
-
-        self._audio_queue = queue.Queue()
-        self._stop_event.clear()
+        Following restarts from the first note. If the source fails to open, its
+        ProcessingError propagates and the session stays loaded.
+        """
+        source = server_mic_source() if source is None else source
         self._note_idx = 0
         self._tempo_bpm = tempo_bpm
+        self._frames = PitchFrames()
+        source.start(self._feed)
+        with self._lock:
+            self._stream = source
 
-        sample_rate = 22050
-        hop_size = 512
-
-        def _audio_callback(indata, frames, time_info, status):
-            if status:
-                logger.warning("sounddevice status: %s", status)
-            # Copy audio data to queue (non-blocking)
-            self._audio_queue.put(indata[:, 0].copy() if indata.ndim > 1 else indata.copy())
-
-        try:
-            self._stream = sd.InputStream(
-                samplerate=sample_rate,
-                channels=1,
-                dtype="float32",
-                blocksize=hop_size,
-                callback=_audio_callback,
-            )
-            self._stream.start()
-        except Exception as e:
-            raise ProcessingError(
-                f"Failed to open microphone: {e}", "PROCESSING_FAILED"
-            )
-
-        self._worker_thread = threading.Thread(
-            target=self._worker_loop,
-            args=(sample_rate, hop_size),
-            daemon=True,
-        )
-        self._worker_thread.start()
-
-    def _worker_loop(self, sample_rate: int, hop_size: int):
-        """Background thread: run pitch detection on incoming audio chunks.
-
-        Uses a lightweight autocorrelation-based YIN implementation that operates
-        on accumulated audio buffers, since librosa's pYIN needs a full recording.
-        """
-        import queue as queue_module
-        import numpy as np
-
-        # Accumulate audio into a rolling buffer for YIN estimation
-        buffer = np.zeros(2048, dtype=np.float32)
-        chunk_count = 0
-
-        def _yin_pitch(buf: np.ndarray, sr: int) -> tuple[float, float]:
-            """Simple YIN pitch estimate. Returns (freq_hz, confidence)."""
-            # Autocorrelation-based fundamental frequency estimation
-            n = len(buf)
-            half = n // 2
-            # Difference function
-            d = np.zeros(half)
-            for tau in range(1, half):
-                d[tau] = np.sum((buf[:half] - buf[tau:tau + half]) ** 2)
-            # Cumulative mean normalized difference
-            cmnd = np.zeros(half)
-            cmnd[0] = 1.0
-            running_sum = 0.0
-            for tau in range(1, half):
-                running_sum += d[tau]
-                cmnd[tau] = d[tau] * tau / running_sum if running_sum > 0 else 1.0
-            # Find first dip below threshold
-            threshold = 0.15
-            tau_est = 0
-            for tau in range(2, half):
-                if cmnd[tau] < threshold:
-                    # Parabolic interpolation
-                    if tau + 1 < half:
-                        better = tau + (cmnd[tau + 1] - cmnd[tau - 1]) / (
-                            2 * (2 * cmnd[tau] - cmnd[tau - 1] - cmnd[tau + 1]) + 1e-10
-                        )
-                        tau_est = better
-                    else:
-                        tau_est = tau
-                    break
-            if tau_est < 2:
-                return 0.0, 0.0
-            freq = sr / tau_est
-            confidence = 1.0 - cmnd[int(tau_est)]
-            return float(freq), max(0.0, float(confidence))
-
-        while not self._stop_event.is_set():
-            try:
-                chunk = self._audio_queue.get(timeout=0.1)
-            except queue_module.Empty:
-                continue
-
-            chunk = chunk.astype(np.float32)
-            # Shift buffer and add new chunk
-            shift = min(len(chunk), len(buffer))
-            buffer = np.roll(buffer, -shift)
-            buffer[-shift:] = chunk[:shift]
-
-            freq, confidence = _yin_pitch(buffer, sample_rate)
-
-            chunk_count += 1
-            elapsed_sec = chunk_count * hop_size / sample_rate
-
+    def _feed(self, chunk: np.ndarray) -> None:
+        """The sink every source delivers to: analyse the chunk and update the position."""
+        for freq, confidence, elapsed_sec in self._frames.feed(chunk):
             self._process_pitch_frame(freq, confidence, elapsed_sec)
 
     def _find_best_note_index(self, score_time: float, freq_hz: float) -> int:
@@ -428,26 +686,23 @@ class ScoreSession:
             return {"session_id": self.session_id, **self._current_position}
 
     def stop(self) -> dict:
-        """Stop the microphone stream and return a session summary."""
+        """Stop the audio source and return a session summary."""
         from .aligner import summarize
 
-        self._stop_event.set()
-
-        # Take the stream and worker under the lock, so a reaper and a stop_monitoring call
-        # racing each other close them only once.
+        # Take the source under the lock, so a reaper and a stop_monitoring call racing each
+        # other close it only once.
         with self._lock:
-            stream, self._stream = self._stream, None
-            worker, self._worker_thread = self._worker_thread, None
+            source, self._stream = self._stream, None
 
-        if stream is not None:
-            try:
-                stream.stop()
-                stream.close()
-            except Exception as e:
-                logger.warning("Error closing audio stream: %s", e)
-
-        if worker is not None:
-            worker.join(timeout=2.0)
+        if source is not None:
+            # close() runs even if stop() fails, so the device and worker are released.
+            for step in (source.stop, source.close):
+                try:
+                    step()
+                except Exception as e:
+                    logger.warning("Error closing audio stream: %s", e)
+            # No audio outlives the take (microphone privacy, proposal §7).
+            self._frames = PitchFrames()
 
         with self._lock:
             history = list(self._history)
@@ -720,12 +975,50 @@ def load_score(musicxml_str: str, part_id: str, measures: Optional[Sequence[int]
     }
 
 
-def start_monitoring(session_id: str, tempo_bpm: Optional[int] = None) -> dict:
-    """Start microphone monitoring for a session."""
+def start_monitoring(session_id: str, tempo_bpm: Optional[int] = None, source: str = "server_mic") -> dict:
+    """Start monitoring a session from the server microphone, or from audio the app pushes.
+
+    ``source="pushed"`` opens a PushedChunkSource fed by ``push_audio_chunk``; its result also
+    names the source. The server-mic result is unchanged.
+    """
+    if source not in AUDIO_SOURCES:
+        raise ProcessingError(
+            f"Unknown audio source {source!r}.",
+            "INVALID_PARAMETER",
+            hint=(
+                "source is 'server_mic' (this machine's microphone) or 'pushed' "
+                "(the Practice Coach sends the browser's audio)."
+            ),
+            choices=list(AUDIO_SOURCES),
+        )
     session = _active_session(session_id)
-    session.start(tempo_bpm=tempo_bpm)
+    if source == "pushed":
+        session.start(tempo_bpm=tempo_bpm, source=pushed_source())
+    else:
+        session.start(tempo_bpm=tempo_bpm)  # the session's default: the server microphone
     _registry.touch(session_id)
-    return {"status": "started", "session_id": session_id}
+    result = {"status": "started", "session_id": session_id}
+    return {**result, "source": "pushed"} if source == "pushed" else result
+
+
+def push_audio_chunk(session_id: str, pcm_b64: str, sample_rate: int) -> dict:
+    """Feed one chunk of browser audio to a pushed session; return the position it leads to.
+
+    Counts as activity. Raises SESSION_NOT_FOUND for a closed session, INVALID_PARAMETER for a
+    session not listening for pushed audio or a chunk over the limits, INVALID_INPUT for PCM
+    that does not decode.
+    """
+    session = _active_session(session_id)
+    source = session.audio_source
+    if not isinstance(source, PushedChunkSource):
+        state = "listens to the server microphone" if source is not None else "is not listening yet"
+        raise ProcessingError(
+            f"Session '{session_id}' {state}; it takes no pushed audio.",
+            "INVALID_PARAMETER",
+            hint="Call start_monitoring with source 'pushed' before pushing audio.",
+        )
+    source.push(pcm_b64, sample_rate)
+    return session.get_position()
 
 
 def start_practice(

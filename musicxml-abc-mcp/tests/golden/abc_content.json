@@ -1,0 +1,130 @@
+{
+  "describe": [
+    {
+      "text": "{\n  \"title\": \"Test Score\",\n  \"composer\": null,\n  \"key\": \"C major\",\n  \"time\": \"4/4\",\n  \"tempo_bpm\": null,\n  \"parts\": [\n    {\n      \"id\": \"P1\",\n      \"name\": \"Soprano\",\n      \"abbreviation\": null,\n      \"clef\": \"treble\",\n      \"range\": {\n        \"low\": \"C4\",\n        \"high\": \"C4\"\n      }\n    }\n  ],\n  \"measures\": 1,\n  \"has_lyrics\": false,\n  \"duration_quarters\": 1.0,\n  \"duration_seconds\": null\n}",
+      "type": "text"
+    }
+  ],
+  "from_abc": [
+    {
+      "text": "{\n  \"musicxml\": \"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<!DOCTYPE score-partwise  PUBLIC \\\"-//Recordare//DTD MusicXML 4.0 Partwise//EN\\\" \\\"http://www.musicxml.org/dtds/partwise.dtd\\\">\\n<score-partwise version=\\\"4.0\\\">\\n  <work>\\n    <work-title>Test</work-title>\\n  </work>\\n  <movement-title>Test</movement-title>\\n  <identification>\\n    <creator type=\\\"composer\\\">Music21</creator>\\n    <encoding>\\n      <encoding-date>2026-10-28</encoding-date>\\n      <software>music21 v.10.5.1</software>\\n      <supports element=\\\"beam\\\" type=\\\"yes\\\" />\\n      <supports element=\\\"stem\\\" type=\\\"yes\\\" />\\n      <supports element=\\\"accidental\\\" type=\\\"yes\\\" />\\n    </encoding>\\n    <miscellaneous>\\n      <miscellaneous-field name=\\\"humdrum:ONM\\\">1</miscellaneous-field>\\n    </miscellaneous>\\n  </identification>\\n  <defaults>\\n    <scaling>\\n      <millimeters>7</millimeters>\\n      <tenths>40</tenths>\\n    </scaling>\\n  </defaults>\\n  <part-list>\\n    <score-part id=\\\"<PID>\\\">\\n      <part-name />\\n    </score-part>\\n  </part-list>\\n  <!--=========================== Part 1 ===========================-->\\n  <part id=\\\"<PID>\\\">\\n    <!--========================= Measure 1 ==========================-->\\n    <measure implicit=\\\"no\\\" number=\\\"1\\\">\\n      <attributes>\\n        <divisions>10080</divisions>\\n        <key>\\n          <fifths>0</fifths>\\n          <mode>major</mode>\\n        </key>\\n        <time>\\n          <beats>4</beats>\\n          <beat-type>4</beat-type>\\n        </time>\\n        <clef>\\n          <sign>G</sign>\\n          <line>2</line>\\n        </clef>\\n      </attributes>\\n      <note>\\n        <pitch>\\n          <step>C</step>\\n          <octave>4</octave>\\n        </pitch>\\n        <duration>5040</duration>\\n        <type>eighth</type>\\n        <stem>up</stem>\\n        <beam number=\\\"1\\\">begin</beam>\\n      </note>\\n      <note>\\n        <pitch>\\n          <step>D</step>\\n          <octave>4</octave>\\n        </pitch>\\n        <duration>5040</duration>\\n        <type>eighth</type>\\n        <stem>up</stem>\\n        <beam number=\\\"1\\\">end</beam>\\n      </note>\\n      <note>\\n        <pitch>\\n          <step>E</step>\\n          <octave>4</octave>\\n        </pitch>\\n        <duration>5040</duration>\\n        <type>eighth</type>\\n        <stem>up</stem>\\n        <beam number=\\\"1\\\">begin</beam>\\n      </note>\\n      <note>\\n        <pitch>\\n          <step>F</step>\\n          <octave>4</octave>\\n        </pitch>\\n        <duration>5040</duration>\\n        <type>eighth</type>\\n        <stem>up</stem>\\n        <beam number=\\\"1\\\">end</beam>\\n      </note>\\n      <note>\\n        <pitch>\\n          <step>G</step>\\n          <octave>4</octave>\\n        </pitch>\\n        <duration>5040</duration>\\n        <type>eighth</type>\\n        <stem>up</stem>\\n        <beam number=\\\"1\\\">begin</beam>\\n      </note>\\n      <note>\\n        <pitch>\\n          <step>A</step>\\n          <octave>4</octave>\\n        </pitch>\\n        <duration>5040</duration>\\n        <type>eighth</type>\\n        <stem>up</stem>\\n        <beam number=\\\"1\\\">end</beam>\\n      </note>\\n      <note>\\n        <pitch>\\n          <step>B</step>\\n          <octave>4</octave>\\n        </pitch>\\n        <duration>5040</duration>\\n        <type>eighth</type>\\n        <stem>up</stem>\\n        <beam number=\\\"1\\\">begin</beam>\\n      </note>\\n      <note>\\n        <pitch>\\n          <step>C</step>\\n          <octave>4</octave>\\n        </pitch>\\n        <duration>5040</duration>\\n        <type>eighth</type>\\n        <stem>up</stem>\\n        <beam number=\\\"1\\\">end</beam>\\n      </note>\\n      <barline location=\\\"right\\\">\\n        <bar-style>light-heavy</bar-style>\\n      </barline>\\n    </measure>\\n  </part>\\n</score-partwise>\",\n  \"warnings\": []\n}",
+      "type": "text"
+    }
+  ],
+  "from_abc_bad_mode": [
+    {
+      "text": "{\"error\": \"Unknown return mode 'carrier-pigeon'.\", \"error_code\": \"INVALID_PARAMETER\", \"choices\": [\"auto\", \"path\", \"inline\"]}",
+      "type": "text"
+    }
+  ],
+  "from_abc_big_auto": [
+    {
+      "text": "{\n  \"musicxml_path\": \"<TMP>/scores/from-abc-<STAMP>.musicxml\",\n  \"warnings\": [],\n  \"score_summary\": {\n    \"title\": \"Big\",\n    \"parts\": [\n      {\n        \"id\": \"<PID>\",\n        \"name\": null,\n        \"range\": {\n          \"low\": \"C4\",\n          \"high\": \"C5\"\n        }\n      }\n    ],\n    \"measures\": 600,\n    \"key\": \"C major\",\n    \"time\": \"4/4\",\n    \"tempo_bpm\": null\n  }\n}",
+      "type": "text"
+    },
+    {
+      "mimeType": "application/vnd.recordare.musicxml+xml",
+      "name": "from-abc-<STAMP>.musicxml",
+      "size": 1219453,
+      "type": "resource_link",
+      "uri": "file://<TMP>/scores/from-abc-<STAMP>.musicxml"
+    }
+  ],
+  "from_abc_empty": [
+    {
+      "text": "{\"error\": \"ABC string is empty.\", \"error_code\": \"INVALID_INPUT\"}",
+      "type": "text"
+    }
+  ],
+  "from_abc_path": [
+    {
+      "text": "{\n  \"musicxml_path\": \"<TMP>/scores/from-abc-<STAMP>.musicxml\",\n  \"warnings\": [],\n  \"score_summary\": {\n    \"title\": \"Test\",\n    \"parts\": [\n      {\n        \"id\": \"<PID>\",\n        \"name\": null,\n        \"range\": {\n          \"low\": \"C4\",\n          \"high\": \"B4\"\n        }\n      }\n    ],\n    \"measures\": 1,\n    \"key\": \"C major\",\n    \"time\": \"4/4\",\n    \"tempo_bpm\": null\n  }\n}",
+      "type": "text"
+    },
+    {
+      "mimeType": "application/vnd.recordare.musicxml+xml",
+      "name": "from-abc-<STAMP>.musicxml",
+      "size": 3589,
+      "type": "resource_link",
+      "uri": "file://<TMP>/scores/from-abc-<STAMP>.musicxml"
+    }
+  ],
+  "to_abc": [
+    {
+      "text": "{\n  \"abc\": \"X:1\\nT:Test Score - Soprano\\nM:4/4\\nL:1/8\\nQ:1/4=120\\nK:C\\nC2 |]\",\n  \"parts_included\": [\n    \"P1\"\n  ],\n  \"warnings\": []\n}",
+      "type": "text"
+    }
+  ],
+  "to_abc_bad_measures": [
+    {
+      "text": "{\"error\": \"Measures 9\\u201312 are outside this score.\", \"error_code\": \"INVALID_PARAMETER\", \"hint\": \"This score has measures 1\\u20136.\"}",
+      "type": "text"
+    }
+  ],
+  "to_abc_bad_part": [
+    {
+      "text": "{\"error\": \"Part 'Tuba' not found.\", \"error_code\": \"INVALID_PARAMETER\", \"hint\": \"Pass one of the listed part names or IDs.\", \"choices\": [\"Soprano (P1)\", \"Alto (P2)\", \"Tenor (P3)\", \"Bass (P4)\"]}",
+      "type": "text"
+    }
+  ],
+  "to_abc_bad_xml": [
+    {
+      "text": "{\"error\": \"Input does not appear to be MusicXML: no <score-partwise> or <score-timewise> root element found.\", \"error_code\": \"INVALID_INPUT\"}",
+      "type": "text"
+    }
+  ],
+  "to_abc_measures": [
+    {
+      "text": "{\n  \"abc\": \"X:1\\nT:Soprano\\nM:3/4\\nL:1/8\\nQ:1/4=84\\nK:D\\ne6 | f6 |]\\n\\nX:2\\nT:Alto\\nM:3/4\\nL:1/8\\nQ:1/4=84\\nK:D\\nE6 | F6 |]\\n\\nX:3\\nT:Tenor\\nM:3/4\\nL:1/8\\nQ:1/4=84\\nK:D\\nE6 | F6 |]\\n\\nX:4\\nT:Bass\\nM:3/4\\nL:1/8\\nQ:1/4=84\\nK:D\\nE,6 | F,6 |]\",\n  \"parts_included\": [\n    \"P1\",\n    \"P2\",\n    \"P3\",\n    \"P4\"\n  ],\n  \"warnings\": []\n}",
+      "type": "text"
+    }
+  ],
+  "to_abc_missing_file": [
+    {
+      "text": "{\"error\": \"musicxml_path does not exist or is not a file: <TMP>/no.musicxml\", \"error_code\": \"FILE_NOT_FOUND\"}",
+      "type": "text"
+    }
+  ],
+  "to_abc_part": [
+    {
+      "text": "{\n  \"abc\": \"X:1\\nT:Alto\\nM:4/4\\nL:1/8\\nQ:1/4=84\\nK:C\\nC8 | D6 | E6 | F6 | G6 | A6 |]\",\n  \"parts_included\": [\n    \"P2\"\n  ],\n  \"warnings\": []\n}",
+      "type": "text"
+    }
+  ],
+  "to_abc_path": [
+    {
+      "text": "{\n  \"abc\": \"X:1\\nT:Test Score - Soprano\\nM:4/4\\nL:1/8\\nQ:1/4=120\\nK:C\\nC2 |]\",\n  \"parts_included\": [\n    \"P1\"\n  ],\n  \"warnings\": []\n}",
+      "type": "text"
+    }
+  ],
+  "to_abc_pickup": [
+    {
+      "text": "{\n  \"abc\": \"X:1\\nT:Soprano\\nM:4/4\\nL:1/8\\nQ:1/4=120\\nK:C\\ng2 | c8 | d8 |]\",\n  \"parts_included\": [\n    \"P1\"\n  ],\n  \"warnings\": []\n}",
+      "type": "text"
+    }
+  ],
+  "to_abc_satb": [
+    {
+      "text": "{\n  \"abc\": \"X:1\\nT:Soprano\\nM:4/4\\nL:1/8\\nQ:1/4=84\\nK:C\\nc8 | d6 | e6 | f6 | g6 | a6 |]\\n\\nX:2\\nT:Alto\\nM:4/4\\nL:1/8\\nQ:1/4=84\\nK:C\\nC8 | D6 | E6 | F6 | G6 | A6 |]\\n\\nX:3\\nT:Tenor\\nM:4/4\\nL:1/8\\nQ:1/4=84\\nK:C\\nC8 | D6 | E6 | F6 | G6 | A6 |]\\n\\nX:4\\nT:Bass\\nM:4/4\\nL:1/8\\nQ:1/4=84\\nK:C\\nC,8 | D,6 | E,6 | F,6 | G,6 | A,6 |]\",\n  \"parts_included\": [\n    \"P1\",\n    \"P2\",\n    \"P3\",\n    \"P4\"\n  ],\n  \"warnings\": []\n}",
+      "type": "text"
+    }
+  ],
+  "validate_empty": [
+    {
+      "text": "{\n  \"valid\": false,\n  \"errors\": [\n    \"ABC string is empty.\"\n  ],\n  \"warnings\": []\n}",
+      "type": "text"
+    }
+  ],
+  "validate_no_headers": [
+    {
+      "text": "{\n  \"valid\": false,\n  \"errors\": [\n    \"no active default note length provided for note processing. tPrev: None, token: <music21.abcFormat.ABCNote 'C'>, tNext: <music21.abcFormat.ABCNote 'D'>\"\n  ],\n  \"warnings\": [\n    \"Missing X: (reference number) header \\u2014 required by ABC standard.\",\n    \"Missing T: (title) header \\u2014 recommended by ABC standard.\",\n    \"Missing K: (key) header \\u2014 required to terminate the header block.\"\n  ]\n}",
+      "type": "text"
+    }
+  ],
+  "validate_ok": [
+    {
+      "text": "{\n  \"valid\": true,\n  \"errors\": [],\n  \"warnings\": []\n}",
+      "type": "text"
+    }
+  ]
+}

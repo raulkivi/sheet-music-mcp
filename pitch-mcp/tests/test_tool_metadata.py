@@ -19,6 +19,7 @@ EXPECTED = {
     "stop_monitoring": ("Stop listening", SESSION_STATE),
     "list_sessions": ("Practice sessions", READ_ONLY),
     "get_score_for_session": ("Score of a practice session", READ_ONLY),
+    "push_audio_chunk": ("Push microphone audio", SESSION_STATE),
     "list_capabilities": ("Pitch capabilities", READ_ONLY),
     "health_check": ("Pitch health check", READ_ONLY),
 }

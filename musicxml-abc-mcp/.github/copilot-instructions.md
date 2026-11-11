@@ -6,7 +6,7 @@ Converts between MusicXML and ABC notation. ABC is compact and text-based, makin
 for Claude to read and edit scores directly in its context window.
 
 **Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references) + UX Wave 3 (`measures`) complete.
-161 unit tests pass (`-m "not integration"`) + 4 integration tests.
+214 unit tests pass (`-m "not integration"`) + 4 integration tests. MCP Apps ABC Workbench server side done (`structuredContent`, output schemas, app-only `get_abc`); the page is not built yet.
 
 ---
 
@@ -28,6 +28,8 @@ musicxml-abc-mcp/
 ├── .python-version          # "llm311"
 ├── src/musicxml_abc_mcp/
 │   ├── server.py            # MCP tool definitions and async handlers
+│   ├── presenter.py         # structuredContent + output schemas (ABC Workbench)
+│   ├── abc_store.py         # abc_id handles to musicxml_to_abc results — NO mcp imports
 │   ├── engine.py            # Conversion pipeline + custom ABC serializer — NO mcp imports
 │   └── utils.py             # Input validation helpers
 ├── tests/
@@ -56,6 +58,7 @@ MXL test fixtures are in `../omr-mcp/test_samples/pdmx_satb_samples/mxl/` — 10
 | `list_capabilities` | Server metadata and format support |
 | `health_check` | MusicXML → ABC → MusicXML round-trip self-test |
 | `describe_score` | Shared core tool: parts (`P1`…), key, time, tempo, ranges, measures, duration |
+| `get_abc` | App-only (`visibility: ["app"]`): the ABC of an earlier `musicxml_to_abc` by `abc_id`; no paths |
 
 ---
 
