@@ -196,7 +196,7 @@ gantt
     section Phase 1 Practice pair
     T1.1 Grading defects                :t11, after t04, 4d
     T1.2 Grading state uncertain        :t12, after t11, 2d
-    T1.7 Verify synth features          :t17, after t05, 1d
+    T1.7 Verify synth features          :done, t17, after t05, 1d
     T1.3 Practice Coach page            :t13, after t12, 4d
     T1.4 Adaptive polling               :t14, after t13, 2d
     T1.5 Ask Claude for tips            :t15, after t13, 1d
@@ -204,12 +204,12 @@ gantt
     T1.9 Practice Player page           :t19, after t18 t01, 4d
 
     section Phase 2 Review tools
-    T2.1 OMR warnings                   :t21, after t04, 2d
+    T2.1 OMR warnings                   :done, t21, after t04, 2d
     T2.2 SATB staff estimate            :t22, after t21, 4d
     T2.3 Recognition Review page        :t23, after t22, 4d
     T2.4 Multi-page merge               :t24, after t23, 2d
     T2.5 apply_abc_edit                 :t25, after t04, 4d
-    T2.6 Hunk model                     :t26, after t02, 2d
+    T2.6 Hunk model                     :done, t26, after t02, 2d
     T2.7 ABC Workbench page             :t27, after t25 t26, 4d
 
     section Phase 3 Comparison and setup
@@ -250,12 +250,12 @@ Dates are YYYY-MM-DD. Update this table with the Gantt chart after every step.
 | T1.7 | Verify synth features | Done | 2026-11-11 | 2026-11-11 | Report only, §7. All features exist |
 | T1.8 | Audio delivery | Not started | | | |
 | T1.9 | Practice Player page | Not started | | | DA3, DA4 open |
-| T2.1 | OMR warnings | Not started | | | |
+| T2.1 | OMR warnings | Done | 2026-11-11 | 2026-11-11 | PR #198, 318 passed. Owner decision: estimate now runs for all clients (see note) |
 | T2.2 | SATB staff estimate | Not started | | | Opus; integration needs real samples |
 | T2.3 | Recognition Review page | Not started | | | |
 | T2.4 | Multi-page merge (optional) | Not started | | | DA9 open |
 | T2.5 | apply_abc_edit | Not started | | | Opus |
-| T2.6 | Hunk model | Not started | | | |
+| T2.6 | Hunk model | Done | 2026-11-11 | 2026-11-11 | PR #197, CI 24/24 pass, 283 unit tests |
 | T2.7 | ABC Workbench page | Not started | | | |
 | T3.1 | compare_scores | Not started | | | |
 | T3.2 | Verovio colour spike | Not started | | | |
@@ -285,6 +285,7 @@ After every implementation step, before the next step starts:
 |---|---|---|---|---|
 | 2026-11-11 | Plan created | none | Gantt and tracker added | none |
 | 2026-11-11 | Phase 0 step 1 | T0.1, T0.3, T0.4 | Implemented on separate branches, reviewed. ui: 270 unit, 61/61 e2e; docs reviewed | Branches not yet merged |
+| 2026-11-11 | Phase 1–2 batch 1 | T1.7, T2.1, T2.6 | T1.7 report (§7). T2.1 PR #198 (318 passed, 48 skipped). T2.6 PR #197 (283 passed). Open: T2.1 changes the staff estimate to run for all clients, with false positives on one-staff pages | T2.1 decision needed |
 | 2026-11-11 | Owner answers | DA1, T0.2 | DA1 confirmed (`interactive/` canonical). T0.2 skipped (no `support.js`). §10 link change pending owner go-ahead | none |
 
 ---
