@@ -1,5 +1,8 @@
 # Kannel: visual identity and design system for the MCP Apps
 
+**Last changed:** 2026-11-11
+**Source:** https://github.com/raulkivi/sheet-music-mcp
+
 **Status:** Proposal, with mockups and tokens. Not yet adopted by the shipped Score Viewer.
 **Scope:** The seven MCP Apps in [docs/research/mcp-apps-ux-proposal.md](../research/mcp-apps-ux-proposal.md)
 (Score Viewer, Practice Player, Recognition Review, ABC Workbench, Practice Coach, Diff Viewer, Setup Doctor).
@@ -8,9 +11,10 @@
 | File | What it is |
 |---|---|
 | [tokens.css](tokens.css) | The design tokens. Source of truth for colour, type, radius. Tested by `ui/test/theme/brand-tokens.test.ts` |
-| [mockups/index.html](mockups/index.html) | Gallery of the seven mockups, light and dark |
-| [mockups/mockup.css](mockups/mockup.css) | Shared chrome for the mockups (not part of any app) |
-| `mockups/*.html` | One static mockup per app, at phone width and desktop width |
+| [interactive/](interactive/README.md) | **Canonical** mockups: clickable Design canvas source, one artboard per app |
+| [mockups/index.html](mockups/index.html) | Gallery of the seven static mockups, light and dark. **Superseded** by `interactive/` |
+| [mockups/mockup.css](mockups/mockup.css) | Shared chrome for the superseded static mockups (not part of any app) |
+| `mockups/*.html` | Superseded: one static mockup per app, at phone width and desktop width |
 
 ---
 
