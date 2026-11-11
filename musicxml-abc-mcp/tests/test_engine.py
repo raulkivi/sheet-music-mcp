@@ -1,6 +1,8 @@
 """Unit and integration tests for musicxml_abc_mcp.engine."""
 
 import io
+import re
+import re
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
@@ -323,6 +325,51 @@ def _load_mxl_fixture() -> str:
         rootfile = container.find(".//rootfile")
         root_path = rootfile.get("full-path")
         return z.read(root_path).decode("utf-8")
+
+
+def _one_bar(fifths: int, notes: list[tuple[str, int, int | None]]) -> str:
+    """MusicXML with one 4/4 bar; notes are (step, octave, alter). alter None = no <alter>."""
+    body = ""
+    for step, octave, alter in notes:
+        alter_xml = "" if alter is None else f"<alter>{alter}</alter>"
+        body += (
+            f"<note><pitch><step>{step}</step>{alter_xml}<octave>{octave}</octave></pitch>"
+            "<duration>4</duration><type>quarter</type></note>"
+        )
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?><score-partwise version="3.1">'
+        '<part-list><score-part id="P1"><part-name>S</part-name></score-part></part-list>'
+        '<part id="P1"><measure number="1"><attributes><divisions>4</divisions>'
+        f"<key><fifths>{fifths}</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time>"
+        f"<clef><sign>G</sign><line>2</line></clef></attributes>{body}</measure></part></score-partwise>"
+    )
+
+
+def _abc_body(abc: str) -> str:
+    return abc.split("K:", 1)[1].split("\n", 1)[1]
+
+
+class TestNaturalSigns:
+    def test_natural_under_key_signature_is_written(self):
+        xml = _one_bar(-3, [("B", 4, 0), ("B", 4, -1), ("B", 4, 0), ("C", 5, None)])
+        body = _abc_body(musicxml_to_abc(xml)["abc"])
+        assert body.startswith("=B2 _B2 =B2 c2")
+
+    def test_no_sign_without_key_signature(self):
+        xml = _one_bar(0, [("B", 4, None), ("C", 5, None)])
+        body = _abc_body(musicxml_to_abc(xml)["abc"])
+        assert "=" not in body
+
+    def test_natural_after_accidental_in_same_bar(self):
+        xml = _one_bar(0, [("C", 5, 1), ("C", 5, 0)])
+        body = _abc_body(musicxml_to_abc(xml)["abc"])
+        assert body.startswith("^c2 =c2")
+
+    def test_natural_survives_round_trip(self):
+        abc = musicxml_to_abc(_one_bar(-3, [("B", 4, 0), ("B", 4, -1)]))["abc"]
+        back = abc_to_musicxml(abc)["musicxml"]
+        alters = re.findall(r"<step>B</step>\s*(<alter>-1</alter>)?", back)
+        assert alters == ["", "<alter>-1</alter>"]
 
 
 @pytest.mark.integration
