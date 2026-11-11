@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from mcp.types import TextContent
 
+from .recognition_warnings import WARNINGS_SCHEMA
+
 _PAGE = {
     "type": "object",
     "properties": {
@@ -47,8 +49,9 @@ RECOGNITION_OUTPUT_SCHEMA = {
             },
         },
         "pages": {"type": "array", "items": _PAGE},
+        "warnings": WARNINGS_SCHEMA,
     },
-    "required": ["metadata", "pages"],
+    "required": ["metadata", "pages", "warnings"],
 }
 
 SCORE_OUTPUT_SCHEMA = {
@@ -83,6 +86,7 @@ def present_recognition(
     job_id: str | None = None,
     previews: list[bool] | None = None,
     staff_estimates: list[int | None] | None = None,
+    warnings: list[dict] | None = None,
 ) -> tuple[list, dict]:
     """``(content, structured_content)`` for a successful recognize_sheet / recognize_sheets.
 
@@ -96,7 +100,7 @@ def present_recognition(
     counted = [n for n in staff_estimates or [] if n is not None]
     if counted:
         metadata["staff_systems_estimate"] = max(counted)
-    structured = {"metadata": metadata, "pages": _pages(result, previews)}
+    structured = {"metadata": metadata, "pages": _pages(result, previews), "warnings": warnings or []}
     if job_id is not None:
         structured["job_id"] = job_id
     return content, structured

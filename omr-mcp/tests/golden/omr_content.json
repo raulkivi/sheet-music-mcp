@@ -1,13 +1,13 @@
 {
   "sheet_audiveris": [
     {
-      "text": "{\n  \"musicxml\": \"<score-partwise><part id='P1'/></score-partwise>\",\n  \"metadata\": {\n    \"source\": \"<TMP>/page.png\",\n    \"staves_detected\": 1,\n    \"measures\": 8,\n    \"processing_time_ms\": 12,\n    \"engine\": \"audiveris\"\n  }\n}",
+      "text": "{\n  \"musicxml\": \"<score-partwise><part id='P1'/></score-partwise>\",\n  \"metadata\": {\n    \"source\": \"<TMP>/page.png\",\n    \"staves_detected\": 1,\n    \"measures\": 8,\n    \"processing_time_ms\": 12,\n    \"engine\": \"audiveris\"\n  },\n  \"warnings\": []\n}",
       "type": "text"
     }
   ],
   "sheet_auto_path": [
     {
-      "text": "{\n  \"musicxml_path\": \"<TMP>/scores/recognized-<STAMP>.musicxml\",\n  \"metadata\": {\n    \"source\": \"<TMP>/page.png\",\n    \"staves_detected\": 1,\n    \"measures\": 8,\n    \"processing_time_ms\": 12,\n    \"engine\": \"oemer\"\n  },\n  \"score_summary\": {\n    \"title\": null,\n    \"parts\": [],\n    \"measures\": 0,\n    \"key\": null,\n    \"time\": null,\n    \"tempo_bpm\": null\n  }\n}",
+      "text": "{\n  \"musicxml_path\": \"<TMP>/scores/recognized-<STAMP>.musicxml\",\n  \"metadata\": {\n    \"source\": \"<TMP>/page.png\",\n    \"staves_detected\": 1,\n    \"measures\": 8,\n    \"processing_time_ms\": 12,\n    \"engine\": \"oemer\"\n  },\n  \"warnings\": [],\n  \"score_summary\": {\n    \"title\": null,\n    \"parts\": [],\n    \"measures\": 0,\n    \"key\": null,\n    \"time\": null,\n    \"tempo_bpm\": null\n  }\n}",
       "type": "text"
     },
     {
@@ -32,13 +32,13 @@
   ],
   "sheet_inline": [
     {
-      "text": "{\n  \"musicxml\": \"<score-partwise><part id='P1'/></score-partwise>\",\n  \"metadata\": {\n    \"source\": \"<TMP>/page.png\",\n    \"staves_detected\": 1,\n    \"measures\": 8,\n    \"processing_time_ms\": 12,\n    \"engine\": \"oemer\"\n  }\n}",
+      "text": "{\n  \"musicxml\": \"<score-partwise><part id='P1'/></score-partwise>\",\n  \"metadata\": {\n    \"source\": \"<TMP>/page.png\",\n    \"staves_detected\": 1,\n    \"measures\": 8,\n    \"processing_time_ms\": 12,\n    \"engine\": \"oemer\"\n  },\n  \"warnings\": []\n}",
       "type": "text"
     }
   ],
   "sheets_auto_path": [
     {
-      "text": "{\n  \"musicxml_path\": \"<TMP>/scores/recognized-<STAMP>.musicxml\",\n  \"metadata\": {\n    \"page_count\": 2,\n    \"staves_detected\": 2,\n    \"measures\": 16,\n    \"processing_time_ms\": 30,\n    \"engine\": \"oemer\"\n  },\n  \"score_summary\": {\n    \"title\": null,\n    \"parts\": [],\n    \"measures\": 0,\n    \"key\": null,\n    \"time\": null,\n    \"tempo_bpm\": null\n  }\n}",
+      "text": "{\n  \"musicxml_path\": \"<TMP>/scores/recognized-<STAMP>.musicxml\",\n  \"metadata\": {\n    \"page_count\": 2,\n    \"staves_detected\": 2,\n    \"measures\": 16,\n    \"processing_time_ms\": 30,\n    \"engine\": \"oemer\"\n  },\n  \"warnings\": [],\n  \"score_summary\": {\n    \"title\": null,\n    \"parts\": [],\n    \"measures\": 0,\n    \"key\": null,\n    \"time\": null,\n    \"tempo_bpm\": null\n  }\n}",
       "type": "text"
     },
     {
@@ -51,7 +51,7 @@
   ],
   "sheets_inline": [
     {
-      "text": "{\n  \"musicxml\": \"<score-partwise><part id='P1'/></score-partwise>\",\n  \"metadata\": {\n    \"page_count\": 2,\n    \"staves_detected\": 2,\n    \"measures\": 16,\n    \"processing_time_ms\": 30,\n    \"engine\": \"oemer\"\n  }\n}",
+      "text": "{\n  \"musicxml\": \"<score-partwise><part id='P1'/></score-partwise>\",\n  \"metadata\": {\n    \"page_count\": 2,\n    \"staves_detected\": 2,\n    \"measures\": 16,\n    \"processing_time_ms\": 30,\n    \"engine\": \"oemer\"\n  },\n  \"warnings\": []\n}",
       "type": "text"
     }
   ],
@@ -63,7 +63,7 @@
   ],
   "to_file": [
     {
-      "text": "{\n  \"output_path\": \"<TMP>/out.musicxml\",\n  \"metadata\": {\n    \"source\": \"<TMP>/page.png\",\n    \"staves_detected\": 4,\n    \"measures\": 8,\n    \"processing_time_ms\": 5,\n    \"engine\": \"oemer\"\n  },\n  \"score_summary\": {\n    \"title\": null,\n    \"parts\": [\n      {\n        \"id\": \"P1\",\n        \"name\": null,\n        \"range\": null\n      }\n    ],\n    \"measures\": 0,\n    \"key\": null,\n    \"time\": null,\n    \"tempo_bpm\": null\n  }\n}",
+      "text": "{\n  \"output_path\": \"<TMP>/out.musicxml\",\n  \"metadata\": {\n    \"source\": \"<TMP>/page.png\",\n    \"staves_detected\": 4,\n    \"measures\": 8,\n    \"processing_time_ms\": 5,\n    \"engine\": \"oemer\"\n  },\n  \"score_summary\": {\n    \"title\": null,\n    \"parts\": [\n      {\n        \"id\": \"P1\",\n        \"name\": null,\n        \"range\": null\n      }\n    ],\n    \"measures\": 0,\n    \"key\": null,\n    \"time\": null,\n    \"tempo_bpm\": null\n  },\n  \"warnings\": []\n}",
       "type": "text"
     },
     {

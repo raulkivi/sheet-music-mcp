@@ -52,6 +52,7 @@ class TestRecognizeSheetToFile:
             "score_summary": {
                 "title": None, "parts": [], "measures": 0, "key": None, "time": None, "tempo_bpm": None,
             },
+            "warnings": [],
         }
         assert result[0].type == "text"
         assert result[0].text == json.dumps(expected, indent=2)

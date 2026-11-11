@@ -1,5 +1,7 @@
 # omr-mcp Requirements
 
+**Last changed:** 2026-11-11 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## Purpose
 
 Convert photographs or scans of printed sheet music into MusicXML documents. This is the entry point of the sheet-music-mcp pipeline — its output feeds every other server.
@@ -64,16 +66,31 @@ running Audiveris. DPI metadata is ignored because it is unreliable (phone JPEGs
 | Longest side | Behaviour |
 |---|---|
 | < 1500 px | Fail at once, without starting Audiveris: `error_code` `INVALID_INPUT`, `hint` "Audiveris needs about 300 DPI: rescan or photograph closer (at least 2500 px on the long side)" |
-| 1500–2499 px | Run as normal; the result carries `warnings: ["low resolution; recognition may fail"]` |
+| 1500–2499 px | Run as normal; `warnings` carries a `LOW_RESOLUTION` item with the message "low resolution; recognition may fail" |
 | ≥ 2500 px | Run as normal, no warning |
 
 `recognize_sheets` checks all pages before recognizing any of them: if one page is too small the
 whole call fails, and the error names the page (`Page 2 (/path/p2.png): ...`). Warnings for
 low-resolution pages are prefixed the same way (`Page 2: low resolution; recognition may fail`).
 
-`warnings` is a top-level list in the success result and is present only when non-empty, so
-`engine="oemer"` results (never checked; oemer is resolution-insensitive) are unchanged. An image
+`warnings` is a top-level array of structured items (FR-6b), always present on the success result.
+`engine="oemer"` images are never checked (oemer is resolution-insensitive). An image
 Pillow cannot read is not judged by the pre-check; the engine reports it as before.
+
+### FR-6b — Structured warnings
+
+Success results of `recognize_sheet`, `recognize_sheets` and `recognize_sheet_to_file` carry
+`warnings`: an array, empty when there is nothing to report, in the JSON text of `content[0]` and
+(for the first two) in `structuredContent.warnings`. Items follow the contract in
+`docs/conventions.md` (Warnings): `{code, severity, message, measure?, part?}`.
+
+| Code | Emitted when |
+|------|--------------|
+| `PARTS_FEWER_THAN_STAVES` | Recognised part count (`metadata.staves_detected`) is below the staves counted on the busiest page image (`staff_estimate`); every client, not only app clients |
+| `EMPTY_MEASURE` | A `<measure>` in a part has no `<note>` (rests are notes); `measure` is the printed number, `part` the part ID |
+| `LOW_RESOLUTION` | The engine's low-resolution note (FR-6a), kept as an item |
+
+The other codes of the contract are not emitted yet.
 
 ### FR-5 — Input validation
 
@@ -179,7 +196,7 @@ Output:
     measures            integer
     processing_time_ms  integer
     engine              string   "oemer" | "audiveris"
-  warnings     list[string]  optional; only present when non-empty (FR-6a, audiveris only)
+  warnings     list[object]  always present, empty when none (FR-6b)
   score_summary  object  path results only: {title, parts: [{id, name, range}], measures, key,
                          time, tempo_bpm}; null if the score does not parse
 ```
@@ -197,7 +214,7 @@ Input:
 Output:
   output_path    string  path of written file
   metadata       object  same structure as recognize_sheet
-  warnings       list[string]  optional; as recognize_sheet
+  warnings       list[object]  as recognize_sheet
   score_summary  object  summary of the written file, as recognize_sheet; null if it cannot be
                          read or parsed
 ```
@@ -220,7 +237,7 @@ Output:
   musicxml_path, score_summary  path results, as recognize_sheet (FR-7)
   page_count   integer
   metadata     object
-  warnings     list[string]  optional; each entry prefixed "Page N: " (FR-6a)
+  warnings     list[object]  as recognize_sheet; LOW_RESOLUTION messages prefixed "Page N: " (FR-6a)
 ```
 
 ### IR-5 — Tool: `list_capabilities`

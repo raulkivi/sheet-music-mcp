@@ -48,6 +48,7 @@ def _score(measures: int) -> str:
     )
 
 
+LOW_RES_ITEM = {"code": "LOW_RESOLUTION", "severity": "warning", "message": "low resolution; recognition may fail"}
 LARGE = _score(100)
 SMALL = _score(2)
 
@@ -111,7 +112,7 @@ class TestProducerAuto:
         assert summary["parts"] == [{"id": "P1", "name": "Soprano", "range": {"low": "C4", "high": "G4"}}]
         # The rest of the engine result is kept.
         assert payload["metadata"] == producer.returns["metadata"]
-        assert payload["warnings"] == producer.returns["warnings"]
+        assert payload["warnings"] == [LOW_RES_ITEM]
 
     def test_large_result_appends_a_resource_link(self, producer):
         producer.returns = _engine_result(LARGE)
@@ -129,7 +130,7 @@ class TestProducerAuto:
         result = producer.call()
 
         assert len(result) == 1
-        assert result[0].text == json.dumps(producer.returns, indent=2)
+        assert result[0].text == json.dumps({**producer.returns, "warnings": [LOW_RES_ITEM]}, indent=2)
         assert not (output_root / "scores").exists()
 
     def test_explicit_auto_equals_omitted(self, producer):
@@ -162,7 +163,7 @@ class TestProducerModes:
         result = producer.call(**{"return": "inline"})
 
         assert len(result) == 1
-        assert result[0].text == json.dumps(producer.returns, indent=2)
+        assert result[0].text == json.dumps({**producer.returns, "warnings": [LOW_RES_ITEM]}, indent=2)
         assert not (output_root / "scores").exists()
 
     def test_engine_error_dict_is_unchanged_in_path_mode(self, producer, output_root):

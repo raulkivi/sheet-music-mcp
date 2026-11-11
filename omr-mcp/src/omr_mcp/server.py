@@ -20,6 +20,7 @@ import time
 from . import __version__
 from .health import build_health_report
 from .omr_engine import recognize_image, recognize_image_to_file, recognize_images, health_check as _engine_health_check
+from .recognition_warnings import build_warnings
 from .presenter import (
     PREVIEW_OUTPUT_SCHEMA,
     RECOGNITION_OUTPUT_SCHEMA,
@@ -337,6 +338,24 @@ def _prepare_review(image_paths: list[str]) -> tuple[list, list[int | None]]:
     return previews, estimates
 
 
+def _file_warnings(result: dict, input_path: str) -> list[dict]:
+    """Warnings for a score the engine wrote to a file; the file is read back for the bar check."""
+    try:
+        text = read_score_file(result["output_path"], max_bytes=max_score_bytes())
+    except (ProcessingError, OSError):
+        text = ""
+    return build_warnings(
+        text,
+        parts=result["metadata"].get("staves_detected", 0),
+        staves_on_page=estimate_staves(input_path),
+        engine_notes=result.get("warnings", []),
+    )
+
+
+def _estimate_all(image_paths: list[str]) -> list[int | None]:
+    return [estimate_staves(path) for path in image_paths]
+
+
 def _shows_app(ctx) -> bool:
     # ctx is None when call_tool() is invoked directly, as in unit tests: nobody to show an app to.
     return ctx is not None and client_supports_ui(ctx)
@@ -350,13 +369,25 @@ async def _present_recognition(result: dict, mode, image_paths: list[str], ctx) 
     """
     if "error" in result:
         return _error(_deliver_recognized(result, mode))
-    # The per-page detail is for structuredContent only; content must stay what it was.
+    app = _shows_app(ctx)
+    if app:
+        previews, estimates = await asyncio.to_thread(_prepare_review, image_paths)
+    else:
+        estimates = await asyncio.to_thread(_estimate_all, image_paths)
+    counted = [n for n in estimates if n is not None]
+    warnings = build_warnings(
+        result["musicxml"],
+        parts=result["metadata"].get("staves_detected", 0),
+        staves_on_page=max(counted) if counted else None,
+        engine_notes=result.get("warnings", []),
+    )
+    # The per-page detail is for structuredContent only; content stays what it was plus warnings.
     text_result = {key: value for key, value in result.items() if key != "_pages"}
+    text_result["warnings"] = warnings
     content = _deliver_recognized(text_result, mode)
-    if not _shows_app(ctx):
-        content, structured = present_recognition(result, content)
+    if not app:
+        content, structured = present_recognition(result, content, warnings=warnings)
         return CallToolResult(content=content, structured_content=structured)
-    previews, estimates = await asyncio.to_thread(_prepare_review, image_paths)
     job_id = review_jobs.register(artifact_store, result["musicxml"], previews)
     content, structured = present_recognition(
         result,
@@ -364,6 +395,7 @@ async def _present_recognition(result: dict, mode, image_paths: list[str], ctx) 
         job_id=job_id,
         previews=review_jobs.available_pages(job_id),
         staff_estimates=estimates,
+        warnings=warnings,
     )
     return CallToolResult(content=content, structured_content=structured)
 
@@ -418,6 +450,7 @@ async def _recognize_sheet_to_file(arguments: dict, ctx) -> CallToolResult:
         written = None if failed else result.get("output_path")
         if not failed:
             result = {**result, "score_summary": _written_score_summary(written)}
+            result["warnings"] = await asyncio.to_thread(_file_warnings, result, input_path)
         content = [TextContent(type="text", text=json.dumps(result, indent=2))]
         if written and os.path.isfile(written):
             content.append(file_link(written, MUSICXML_MIME_TYPE))

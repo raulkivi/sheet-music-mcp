@@ -111,7 +111,7 @@ class TestToolLinking:
 
         assert schema["type"] == "object"
         # job_id is for the app, so a client that cannot show it gets a result without one.
-        assert set(schema["required"]) == {"metadata", "pages"}
+        assert set(schema["required"]) == {"metadata", "pages", "warnings"}
         assert "musicxml" not in schema["properties"]
 
     def test_get_source_preview_is_app_only_even_without_a_build(self):
@@ -187,7 +187,7 @@ class TestRecognizeSheetStructure:
         result = asyncio.run(call_tool_result("recognize_sheet", {"image": str(_page_image(tmp_path))}))
         sc = result.structured_content
 
-        assert set(sc) == {"job_id", "metadata", "pages"}
+        assert set(sc) == {"job_id", "metadata", "pages", "warnings"}
         assert sc["metadata"]["engine"] == "oemer"
         assert sc["metadata"]["staves_detected"] == 1
         assert sc["pages"] == [{"index": 1, "staves_detected": 1, "measures": 8, "has_preview": True}]
@@ -444,7 +444,7 @@ class TestClientsWithoutApps:
         text_only, _ = self._both(tmp_path, monkeypatch)
         sc = text_only.structured_content
 
-        assert set(sc) == {"metadata", "pages"}
+        assert set(sc) == {"metadata", "pages", "warnings"}
         assert "staff_systems_estimate" not in sc["metadata"]
         assert sc["pages"] == [{"index": 1, "staves_detected": 1, "measures": 8}]
         jsonschema.validate(sc, _tools()["recognize_sheet"].output_schema)
@@ -491,7 +491,7 @@ class TestClientsWithoutApps:
 
         result = asyncio.run(_call_tool_result("recognize_sheets", {"images": images}, _ctx(ui=False)))
 
-        assert set(result.structured_content) == {"metadata", "pages"}
+        assert set(result.structured_content) == {"metadata", "pages", "warnings"}
         assert all("has_preview" not in p for p in result.structured_content["pages"])
         assert "_pages" not in json.dumps(result.structured_content)
 
