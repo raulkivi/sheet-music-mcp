@@ -259,7 +259,7 @@ using a local build of render-mcp from the spike branch.
 | M1 | "Render this score" shows the viewer inline. The model still answers with the text result. | ☐ | ☐ |
 | M2 | Page navigation and zoom work without any model turn. | ☐ | ☐ |
 | M3 | Light and dark host themes are followed. | ☐ | ☐ |
-| M4 | Fullscreen request works, or the button is hidden when the mode is not available. | ☐ | ☐ |
+| M4 (optional) | Fullscreen request works, or the button is hidden when the mode is not available. Not a release blocker: a failure is recorded but does not hold the release. | ☐ | ☐ |
 | M5 | "Download SVG" saves a file. **Records D6:** if it is blocked, the fallback shows the path and the "ask Claude" button posts a message. | ☐ | ☐ |
 | M6 | First render time (stopwatch) and any host size warnings. | ☐ | ☐ |
 | M7 | The same server in the Claude Code CLI (no MCP Apps): tools behave exactly as before. | ☐ | — |

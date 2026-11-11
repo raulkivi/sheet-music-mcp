@@ -1,10 +1,8 @@
 # MCP Apps Phase 0 findings: Score Viewer on render-mcp
 
-**Status:** Automated results final; real-host checks (§4b) pending. Recommendation in §6 is
+**Status:** Automated results final; manual host checks (§4) pending. Recommendation in §6 is
 provisional until they are recorded.
 **Date:** 2026-10-28
-**Last changed:** 2026-11-11
-**Source:** https://github.com/raulkivi/sheet-music-mcp
 **Branch:** `mcp-apps/phase0`
 **Plan:** [mcp-apps-phase0-spike-plan.md](mcp-apps-phase0-spike-plan.md)
 
@@ -73,31 +71,7 @@ parsed score is cached by content hash).
 6. **Render tool errors now set `isError: true`.** A tool with an `output_schema` that returns no
    `structuredContent` otherwise makes the Python SDK client raise. Error `content` is unchanged.
 
-## 4. Host checks
-
-Policy: a check is automated wherever the behaviour is reproducible in the mock host, the
-`render-mcp` stdio tests or the unit tests. Only checks that need a real host stay manual.
-
-### 4a. Covered by automated tests (no manual run needed)
-
-| # | Check | Automated coverage |
-|---|---|---|
-| M0 | Engine line shows `wasm` or `server` | `score-viewer.spec.ts`: `#engine` `data-engine` is `wasm` under `wasm-unsafe-eval`; the default-CSP test expects the `render_page_svg` path |
-| M1 | Viewer renders inline; model answers from text | `real-server.spec.ts` R1 (real render-mcp over stdio renders a page); `score-viewer.spec.ts` handshake test. Text `content` is byte-identical (golden test, §1) |
-| M2 | Navigation and zoom need no model turn | `score-viewer.spec.ts` "M2: paging and zooming on the WASM path make no tool call" (Next, Prev, zoom in and out; zero `tools/call`). Server path does call `tools/call` per page, by design |
-| M3 | Light and dark themes followed | `u3-host-themes.spec.ts`; `score-viewer.spec.ts` dark-theme test; `ui/test/theme/contrast.test.ts` |
-| M4 | Fullscreen works, or button hidden | `score-viewer.spec.ts` (offered only when the host lists `fullscreen`); `u4`/`u5` specs |
-| M5 | Download saves, or fallback shown | `score-viewer.spec.ts` Download and `allow-downloads` cases; `u4` download-fallback stop |
-| M7 | No MCP Apps client: `render_page_svg` not listed | `render-mcp/tests/test_render_page_svg.py::TestVisibility.test_hidden_from_clients_without_ui`; `render-mcp/tests/test_mcp_protocol.py` (client without apps sees no app-only tools). Tool-behaves-as-before is covered by the render-mcp unit suite |
-
-### 4b. Still manual (real host only)
-
-| # | Check | Why it cannot be automated | Claude Desktop / claude.ai | VS Code |
-|---|---|---|---|---|
-| R1 | M0 repeated in the real host: which engine it picks under its own CSP | Real host CSP is not in the mock | ☐ | ☐ |
-| R2 | M1 repeated: viewer appears inline in the real host | Host iframe and sandbox are not in the mock | ☐ | ☐ |
-| R3 | M5 repeated: `allow-downloads` in the real iframe sandbox | Sandbox flags are host-set | ☐ | ☐ |
-| R4 | M6 on a real phone, plus any host size warnings | Real device and real host. The throttled phone profile is automated: `npm run perf` (`ui/perf-budget.json`, phone first page ≤ 9 s; measured ~2.1 s). CI runs it as a warning only | ☐ | ☐ |
+## 4. Manual host checks (owner)
 
 Run render-mcp from the spike branch with the UI built:
 
@@ -106,6 +80,17 @@ cd ui && npm ci && npm run build && npm run copy-assets
 ```
 
 Client config: `"command": "uv", "args": ["--directory", "<checkout>/render-mcp", "run", "render-mcp"]`.
+
+| # | Check | Claude Desktop / claude.ai | VS Code |
+|---|---|---|---|
+| M0 | Engine line shows `wasm` or `server` (decides finding 1) | ☐ | ☐ |
+| M1 | "Render this score" shows the viewer inline; the model still answers from the text result | ☐ | ☐ |
+| M2 | Page navigation and zoom work without a model turn | ☐ | ☐ |
+| M3 | Light and dark themes are followed | ☐ | ☐ |
+| M4 (optional) | Fullscreen works, or the button is hidden. Not a release blocker. | ☐ | ☐ |
+| M5 | "Download SVG" saves a file, or the fallback path and button appear (D6) | ☐ | ☐ |
+| M6 | First render time (stopwatch) and any host size warnings | ☐ | ☐ |
+| M7 | Claude Code CLI (no MCP Apps): tools behave as before; `render_page_svg` is not listed | ☐ | — |
 
 ## 5. Proposed size budget (D4)
 
