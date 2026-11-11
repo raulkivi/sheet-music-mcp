@@ -91,7 +91,12 @@ const mb = (bytes) => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 const size = sizes();
 const server = await startServer();
 // Keep the sandboxed iframe in the page's process so CPU throttling and heap metrics cover it.
-const browser = await chromium.launch({ args: ["--disable-features=IsolateSandboxedIframes"] });
+// Same escape hatch as playwright.config.ts: a machine with its own Chromium points at it.
+const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
+const browser = await chromium.launch({
+  args: ["--disable-features=IsolateSandboxedIframes"],
+  ...(executablePath ? { executablePath } : {}),
+});
 const results = [];
 try {
   for (const profile of PROFILES) {

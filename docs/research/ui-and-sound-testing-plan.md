@@ -137,7 +137,7 @@ configuration, which only a real run can test.
 | P5 ✅ | S4 + S7 (pitch part): simulated-singer grading, pitch integration job in CI | medium | — | Each fault case has a spec; integration job green (done 2026-11-11: 6 fault cases as unit tests in `pitch-mcp/tests/test_simulated_singer.py`, 2 defects (3 strict xfail tests) recorded in `pitch-mcp/docs/todo.md`; job `pitch-integration` added, not yet run on GitHub) |
 | P6 | S3 + S7 (synth part): pitch round-trip, soundfont in CI | medium-high | P4, P5, P0 | Round-trip green in CI |
 | P7 | S5, S6, R7/R8 evidence record | medium | P4 | Manual runs write records; a check reads them |
-| P8 | U7, U8 (per page, with each page), U9 optional | ongoing | P2 | Each new page ships its spec file |
+| P8 | U7, U8 (per page, with each page), U9 optional | ongoing | P2 | Each new page ships its spec file (U7 and the U8 rule done 2026-11-11; U9 deferred, decision 5; U8 specs follow with each page) |
 
 P1 status (2026-11-11): done. The 13 existing specs and the new real-server spec
 (`apps/score-viewer/e2e/real-server.spec.ts`) pass on the `AppBridge` host, and `retries` is 0.
@@ -160,6 +160,12 @@ test-first: the button border (`--color-border-primary`) reached only 1.5:1 to 2
 `--color-text-secondary`. The mock host takes `host=claude` and the U4 stops also run in Claude dark (36 tests).
 VS Code sets stay out of scope (Claude Desktop is the only real host). Not TDD: the mock host's `host-page.ts` wiring
 and `u3-host-themes.spec.ts`, which tests that wiring.
+
+P8 status (2026-11-11): U7 and the U8 rule done locally; U9 stays deferred (decision 5). `npm run perf` checks
+`measure.mjs` output against `ui/perf-budget.json` (limits 1.5x to 2x the measured values, recorded in `ui/README.md`);
+`ui.yml` runs it after the build with `continue-on-error: true` until the runner's numbers are stable. The comparison
+(`ui/test/perf/budget.ts`, 8 tests) was written test-first. Not TDD: `measure.mjs`, `perf.mjs` and the YAML step. U8 is
+now a written rule in `ui/README.md`; the per-page specs land with each page.
 
 Design: keep each test's seam an interface, as `ui/packages/kit` already does with `HostBridge`. The fake and real
 hosts implement the same port, and the synth test reaches the pitch detector through an interface, not an import.

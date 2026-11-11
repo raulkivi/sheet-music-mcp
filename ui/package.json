@@ -17,7 +17,8 @@
     "typecheck": "tsc --noEmit",
     "copy-assets": "node scripts/copy-assets.mjs",
     "measure": "npm run build:host && node scripts/measure.mjs",
-    "build:host": "vite build --config test/mock-host/vite.config.ts"
+    "build:host": "vite build --config test/mock-host/vite.config.ts",
+    "perf": "npm run build:host && node scripts/perf.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",

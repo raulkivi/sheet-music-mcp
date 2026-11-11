@@ -13,7 +13,9 @@ Verovio WASM inlined; no network references). See
 | `test/e2e/` | Spec helpers, one job each: `host-helpers.ts` (`openHost`, `messages`, `pageLabel`), `axe.ts` (axe-core in a frame), `focus.ts` (focused control and its ring), `layout.ts` (sideways scroll, frame width), `view-frame.ts` (`ScoreViewerFrame` page object and the U4 `SIZES`); and the `renderMcp` Playwright fixture (`host-fixture.ts`) |
 | `test/theme/` | U3 contrast (R3), Node only, one job per module: `contrast.ts` (colour parsing, WCAG ratio, `var()`/`color-mix` resolution), `css-vars.ts` (reads `style.css` by selector and property; `light-dark()` and `rgba()`), `host-sets.ts` (host sets: Claude light and dark, recorded, and a fallback set per theme for a host that sends nothing), `recordings/claude-desktop.json` (the recorded Claude Desktop variables), and `theme-contrast.test.ts` |
 | `test/fixtures/` | MusicXML fixtures |
-| `scripts/` | `check-html.mjs` (AC-R1), `copy-assets.mjs`, `measure.mjs` |
+| `test/perf/` | U7 `budget.ts`: pure `checkBudget` (named breaches) and `summarise` (measure report to metrics), unit-tested in `budget.test.ts` |
+| `perf-budget.json` | The U7 limits |
+| `scripts/` | `check-html.mjs` (AC-R1), `copy-assets.mjs`, `measure.mjs` (measures), `perf.mjs` (joins measure, budget and check; needs Node 22.18+ to import the `.ts` module) |
 
 Node 20 or later. Dependency versions are exact and locked in `package-lock.json`.
 
@@ -29,6 +31,7 @@ Node 20 or later. Dependency versions are exact and locked in `package-lock.json
 | `npm run build:host` | Builds `test/mock-host/dist/host.js` (the host page and `AppBridge`) |
 | `npm run copy-assets` | Copies `dist/score-viewer.html` to `../render-mcp/src/render_mcp/ui/assets/` |
 | `npm run measure` | Page size, time to first rendered page (desktop; phone viewport with 4x CPU throttle) and peak JS heap |
+| `npm run perf` | `measure`, then checks the numbers against `perf-budget.json`; exits 1 on a breach (run `build` first) |
 
 Playwright uses its cached Chromium; on a fresh machine run `npx playwright install chromium`, or point
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` at a pre-installed Chromium binary. The real-server spec needs
@@ -92,3 +95,38 @@ raulkivi/agent-cost-analyzer (`packages/web/e2e/support/axe.ts`, `packages/mcp-a
 | U3 contrast in Node: text 4.5:1 and marks 3:1 (button borders, focus ring, the score's notes and staff lines in `currentColor`) from the real `style.css`, in Claude light, Claude dark and the fallbacks, each failing pair named | `test/theme/theme-contrast.test.ts` |
 | U3 the mock host applies the recorded Claude theme and variables, also on a theme change; the U4 stops also run in Claude dark | `apps/score-viewer/e2e/u3-host-themes.spec.ts`, `u4-stops-and-sizes.spec.ts` |
 | U5 Tab reaches every control with a ring; Enter and Space activate Next, Prev, zoom, Fullscreen and Download; focus is kept when a paging button disables itself; arrow and Page keys (there is no page-jump field) | `apps/score-viewer/e2e/u5-keyboard.spec.ts` |
+
+## Performance budget (U7)
+
+`npm run perf` runs `measure.mjs` (it honours `PLAYWRIGHT_CHROMIUM_EXECUTABLE`), compares the result with
+`perf-budget.json` and exits 1 on any breach, naming the metric, the measured value and the limit. The
+CI step runs it with `continue-on-error: true`: a warning until the numbers are stable on the runner,
+then required (drop that line in `.github/workflows/ui.yml`).
+
+Measured 2026-11-11 on the dev machine (Chromium 1243, median of 3 runs, `satb-long.musicxml`), and the limits set from it:
+
+| Metric | Measured | Limit |
+|---|---|---|
+| Page size (raw) | 8,595,187 bytes | 13,000,000 (1.5x) |
+| Desktop, host navigation to first page | 1,045 to 1,252 ms | 2,500 ms (2x) |
+| Phone (Pixel 5, 4x CPU throttle), the same | 4,177 to 4,686 ms | 9,000 ms (2x) |
+| Peak JS heap (larger of the two profiles) | 25.3 to 26.6 MB | 55,000,000 bytes (2x) |
+
+Revisit the limits after the first CI runs; tighten them if the runner is steady well below them.
+
+## Every new page ships its specs (U8)
+
+Each new MCP Apps page (Recognition Review, Practice Player, ABC Workbench, Practice Coach, Diff Viewer)
+ships with a spec file in `apps/<page>/e2e/`, following the Score Viewer's, covering:
+
+- render (the normal state) and the empty and error states;
+- both Claude themes (light and dark, `host=claude`);
+- 360 px, as well as desktop, with no sideways scroll;
+- axe on the chrome, and Tab order with a visible focus ring;
+- its call log: the messages the page sends the host (`window.__host.messages(...)`) and the tool calls it makes.
+
+A page is not done, and does not move to done in CLAUDE.md's status table, until those specs pass.
+
+## Not done (U9)
+
+Visual regression (screenshot baselines for the chrome) is deferred; see decision 5 in the testing plan.
