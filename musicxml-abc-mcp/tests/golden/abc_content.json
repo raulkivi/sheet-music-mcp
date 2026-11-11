@@ -75,7 +75,7 @@
   ],
   "to_abc_measures": [
     {
-      "text": "{\n  \"abc\": \"X:1\\nT:Soprano\\nM:3/4\\nL:1/8\\nQ:1/4=84\\nK:D\\ne6 | f6 |]\\n\\nX:2\\nT:Alto\\nM:3/4\\nL:1/8\\nQ:1/4=84\\nK:D\\nE6 | F6 |]\\n\\nX:3\\nT:Tenor\\nM:3/4\\nL:1/8\\nQ:1/4=84\\nK:D\\nE6 | F6 |]\\n\\nX:4\\nT:Bass\\nM:3/4\\nL:1/8\\nQ:1/4=84\\nK:D\\nE,6 | F,6 |]\",\n  \"parts_included\": [\n    \"P1\",\n    \"P2\",\n    \"P3\",\n    \"P4\"\n  ],\n  \"warnings\": []\n}",
+      "text": "{\n  \"abc\": \"X:1\\nT:Soprano\\nM:3/4\\nL:1/8\\nQ:1/4=84\\nK:D\\ne6 | =f6 |]\\n\\nX:2\\nT:Alto\\nM:3/4\\nL:1/8\\nQ:1/4=84\\nK:D\\nE6 | =F6 |]\\n\\nX:3\\nT:Tenor\\nM:3/4\\nL:1/8\\nQ:1/4=84\\nK:D\\nE6 | =F6 |]\\n\\nX:4\\nT:Bass\\nM:3/4\\nL:1/8\\nQ:1/4=84\\nK:D\\nE,6 | =F,6 |]\",\n  \"parts_included\": [\n    \"P1\",\n    \"P2\",\n    \"P3\",\n    \"P4\"\n  ],\n  \"warnings\": []\n}",
       "type": "text"
     }
   ],
