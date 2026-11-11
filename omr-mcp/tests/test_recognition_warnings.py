@@ -43,7 +43,7 @@ class TestBuildWarnings:
 
     def test_parts_fewer_than_staves(self):
         assert build_warnings(_xml([NOTE]), parts=1, staves_on_page=4) == [
-            {"code": "PARTS_FEWER_THAN_STAVES", "severity": "warning",
+            {"code": "PARTS_FEWER_THAN_STAVES", "severity": "info",
              "message": "1 part recognised but 4 staves found on the page; voices may be merged"}
         ]
 

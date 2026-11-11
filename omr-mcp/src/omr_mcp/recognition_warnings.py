@@ -46,7 +46,8 @@ def build_warnings(
         items.append(
             {
                 "code": "PARTS_FEWER_THAN_STAVES",
-                "severity": "warning",
+                # "for awareness" until the check is measured on real scores
+                "severity": "info",
                 "message": f"{parts} {'part' if parts == 1 else 'parts'} recognised but "
                 f"{staves_on_page} staves found on the page; voices may be merged",
             }
