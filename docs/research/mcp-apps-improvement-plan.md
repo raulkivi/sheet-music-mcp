@@ -188,7 +188,7 @@ gantt
 
     section Phase 0 Foundation
     T0.1 Kannel tokens in kit           :done, t01, 2026-11-16, 2d
-    T0.2 Render and check boards        :crit, t02, 2026-11-16, 2d
+    T0.2 Render and check (skipped)     :t02, 2026-11-16, 2d
     T0.3 Mockup source of truth         :done, t03, 2026-11-16, 1d
     T0.4 warnings contract              :done, t04, after t03, 1d
     T0.5 Remove sample data             :t05, after t03, 1d
