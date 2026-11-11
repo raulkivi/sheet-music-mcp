@@ -14,6 +14,7 @@ import pytest
 
 import pitch_mcp.server as server
 from pitch_mcp import engine
+from pitch_mcp.engine import SessionRegistry
 from pitch_mcp.server import call_tool
 
 from .test_engine import MINIMAL_MUSICXML
@@ -51,6 +52,8 @@ async def _all_contents(tmp_path, monkeypatch) -> dict:
     score = tmp_path / "score.musicxml"
     score.write_text(MINIMAL_MUSICXML, encoding="utf-8")
     monkeypatch.setenv("SHEET_MUSIC_OUTPUT_ROOT", str(tmp_path))
+    # list_sessions reports idle_seconds from the registry clock; a frozen clock keeps it 0.0 on slow runners.
+    monkeypatch.setattr(engine, "_registry", SessionRegistry(idle_minutes=10, clock=lambda: 0.0))
     monkeypatch.setattr(server, "analyze_recording", lambda *a, **k: ANALYSIS)
 
     contents = {}
