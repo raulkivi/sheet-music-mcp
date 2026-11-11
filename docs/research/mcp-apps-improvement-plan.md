@@ -242,7 +242,7 @@ Dates are YYYY-MM-DD. Update this table with the Gantt chart after every step.
 | T0.4 | warnings contract | Done | 2026-11-11 | 2026-11-11 | Branch `docs/warnings-contract` abfaa0a, unpushed |
 | T0.5 | Remove sample data | Not started | | | |
 | T1.1 | Grading defects | Not started | | | Opus |
-| T1.2 | Grading state uncertain | Not started | | | |
+| T1.2 | Grading state uncertain | Done | 2026-11-11 | 2026-11-11 | PR #200, 494 passed. Thresholds (YIN 0.6, octave 100 cents) to review; T1.1 still open |
 | T1.3 | Practice Coach page | Not started | | | DA7 open |
 | T1.4 | Adaptive polling | Not started | | | |
 | T1.5 | Ask Claude for tips | Not started | | | |
@@ -286,6 +286,7 @@ After every implementation step, before the next step starts:
 | 2026-11-11 | Plan created | none | Gantt and tracker added | none |
 | 2026-11-11 | Phase 0 step 1 | T0.1, T0.3, T0.4 | Implemented on separate branches, reviewed. ui: 270 unit, 61/61 e2e; docs reviewed | Branches not yet merged |
 | 2026-11-11 | Phase 1–2 batch 1 | T1.7, T2.1, T2.6 | T1.7 report (§7). T2.1 PR #198 (318 passed, 48 skipped). T2.6 PR #197 (283 passed). Open: T2.1 changes the staff estimate to run for all clients, with false positives on one-staff pages | T2.1 decision needed |
+| 2026-11-11 | Batch 2 results | T2.1 fix, T1.2, §10 | PR #198 severity now `info` (ff07c0d). T1.2 PR #200 (494 passed, 4 xfail kept). §10 docs PR #199. Open: T1.2 thresholds (YIN 0.6, octave 100 cents) are the agent's choice, need review; T2.5 still running | T1.2 thresholds review |
 | 2026-11-11 | Interview decisions | T2.1, T1.9, T4.2 | Staff check: all clients, severity `info` (PR #198 to change). Practice Player: presets + per-part volume (DA3). Download: PDF and SVG (DA2). Next batch: T2.5, §10 docs PR, T1.2 | none |
 | 2026-11-11 | Owner answers | DA1, T0.2 | DA1 confirmed (`interactive/` canonical). T0.2 skipped (no `support.js`). §10 link change pending owner go-ahead | none |
 
