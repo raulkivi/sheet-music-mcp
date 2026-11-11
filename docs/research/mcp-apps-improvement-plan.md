@@ -254,7 +254,7 @@ Dates are YYYY-MM-DD. Update this table with the Gantt chart after every step.
 | T2.2 | SATB staff estimate | Not started | | | Opus; integration needs real samples |
 | T2.3 | Recognition Review page | Not started | | | |
 | T2.4 | Multi-page merge (optional) | Not started | | | DA9 open |
-| T2.5 | apply_abc_edit | Done | 2026-11-11 | 2026-11-11 | PR #201, 306 unit + 6 integration. Open: `musicxml_to_abc` drops `=` naturals (separate task) |
+| T2.5 | apply_abc_edit | Done | 2026-11-11 | 2026-11-11 | PR #201, 306 unit + 6 integration. CI 23/23 after fix (BOM escape). Security review: LOW notes open (raw music21 error text; no size cap on `abc`) |
 | T2.6 | Hunk model | Done | 2026-11-11 | 2026-11-11 | PR #197, CI 24/24 pass, 283 unit tests |
 | T2.7 | ABC Workbench page | Not started | | | |
 | T3.1 | compare_scores | Not started | | | |
@@ -288,6 +288,7 @@ After every implementation step, before the next step starts:
 | 2026-11-11 | Phase 1–2 batch 1 | T1.7, T2.1, T2.6 | T1.7 report (§7). T2.1 PR #198 (318 passed, 48 skipped). T2.6 PR #197 (283 passed). Open: T2.1 changes the staff estimate to run for all clients, with false positives on one-staff pages | T2.1 decision needed |
 | 2026-11-11 | Batch 2 results | T2.1 fix, T1.2, §10, T2.5 | PR #198 severity now `info` (ff07c0d). T1.2 PR #200 (494 passed, 4 xfail kept). §10 docs PR #199. T2.5 PR #201 (306 unit, 6 integration; other parts byte-identical on 10 SATB samples). Open: T1.2 thresholds (YIN 0.6, octave 100 cents) need review; T2.5 open questions (bar-count strictness, lyrics carry-over, multi-staff `<staff>`); `musicxml_to_abc` drops `=` naturals (B natural exports as B flat) | T1.2 thresholds, T2.5 questions, naturals bug |
 | 2026-11-11 | Interview decisions | T2.1, T1.9, T4.2 | Staff check: all clients, severity `info` (PR #198 to change). Practice Player: presets + per-part volume (DA3). Download: PDF and SVG (DA2). Next batch: T2.5, §10 docs PR, T1.2 | none |
+| 2026-11-11 | PR #201 fix | T2.5 | Scan failed on a literal U+FEFF in `abc_edit.py`. Replaced with the `﻿` escape (commit 5e7c7b9). CI 23/23 pass. Security LOW notes left open | none |
 | 2026-11-11 | T1.1 result | T1.1 | PR #203 (stacked on #200): three defects fixed, 4 xfail → 0. Review: it also edits the root CLAUDE.md status row, and changes detector and aligner logic; real-mic run needed for release | real-mic evidence; #200 merge |
 | 2026-11-11 | Naturals fix | `musicxml_to_abc` naturals (not a plan ID) | PR #202: writes `=` for naturals; 237 unit passed, 3 of 4 new tests failed before fix; one golden line changed; one existing test expectation updated | none |
 | 2026-11-11 | T3.5 check | T3.5 | Already implemented on main via #178 (merged). No new work; T3.6 Setup Doctor page is now unblocked | none |
