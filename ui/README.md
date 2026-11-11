@@ -10,7 +10,7 @@ Verovio WASM inlined; no network references). See
 | `packages/kit/` | Shared kit: `HostBridge` (interface), `ExtAppsBridge` (the only importer of `@modelcontextprotocol/ext-apps`), `FakeBridge`, `toolErrors.ts` (error envelope), `theme.ts`, `score/ScoreRenderer.ts` (interface), `score/ScoreView.ts` (Verovio WASM renderer, the only importer of Verovio), `score/ServerScoreRenderer.ts` (pages from render-mcp's app-only `render_page_svg`), `score/openScore.ts` (first renderer that starts wins), `score/paging.ts` (pure; `layout-cases.json` is shared with render-mcp's tests) |
 | `apps/score-viewer/` | Score Viewer for render-mcp (`ui://render/score-viewer`); `e2e/` holds its Playwright tests |
 | `test/mock-host/` | Mock MCP Apps host: embeds the built HTML in a sandboxed iframe and speaks the host side with ext-apps' `AppBridge`; logs every message (`window.__host.log`). `mcp-relay.ts` runs the real render-mcp over stdio for specs that ask for it |
-| `test/e2e/` | Spec helpers (`host-helpers.ts`: `openHost`, `messages`, `pageLabel`) and the `renderMcp` Playwright fixture (`host-fixture.ts`) |
+| `test/e2e/` | Spec helpers, one job each: `host-helpers.ts` (`openHost`, `messages`, `pageLabel`), `axe.ts` (axe-core in a frame), `focus.ts` (focused control and its ring), `layout.ts` (sideways scroll, frame width), `view-frame.ts` (`ScoreViewerFrame` page object and the U4 `SIZES`); and the `renderMcp` Playwright fixture (`host-fixture.ts`) |
 | `test/fixtures/` | MusicXML fixtures |
 | `scripts/` | `check-html.mjs` (AC-R1), `copy-assets.mjs`, `measure.mjs` |
 
@@ -73,5 +73,19 @@ Query parameters:
 `scenario` (`inline-long`, `inline-satb`, `path-only`), `theme` (`light`, `dark`), `csp` (`spec` =
 the spec's default policy, `spec-wasm` = the same plus `'wasm-unsafe-eval'`), `downloads` (`1`/`0`:
 `allow-downloads` in the iframe sandbox), `modes` (display modes offered, e.g. `inline,fullscreen`),
-`width` (container width in CSS pixels) and `server`: `1` (default) answers `render_page_svg` with five
+`width` (container width in CSS pixels; in fullscreen the view fills the window) and `server`: `1` (default) answers `render_page_svg` with five
 placeholder pages, `0` offers no tool, `real` relays to render-mcp (needs the `renderMcp` fixture).
+
+## Specs and the rows they cover
+
+Plan rows are in [docs/research/ui-and-sound-testing-plan.md](../docs/research/ui-and-sound-testing-plan.md)
+section 4; each spec's title starts with its row. Page objects keep selectors out of the specs.
+`axe.ts` and the focus and layout checks are copied with attribution (MIT) from
+raulkivi/agent-cost-analyzer (`packages/web/e2e/support/axe.ts`, `packages/mcp-apps/e2e/support/view-frame.ts`).
+
+| Row | Spec |
+|---|---|
+| AC-R1 self-contained page; AC-R3 Next and Prev; handshake, zoom, theme, resize, download, fullscreen, both render paths | `apps/score-viewer/e2e/score-viewer.spec.ts` |
+| R1 / U1 real render-mcp over stdio; U2 real fallback path (spec CSP, pages from the real `render_page_svg`) | `apps/score-viewer/e2e/real-server.spec.ts` |
+| U4 six stops (first page; later page zoomed in; download fallback; server page; path-only notice; no-engine notice) at 1280 px, 360 px and fullscreen: axe on the chrome (SVG notation excluded), Tab order with a visible ring, no sideways scroll | `apps/score-viewer/e2e/u4-stops-and-sizes.spec.ts` |
+| U5 Tab reaches every control with a ring; Enter and Space activate Next, Prev, zoom, Fullscreen and Download; focus is kept when a paging button disables itself; arrow and Page keys (there is no page-jump field) | `apps/score-viewer/e2e/u5-keyboard.spec.ts` |

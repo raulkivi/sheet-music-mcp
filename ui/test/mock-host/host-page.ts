@@ -51,7 +51,8 @@ const opening = await openingCall(options.scenario, options.tools === "real" ? t
 
 const log = new MessageLog();
 const box = document.getElementById("frame-box")!;
-box.style.width = `${options.width}px`;
+let inlineWidth = options.width;
+box.style.width = `${inlineWidth}px`;
 const frame = document.createElement("iframe");
 frame.title = "Score Viewer";
 frame.setAttribute("sandbox", options.downloads ? "allow-scripts allow-downloads" : "allow-scripts");
@@ -80,10 +81,17 @@ bridge.onmessage = async () => ({});
 bridge.onupdatemodelcontext = async () => ({});
 bridge.onrequestdisplaymode = async ({ mode }) => {
   if (options.modes.includes(mode)) displayMode = mode;
-  queueMicrotask(() => void bridge.sendHostContextChange({ displayMode }));
+  // Fullscreen fills the window, as hosts do; inline goes back to the container's width.
+  const fullscreen = displayMode === "fullscreen";
+  document.body.classList.toggle("fullscreen", fullscreen);
+  const containerDimensions = fullscreen
+    ? { width: innerWidth, height: innerHeight }
+    : { width: Math.min(inlineWidth, box.clientWidth), maxHeight: MAX_HEIGHT };
+  queueMicrotask(() => void bridge.sendHostContextChange({ displayMode, containerDimensions }));
   return { mode: displayMode };
 };
 bridge.onsizechange = ({ height }) => {
+  if (displayMode === "fullscreen") return;
   if (height !== undefined && height > 0) frame.style.height = `${Math.min(height, MAX_HEIGHT)}px`;
 };
 bridge.oninitialized = () => {
@@ -94,6 +102,7 @@ window.__host = {
   log: log.entries,
   /** Resizes the container like a host would and tells the app (containerDimensions). */
   resize(newWidth) {
+    inlineWidth = newWidth;
     box.style.width = `${newWidth}px`;
     void bridge.sendHostContextChange({ containerDimensions: { width: newWidth, maxHeight: MAX_HEIGHT } });
   },

@@ -131,7 +131,7 @@ configuration, which only a real run can test.
 |---|---|---|---|---|
 | P0 | Decisions in section 7; check soundfont licence | low | — | Answers recorded here |
 | P1 ✅ | U1 + U6: `AppBridge` host, real `render-mcp` over stdio, no CI retries | medium | P0 | Existing 13 specs green on the new host; one real-server spec green |
-| P2 | U2, U4, U5: real fallback path, 360 px, axe, keyboard | medium | P1 | Each AC id has a spec; CI job green |
+| P2 ✅ | U2, U4, U5: real fallback path, 360 px, axe, keyboard | medium | P1 | Each AC id has a spec; CI job green |
 | P3 | U3: host theme sets and contrast (R3) | medium | P1 | Contrast tests green in each recorded set |
 | P4 | S1 + S2: audio feature module and synth content tests | medium | — | Module unit-tested; synth integration asserts content (done 2026-11-11: `synth-mcp/tests/audio_features.py` + `test_audio_content.py`; content tests unrun here, no soundfont; onset check deferred to P6) |
 | P5 ✅ | S4 + S7 (pitch part): simulated-singer grading, pitch integration job in CI | medium | — | Each fault case has a spec; integration job green (done 2026-11-11: 6 fault cases as unit tests in `pitch-mcp/tests/test_simulated_singer.py`, 2 defects (3 strict xfail tests) recorded in `pitch-mcp/docs/todo.md`; job `pitch-integration` added, not yet run on GitHub) |
@@ -143,6 +143,15 @@ P1 status (2026-11-11): done. The 13 existing specs and the new real-server spec
 (`apps/score-viewer/e2e/real-server.spec.ts`) pass on the `AppBridge` host, and `retries` is 0.
 Not TDD (browser plumbing that only a real run tests): `playwright.config.ts`, `host-page.ts`, the
 host's vite build and the `ui.yml` step order (render-mcp's venv is now installed before e2e).
+
+P2 status (2026-11-11): done locally (CI run pending). U2 was already covered by `real-server.spec.ts`.
+`u4-stops-and-sizes.spec.ts` checks six stops at 1280 px, 360 px and fullscreen (18 tests: axe on the
+chrome with the notation excluded, Tab order with a visible ring, no sideways scroll);
+`u5-keyboard.spec.ts` (7 tests) covers Tab, Enter and Space. They found two defects, fixed test-first:
+Prev's visible text was not part of its name (axe `label-content-name-mismatch`; now "‹ Previous"), and
+focus was lost when Next or Prev disabled itself at the end (now handed to the other button). There is
+no page-jump control; the arrow and Page keys are tested instead. axe-core 4.14.0 added (exact pin).
+Not TDD: the mock host's fullscreen sizing (`host-page.ts`, `index.html`) and the spec helpers.
 
 Design: keep each test's seam an interface, as `ui/packages/kit` already does with `HostBridge`. The fake and real
 hosts implement the same port, and the synth test reaches the pitch detector through an interface, not an import.
