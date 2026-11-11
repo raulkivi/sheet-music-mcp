@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// Static server for the mock host. Serves the built app with the CSP a host would apply, so
-// browser tests see the same restrictions as a real MCP Apps sandbox.
+// Static server for the mock host. Serves the host page (index.html and the bundled host-page.ts,
+// built by `npm run build:host`) and the built app with the CSP a host would apply, so browser
+// tests see the same restrictions as a real MCP Apps sandbox. It speaks no MCP itself: specs that
+// need render-mcp relay to it from Node (test/e2e/host-fixture.ts).
 // Usage: node test/mock-host/server.mjs [port]
 
 import { createServer } from "node:http";
@@ -30,8 +32,8 @@ export const CSP = {
 
 const routes = {
   "/": { file: "test/mock-host/index.html", type: "text/html; charset=utf-8" },
-  "/host.js": { file: "test/mock-host/host.js", type: "text/javascript; charset=utf-8" },
-  "/app.html": { file: "dist/score-viewer.html", type: "text/html; charset=utf-8", app: true },
+  "/host.js": { file: "test/mock-host/dist/host.js", type: "text/javascript; charset=utf-8", missing: "run npm run build:host" },
+  "/app.html": { file: "dist/score-viewer.html", type: "text/html; charset=utf-8", app: true, missing: "run npm run build" },
 };
 
 const server = createServer(async (req, res) => {
@@ -50,7 +52,7 @@ const server = createServer(async (req, res) => {
     if (route.app) headers["content-security-policy"] = CSP[url.searchParams.get("csp") ?? "spec-wasm"] ?? CSP.spec;
     res.writeHead(200, headers).end(body);
   } catch {
-    res.writeHead(404).end(route.app ? "dist/score-viewer.html missing: run npm run build" : "not found");
+    res.writeHead(404).end(route.missing ? `${route.file} missing: ${route.missing}` : "not found");
   }
 });
 

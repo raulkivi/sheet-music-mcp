@@ -99,7 +99,7 @@ No MCP imports; each step is a no-op at its default.
 |----------|-------------|
 | `validate_options(repeat, count_in_bars, metronome, timbre)` | Bounds for direct engine calls; returns the timbre's GM program (None for `score`) |
 | `resolve_gains(parts, part_gains, preset, focus_part)` | One gain per selected part (preset base, `part_gains` overrides via `resolve_parts`), or None |
-| `cc7_value(gain)` | `round(127 × gain / 2)` |
+| `cc7_value(gain)` | 0 → 0, 1.0 → `DEFAULT_CC7` (100, MIDI's default channel volume), 2.0 → 127; linear on each side of 1.0 |
 | `expand_repeats(score)` | Written repeats played out before clicks are laid (music21's export would do it anyway) |
 | `repeat_music(score, times)` | Appends each part's bars `times − 1` more times; ties cut at the joins |
 | `scale_tempo(score, factor)` | Scales `number` and `numberSounding` of every MetronomeMark; default 120 × factor when none |
@@ -309,12 +309,15 @@ pyfluidsynth.Synth settings
   audio.file.name   = output.wav   ← destination path
   audio.file.type   = "wav"
   player.timing-source = "sample"  ← sample-accurate timing
+  EFFECT_SETTINGS                  ← reverb + chorus set explicitly (FluidSynth 2.3 defaults)
 
 fs.start(driver="file")            ← starts file writer
 fs.play_midi_file(midi_path)       ← queues MIDI
 fluid_player_join(fs.player)       ← BLOCKS until MIDI playback complete
 fs.delete()                        ← cleanup
 ```
+
+Reverb and chorus are never left to the library: FluidSynth 2.4 changed their defaults (reverb room size 0.2 -> 0.5, level 0.9 -> 0.7, ...), which made a Choir Aahs tail ring about a second longer on Ubuntu 26.04 than on 24.04. `EFFECT_SETTINGS` pins the 2.3 values, so a render sounds the same on both. Num settings must be Python floats and int settings ints: pyfluidsynth picks the setter by type and FluidSynth ignores a mismatch.
 
 `fluid_player_join` is a C-level blocking call. It blocks the Python thread (and therefore the MCP event loop) until synthesis is complete. This is acceptable for Phase 1.
 

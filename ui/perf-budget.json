@@ -1,0 +1,9 @@
+{
+  "comment": "U7 performance budget for dist/score-viewer.html in the mock host. Limits are the 2026-11-11 measurements on the dev machine (3 runs, medians) with headroom; see README 'Performance budget'. Times are host navigation to first rendered page.",
+  "limits": {
+    "pageBytes": 13000000,
+    "desktopFirstPageMs": 2500,
+    "phoneFirstPageMs": 9000,
+    "peakHeapBytes": 55000000
+  }
+}

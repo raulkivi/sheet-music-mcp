@@ -81,3 +81,93 @@ not previously derive from the singer's actual performance in either phase:
       matching `soprano_phrase.wav` — but the WAV is a synthesized sine-tone proxy, not a real human
       recording (can't record a human voice in this environment). Recording a real take to replace
       it — same filenames — is still open; see `docs/HANDOVER.md` step 4.
+
+---
+
+## Defects found by the simulated singer (2026-11-11, P5 / S4)
+
+`tests/test_simulated_singer.py` renders `reference.musicxml` with one fault at a time (helper:
+`tests/simulated_singer.py`). `docs/HANDOVER.md` does not exist in this checkout, so the findings are
+recorded here. Each is an `xfail(strict=True)` test written to the intended behaviour; remove the
+marker when fixed.
+
+- [ ] **Octave slips are not graded.** An octave-up note is detected at half its pitch (pYIN) and
+      graded `on_pitch` at 0 cents; for both directions the DTW aligner hands the slipped note a
+      neighbour's frames (`sung_hz` = a neighbouring note). Expected: `sharp` / `flat` near +-1200.
+- [ ] **A note that repeats the previous pitch can get one frame.** On the final C4 (after another
+      C4) DTW assigned a single frame, so one vibrato extreme (+50 cents) was graded `sharp`. The same
+      vibrato on a note between different pitches grades `on_pitch`.
+- Deliberate tolerances, asserted as documented: a note 150 ms late stays `on_pitch` (grading is by
+  pitch; the aligner has no timing metric); +25 cents is on the `|cents| <= 25` `on_pitch` edge, so
+  that test asserts the deviation, not the label; a 150 ms breath gap or 20 dB SNR noise does not
+  change the grade.
+
+---
+
+## Manual-run evidence (2026-11-11, P7 / S6)
+
+- [x] **The real-microphone run leaves a record.** `tests/test_manual.py` tests are named by stable
+      ids (`test_pm1_*`, `test_pm2_*`). With `PITCH_MANUAL_EVIDENCE=1` and `-m manual`, the hooks at
+      the end of `tests/conftest.py` (logic in `tests/manual_evidence.py`, unit-tested in
+      `tests/test_manual_evidence.py`) record the run as a git note on the commit it started on,
+      through `tools/release-evidence` (suite `pitch-mic`). `publish.yml` refuses a `pitch-mcp/v*`
+      tag unless PM1 and PM2 passed on that commit from a clean tree. How to record and push:
+      `tools/release-evidence/README.md`.
+- [ ] **Record evidence before the next pitch-mcp release** (owner, real microphone), then push the
+      notes ref. Without it the publish workflow stops at the `evidence` job.
+
+---
+
+## Round trip synth-mcp -> pitch-mcp (2026-11-11, P6 / S3)
+
+`tests/test_round_trip.py` renders each part of `tests/fixtures/satb_round_trip.musicxml` with
+synth-mcp (in synth-mcp's own venv, via `tests/synth_bridge.py`) and reads it back. All 4 parts pass:
+pitch within 10 cents, onsets within about 25 ms, `analyze_recording` grades every note `on_pitch`,
+with the score timbre and with `timbre="choir"`. No pitch-mcp defect found.
+
+Found on the synth side by the same work (recorded here because synth-mcp has no todo file).
+Both fixed 2026-11-11; the assertions are unchanged and `synth-mcp -m integration` is green:
+
+- [x] **~~synth-mcp audio drifts late against its MIDI by about 2.27 ms per second~~ - not a synth
+      defect: the drift was in the test's measurement.** `audio_features.onsets_near` (and
+      `analyze_wav`'s silence spans) counted window starts in nominal 5 ms steps, but a 5 ms window
+      at 44.1 kHz is 220.5 samples, rounded to 220, so every window is 4.989 ms and the time axis ran
+      ahead of the audio by 220.5/220 = 1.00227 (the 1/441, 75 ms at 31.5 s). Evidence: a note-on
+      every 2 s sent by hand with `fluid_synth_write_s16` (no player) "drifted" the same; at 48 kHz
+      (240 whole samples) neither drifts. FluidSynth's player, sample rate (44100 in synth and
+      header) and timing source were all fine. Fixed in `synth-mcp/tests/audio_features.py`: window
+      times use the real window length (`window_seconds`); unit tests at 44.1 kHz and 22.05 kHz in
+      `test_audio_features.py`. The earlier finding that the offline `fluid_file_renderer`
+      drifts too came from the same measurement.
+- [x] **Any `part_gains` value lowered the whole mix by 7.7 dB.** Gain 1.0 mapped to CC7 64 while a
+      render without gains keeps FluidSynth's default CC7 100; FluidSynth's 40 log10 curve gives
+      40 log10(64/100) = -7.7 dB. Fixed in `synth-mcp/src/synth_mcp/practice.py` `cc7_value`:
+      0 -> 0, 1.0 -> `DEFAULT_CC7` 100, 2.0 -> 127, linear on each side of 1.0, so unnamed parts
+      and gain 1.0 keep the default level. Pinned by `test_part_gain_moves_only_that_part` (1.5 dB
+      tolerance kept) and `TestCc7Value`.
+
+### First run on GitHub (2026-11-11): FluidSynth 2.4 reverb
+
+On `ubuntu-latest` (Ubuntu 26.04, libfluidsynth3 2.4.8) the four
+`test_choir_timbre_grades_on_pitch` cases failed; locally (24.04, 2.3.4) they passed. Reproduced here
+with the 26.04 `libfluidsynth3_2.4.8+dfsg-1` (and its `libsdl3-0`) extracted to a scratch dir and
+`LD_LIBRARY_PATH`. In every part the **final note** (m2 b3: P1 F5, P2 A4, P3 C4, P4 F2; 3.75-5.00 s)
+was `no_signal`, with every other note on pitch within 10 cents.
+
+- [x] **synth-mcp relied on FluidSynth's reverb and chorus defaults, which 2.4 changed** (reverb
+      room size 0.2 -> 0.5, damp 0 -> 0.3, width 0.5 -> 0.8, level 0.9 -> 0.7; chorus level 2 -> 0.6,
+      speed 0.3 -> 0.2, depth 8 -> 4.25 ms). The Choir Aahs tail stayed voiced to 8.2 s instead of
+      7.2 s (P4: 6.7 s), so the final note got 277 frames after 5.0 s against 108 inside it.
+      Fixed in `synth-mcp/src/synth_mcp/engine.py`: `EFFECT_SETTINGS` sets the 2.3 values
+      explicitly; with them 2.4.8 renders the same tail level as 2.3.4 (every 0.5 s window within
+      1 dB) and the round trip passes unchanged on both. Pinned by
+      `test_reverb_and_chorus_are_set_explicitly` (unit) and `TestEffectSettings` (integration: the
+      library keeps each value; an int for a num setting is silently ignored).
+- [ ] **A long tail after the final note makes it `no_signal`.** DTW hands every frame after the
+      score's end to the last note, and the plausibility gate takes the median time of those
+      frames: a voiced tail longer than about 2.5x the note (median past `end + 0.75 x length`)
+      drops a well-sung final note. A reverberant room or a singer holding the last note does
+      this. Strict xfail: `tests/test_aligner.py::TestAlign::test_a_long_tail_after_the_final_note_still_grades_it`.
+      The round trip itself stays strict (every note `on_pitch`); its failure message now lists
+      only the off notes with measure, beat, expected and detected Hz and cents
+      (`round_trip.off_notes`).

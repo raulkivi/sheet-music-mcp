@@ -6,6 +6,13 @@ Not run in CI or by a plain `pytest` invocation — opt in with:
 
 Sing along with the fixture phrase in tests/fixtures/reference.musicxml
 (starting on C4, 90 BPM) while these run.
+
+Test names start with stable ids (test_pm1_*, test_pm2_*): the release gate for pitch-mcp
+requires PM1 and PM2 to pass (tools/release-evidence, suite ``pitch-mic``). Never rename an id.
+To record evidence for a release, on a clean checkout of the commit:
+
+    PITCH_MANUAL_EVIDENCE=1 PITCH_MANUAL_INPUT_DEVICE=usb \
+      VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m manual
 """
 
 import time
@@ -25,7 +32,7 @@ FIXTURE_MUSICXML = (Path(__file__).parent / "fixtures" / "reference.musicxml").r
 
 @pytest.mark.manual
 class TestRealMicrophoneLifecycle:
-    def test_load_start_poll_stop(self):
+    def test_pm1_load_start_poll_stop(self):
         result = load_score(FIXTURE_MUSICXML, "Soprano")
         sid = result["session_id"]
 
@@ -52,7 +59,7 @@ class TestRealMicrophoneLifecycle:
             stop_monitoring(sid)
             raise
 
-    def test_tempo_bpm_override_is_accepted(self):
+    def test_pm2_tempo_bpm_override_is_accepted(self):
         result = load_score(FIXTURE_MUSICXML, "Soprano")
         sid = result["session_id"]
         try:

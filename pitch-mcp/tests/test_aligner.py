@@ -171,6 +171,28 @@ class TestAlign:
         assert result[1]["sung_hz"] is None
         assert result[2]["status"] == "on_pitch"
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="DEFECT: DTW gives every frame after the score's end to the final note, and the "
+        "plausibility gate tests the median time of those frames, so a release or room tail of "
+        "more than 2.5x the note's length (median past end + 0.75 x length) makes a well-sung "
+        "final note no_signal. "
+        "See docs/todo.md (round trip, FluidSynth 2.4 reverb).",
+    )
+    def test_a_long_tail_after_the_final_note_still_grades_it(self):
+        # Measured shape of the synth-mcp choir round trip on FluidSynth 2.4 defaults: the final
+        # 1.25 s note (3.75-5.0 s) stays voiced at its pitch until 8.2 s, a 3.2 s reverb tail.
+        hop = 512 / 44100
+        notes = [
+            self._make_note("E5", 76, 659.26, 0.0, 3.75, beat=1.0),
+            self._make_note("F5", 77, 698.46, 3.75, 5.0, beat=3.0),
+        ]
+        detected = [(i * hop, 659.26, 0.9) for i in range(int(3.75 / hop))] + [
+            (3.75 + i * hop, 698.46, 0.9) for i in range(int(4.45 / hop))
+        ]
+        result = align(detected, notes)
+        assert [r["status"] for r in result] == ["on_pitch", "on_pitch"]
+
 
 class TestSummarize:
     def _make_result(self, status, cents=None):

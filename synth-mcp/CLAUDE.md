@@ -132,12 +132,20 @@ asyncio.run(_run())
 - **music21's conductor track keeps tempo/time marks only in ascending offset order, first part
   first.** The count-in's meter and tempo therefore go at offset 0 of the first part, not in the
   click part; the click part is appended last so it is the last MIDI track.
+- **Expand written repeats before `repeat_music`.** Copies of unexpanded volta endings confuse
+  music21's own expansion at export (later passes replayed the first ending), so `extract_midi`
+  calls `expand_repeats` whenever clicks or `repeat > 1` are asked for
+  (`tests/test_practice_timing.py`, which also checks click onsets in seconds).
 - **A bare `<sound tempo>` is `numberSounding`, not `number`.** `select_measures` carries the tempo
   that way; music21's MIDI export prefers `numberSounding`, so `scale_tempo` scales both.
 - **`starting_pitches` without audio is not an error.** Any `ProcessingError` from `render_clip`
   (no soundfont, no FluidSynth, render failure) becomes `"audio_unavailable"`; the
   `audio/starting-pitches-*.wav` path is only created after rendering worked. Tests patch
   `synth_mcp.clip.synthesize_midi`.
+- **Reverb and chorus are set explicitly** (`engine.EFFECT_SETTINGS`, FluidSynth 2.3 defaults). 2.4 changed
+  the defaults (room size 0.2 -> 0.5, ...) and the choir round trip lost its final note on Ubuntu 26.04.
+  Floats for num settings, ints for int settings, or FluidSynth silently ignores the value
+  (`TestEffectSettings` checks the installed library keeps each one).
 - **FluidSynth renders the full release tail** (about 2.6 s after the last chord with FluidR3_GM),
   so `render_clip` cuts the clip 0.25 s after the chord, faded out (`clip_seconds` +
   `RELEASE_SECONDS`); otherwise a 4-part clip is 275 KB and never inline.
@@ -152,6 +160,12 @@ asyncio.run(_run())
   store on every `get`, so it expires with the WAV; tests swap both with `tests/conftest.py:use_store`.
   Fakes of `synthesize_midi` must write a WAV (`tests/midi_helpers.py:fake_render`). Errors of
   the structured tools are `isError` results without `structuredContent`.
+- **Gain 1.0 is CC7 100, not 64.** A channel nothing sets keeps MIDI's default volume 100, so
+  `cc7_value` maps 1.0 to `DEFAULT_CC7`; any other value makes "no change" audibly louder or quieter
+  (64 was 7.7 dB down, FluidSynth's CC7 curve is 40 log10).
+- **Audio analysis windows are whole samples.** At 44.1 kHz a 5 ms window is 220 samples, not
+  220.5; `tests/audio_features.py` counts time in `window_seconds`, never the nominal length, or
+  onsets "drift" 1/441 late (a measurement bug once taken for FluidSynth timing drift).
 - **Running tests:** `VIRTUAL_ENV=` prefix prevents uv from picking up the wrong venv.
 
 ---

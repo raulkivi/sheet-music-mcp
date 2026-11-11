@@ -1,6 +1,7 @@
 """Tests for synth_mcp.engine."""
 
 import os
+import sys
 import wave
 from pathlib import Path
 from unittest.mock import patch
@@ -246,6 +247,42 @@ class TestSynthesizeMidiUnit:
             with pytest.raises((ProcessingError, ImportError, TypeError)):
                 synthesize_midi(self.MINIMAL_MIDI, str(tmp_path / "out.wav"))
 
+    def test_reverb_and_chorus_are_set_explicitly(self, monkeypatch, tmp_path):
+        # FluidSynth 2.4 changed the reverb and chorus defaults (room size 0.2 -> 0.5, ...), so a
+        # render that relied on them rang on about a second longer on Ubuntu 26.04 than on 24.04.
+        # The 2.3 defaults are set explicitly; num settings must be floats and int settings ints,
+        # or pyfluidsynth calls the wrong setter and FluidSynth ignores the value without a word.
+        sf = tmp_path / "dummy.sf2"
+        sf.write_bytes(b"RIFF")
+        monkeypatch.setenv("SYNTH_SOUNDFONT_PATH", str(sf))
+        created = {}
+
+        class FakeSynth:
+            def __init__(self, **kwargs):
+                created.update(kwargs)
+                raise RuntimeError("stop after the settings")
+
+        fake = type(sys)("fluidsynth")
+        fake.Synth = FakeSynth
+        with patch.dict("sys.modules", {"fluidsynth": fake}):
+            with pytest.raises(ProcessingError):
+                synthesize_midi(self.MINIMAL_MIDI, str(tmp_path / "out.wav"))
+
+        expected = {
+            "synth.reverb.active": 1,
+            "synth.reverb.room-size": 0.2,
+            "synth.reverb.damp": 0.0,
+            "synth.reverb.width": 0.5,
+            "synth.reverb.level": 0.9,
+            "synth.chorus.active": 1,
+            "synth.chorus.nr": 3,
+            "synth.chorus.level": 2.0,
+            "synth.chorus.speed": 0.3,
+            "synth.chorus.depth": 8.0,
+        }
+        assert {k: created.get(k) for k in expected} == expected
+        assert {k: type(created[k]) for k in expected} == {k: type(v) for k, v in expected.items()}
+
 
 # ---------------------------------------------------------------------------
 # _get_wav_duration
@@ -404,3 +441,19 @@ class TestIntegration:
             f"Single part ({dur_one:.1f}s) should be longer than all-parts-2x-tempo "
             f"({dur_all_fast:.1f}s)"
         )
+
+
+@pytest.mark.integration
+class TestEffectSettings:
+    """The installed libfluidsynth really takes every explicit reverb and chorus setting."""
+
+    def test_fluidsynth_keeps_each_effect_setting(self):
+        fluidsynth = pytest.importorskip("fluidsynth")
+        from synth_mcp.engine import EFFECT_SETTINGS
+
+        synth = fluidsynth.Synth(**EFFECT_SETTINGS)
+        try:
+            kept = {name: synth.get_setting(name) for name in EFFECT_SETTINGS}
+        finally:
+            synth.delete()
+        assert kept == pytest.approx(EFFECT_SETTINGS)

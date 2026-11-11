@@ -405,7 +405,7 @@ Parameter names for practice tracks (synth-mcp `synthesize`, [wave 3 plan](resea
 
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
-| `part_gains` | object: part (ID, name or voice) → number 0.0–2.0 | none | Per-part volume as MIDI CC7, `round(127 × gain / 2)`. Parts not listed get 1.0. |
+| `part_gains` | object: part (ID, name or voice) → number 0.0–2.0 | none | Per-part volume as MIDI CC7: `round(100 × gain)` up to 1.0, then `round(100 + 27 × (gain − 1))` (0 → 0, 0.5 → 50, 1.0 → 100, 1.5 → 114, 2.0 → 127): gain 1.0 is MIDI's default channel volume 100, the level of a render without gains. Parts not listed get 1.0. |
 | `preset` | `learning` \| `karaoke` \| `equal` | none | Base gains: learning focus 1.5 / others 0.5; karaoke focus 0 / others 1.0; equal 1.0. `part_gains` overrides per part. |
 | `focus_part` | string (part ID, name or voice) | none | The part a `learning` or `karaoke` preset is for; required by those presets. |
 | `repeat` | integer 1–20 | 1 | Play the (selected) music this many times. |

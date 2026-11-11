@@ -99,8 +99,12 @@ export class DomUi implements ViewerUi {
     el.score.hidden = false;
     el.notice.hidden = true;
     el.pageLabel.textContent = `Page ${page} / ${pageCount}`;
+    // A disabled button drops keyboard focus to the body; hand it to the other paging button.
+    const focused = this.doc.activeElement;
     el.prev.disabled = page <= 1;
     el.next.disabled = page >= pageCount;
+    if (focused === el.next && el.next.disabled && !el.prev.disabled) el.prev.focus();
+    if (focused === el.prev && el.prev.disabled && !el.next.disabled) el.next.focus();
     for (const button of [el.zoomIn, el.zoomOut, el.download]) button.disabled = false;
     if (!this.firstPageShown) {
       this.firstPageShown = true;

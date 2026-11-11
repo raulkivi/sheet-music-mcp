@@ -364,7 +364,9 @@ async def test_real_synthesis_by_path_matches_inline(output_root, monkeypatch):
     assert "error" not in inline_data, inline_data
     assert set(path_data) == {"audio_path", "format", "duration_seconds", "parts_included", "tempo_factor"}
     assert path_data["duration_seconds"] > 0
-    assert path_data["duration_seconds"] == inline_data["duration_seconds"]
+    # Two renders of one score differ by a few ms (FluidSynth's start and end move by up to ~6 ms,
+    # measured with TimGM6mb.sf2), so a rounded duration can differ in its last digit.
+    assert path_data["duration_seconds"] == pytest.approx(inline_data["duration_seconds"], abs=0.02)
     assert path_data["parts_included"] == inline_data["parts_included"]
     assert len(path_data["parts_included"]) >= 2
     assert Path(path_data["audio_path"]).is_file()
