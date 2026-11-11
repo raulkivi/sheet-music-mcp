@@ -19,6 +19,9 @@ Verovio WASM inlined; no network references). See
 
 Node 20 or later. Dependency versions are exact and locked in `package-lock.json`.
 
+Visual identity (Kannel) for these pages: [docs/design/design-system.md](../docs/design/design-system.md).
+The tokens in `docs/design/tokens.css` are tested by `test/theme/brand-tokens.test.ts`; the mockups are in `docs/design/mockups/`.
+
 ## Scripts
 
 | Command | Does |

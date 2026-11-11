@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Practice Coach · Kannel mockup</title>
+    <link rel="stylesheet" href="../tokens.css" />
+    <link rel="stylesheet" href="mockup.css" />
+    <style>
+      /* Pitch meter: a centre mark in gold, cents from -50 to +50. Needle is a bar, not a colour alone. */
+      .meter {
+        position: relative;
+        height: 56px;
+        border: 1px solid var(--color-text-secondary);
+        border-radius: 6px;
+        background: var(--color-background-primary);
+      }
+      .meter .zone {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 40%;
+        width: 20%;
+        background: var(--kannel-tint);
+      }
+      .meter .centre {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        width: 2px;
+        margin-left: -1px;
+        background: var(--kannel-marker);
+      }
+      .meter .needle {
+        position: absolute;
+        top: 6px;
+        bottom: 6px;
+        left: 62%;
+        width: 4px;
+        margin-left: -2px;
+        background: var(--color-text-primary);
+        border-radius: 2px;
+      }
+      .meter-scale {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        color: var(--color-text-secondary);
+        font-variant-numeric: tabular-nums;
+      }
+      .big {
+        font-size: 32px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        line-height: 1.1;
+      }
+    </style>
+    <script>
+      (function () {
+        var t = new URLSearchParams(location.search).get("theme");
+        if (t) document.documentElement.setAttribute("data-theme", t);
+      })();
+    </script>
+  </head>
+  <body>
+    <p class="mock-note">Kannel mockup · Practice Coach (pitch-mcp) · static, sample data</p>
+    <div class="app">
+      <div class="flag-bar" aria-hidden="true"></div>
+      <header class="app-head">
+        <div class="brand">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="9" y="3" width="6" height="11" rx="3" />
+            <path d="M5 11 a7 7 0 0 0 14 0 M12 18 V21 M9 21 H15" />
+          </svg>
+          <span>Practice Coach</span>
+          <small>Alto · bars 9–12 · live</small>
+        </div>
+        <div class="head-end">
+          <span class="badge ok">Listening</span>
+        </div>
+      </header>
+
+      <div class="toolbar" role="toolbar" aria-label="Session controls">
+        <button class="btn primary" type="button">Stop and see summary</button>
+        <button class="btn" type="button" aria-pressed="false">Pause</button>
+        <span class="sep" aria-hidden="true"></span>
+        <div class="group" role="group" aria-label="Part">
+          <button class="chip" type="button" aria-pressed="false">Soprano</button>
+          <button class="chip" type="button" aria-pressed="true">Alto</button>
+          <button class="chip" type="button" aria-pressed="false">Tenor</button>
+          <button class="chip" type="button" aria-pressed="false">Bass</button>
+        </div>
+      </div>
+
+      <main class="main split">
+        <section class="panel" aria-label="Score with singing cursor">
+          <svg class="score" viewBox="0 0 600 170" role="img" aria-label="Bars 9 to 12 with the cursor on bar 10, beat 3">
+            <path class="staff" d="M20 40H580M20 50H580M20 60H580M20 70H580M20 80H580" />
+            <path class="stem" d="M96 80V50 M150 70V40 M206 65V35 M262 60V30 M340 80V50 M396 70V40 M452 65V35 M508 60V30" />
+            <ellipse class="notehead" cx="90" cy="80" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="144" cy="70" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="200" cy="65" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="256" cy="60" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="334" cy="80" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="390" cy="70" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="446" cy="65" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="502" cy="60" rx="6" ry="4.5" />
+            <path class="playhead" d="M386 26 V92" />
+          </svg>
+          <p class="caption num" style="margin-top: 8px">Bar 10 · beat 3 · expected E♭4 · held 0.6 s</p>
+        </section>
+
+        <aside class="panel" aria-label="Pitch now">
+          <div class="group" style="justify-content: space-between; width: 100%">
+            <span class="caption">You sang</span>
+            <span class="badge ok">In tune</span>
+          </div>
+          <p class="big" style="margin: 8px 0 2px">E♭4 <span class="caption" style="font-size: 14px; font-weight: 400">311 Hz</span></p>
+          <p class="caption num" style="margin: 0 0 12px">+6 cents · sharp by a little</p>
+          <div class="meter" role="img" aria-label="Pitch meter: 6 cents sharp, in tune zone">
+            <span class="zone"></span>
+            <span class="centre"></span>
+            <span class="needle"></span>
+          </div>
+          <div class="meter-scale" aria-hidden="true" style="margin-top: 4px">
+            <span>−50</span><span>0</span><span>+50</span>
+          </div>
+
+          <h2 style="margin-top: 16px">Last 3 bars</h2>
+          <ul class="list">
+            <li><span class="num" style="min-width: 48px">Bar 9</span><span class="badge ok">On pitch</span></li>
+            <li><span class="num" style="min-width: 48px">Bar 10</span><span class="badge warn">Flat on beat 3</span></li>
+            <li><span class="num" style="min-width: 48px">Bar 11</span><span class="badge bad">Octave slip</span></li>
+          </ul>
+          <p class="caption" style="margin-top: 12px">Cents and status are read aloud when they change, not on every update.</p>
+        </aside>
+      </main>
+    </div>
+  </body>
+</html>

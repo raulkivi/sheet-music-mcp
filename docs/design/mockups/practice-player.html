@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Practice Player · Kannel mockup</title>
+    <link rel="stylesheet" href="../tokens.css" />
+    <link rel="stylesheet" href="mockup.css" />
+    <script>
+      (function () {
+        var t = new URLSearchParams(location.search).get("theme");
+        if (t) document.documentElement.setAttribute("data-theme", t);
+      })();
+    </script>
+  </head>
+  <body>
+    <p class="mock-note">Kannel mockup · Practice Player (synth-mcp) · static, sample data</p>
+    <div class="app">
+      <div class="flag-bar" aria-hidden="true"></div>
+      <header class="app-head">
+        <div class="brand">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 5 H19" />
+            <path d="M7 5 C5 9 6 16 9 20 M17 5 C19 9 18 16 15 20 M9 20 H15" />
+            <path d="M9.5 6.5 L10 19 M12 6 V19 M14.5 6.5 L14 19" />
+          </svg>
+          <span>Practice Player</span>
+          <small>Ave verum · bars 17–24</small>
+        </div>
+        <div class="head-end">
+          <span class="badge ok">Ready</span>
+        </div>
+      </header>
+
+      <div class="toolbar" role="toolbar" aria-label="Playback controls">
+        <button class="btn primary" type="button" style="min-width: 96px">Play</button>
+        <button class="btn" type="button" aria-label="Restart from bar 17">Restart</button>
+        <span class="sep" aria-hidden="true"></span>
+        <div class="group" role="group" aria-label="Loop">
+          <label class="caption" for="loop-from">Loop bars</label>
+          <input id="loop-from" type="number" value="17" min="1" style="width: 64px; min-height: 40px; font: inherit" />
+          <span>to</span>
+          <input type="number" value="24" min="1" aria-label="Loop end bar" style="width: 64px; min-height: 40px; font: inherit" />
+          <button class="btn on" type="button" aria-pressed="true">Loop on</button>
+        </div>
+        <span class="sep" aria-hidden="true"></span>
+        <button class="btn" type="button" aria-pressed="true">Count-in</button>
+      </div>
+
+      <main class="main split">
+        <section class="panel" aria-label="Score with playhead">
+          <svg class="score" viewBox="0 0 600 190" role="img" aria-label="Bars 17 to 20 with the playhead on bar 18, beat 2">
+            <path class="staff" d="M20 30H580M20 40H580M20 50H580M20 60H580M20 70H580" />
+            <path class="staff" d="M20 110H580M20 120H580M20 130H580M20 140H580M20 150H580" />
+            <path d="M20 30 V70 M20 110 V150 M300 30 V70 M300 110 V150" stroke="currentColor" stroke-width="2" />
+            <path class="stem" d="M96 70V40 M150 60V30 M206 55V25 M262 50V20 M340 70V40 M396 60V30 M452 55V25 M508 50V20" />
+            <ellipse class="notehead" cx="90" cy="70" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="144" cy="60" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="200" cy="55" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="256" cy="50" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="334" cy="70" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="390" cy="60" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="446" cy="55" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="502" cy="50" rx="6" ry="4.5" />
+            <path class="stem" d="M96 160V130 M150 150V120 M206 140V110 M262 130V100" />
+            <ellipse class="notehead" cx="90" cy="160" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="144" cy="150" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="200" cy="140" rx="6" ry="4.5" />
+            <ellipse class="notehead" cx="256" cy="130" rx="6" ry="4.5" />
+            <path class="playhead" d="M176 22 V168" />
+          </svg>
+          <div class="progress" style="margin-top: 12px" role="img" aria-label="Playback at 40 percent of the loop">
+            <span style="width: 40%"></span>
+            <i class="marker" style="left: 40%"></i>
+          </div>
+          <p class="caption num" style="margin-top: 8px">Bar 18 · beat 2 · 0:12 of 0:30 · 84 BPM</p>
+        </section>
+
+        <aside class="panel" aria-label="Parts and tempo">
+          <h2>Parts</h2>
+          <div class="group" role="group" aria-label="Voices" style="margin-bottom: 12px">
+            <button class="chip" type="button" aria-pressed="true">Soprano <span class="voice">S</span></button>
+            <button class="chip" type="button" aria-pressed="true">Alto <span class="voice">A</span></button>
+            <button class="chip" type="button" aria-pressed="false">Tenor <span class="voice">T</span></button>
+            <button class="chip" type="button" aria-pressed="false">Bass <span class="voice">B</span></button>
+          </div>
+          <ul class="list">
+            <li>
+              <span style="min-width: 64px">Soprano</span>
+              <button class="btn" type="button" aria-pressed="false" style="min-height: 40px">Solo</button>
+              <button class="btn" type="button" aria-pressed="false" style="min-height: 40px">Mute</button>
+            </li>
+            <li>
+              <span style="min-width: 64px">Alto</span>
+              <button class="btn on" type="button" aria-pressed="true" style="min-height: 40px">Solo</button>
+              <button class="btn" type="button" aria-pressed="false" style="min-height: 40px">Mute</button>
+            </li>
+          </ul>
+
+          <h2 style="margin-top: 16px">Tempo</h2>
+          <div class="group" style="justify-content: space-between; width: 100%">
+            <label for="tempo">Speed</label>
+            <span class="num">84 BPM · 90%</span>
+          </div>
+          <input id="tempo" type="range" min="50" max="120" value="84" style="width: 100%; min-height: 40px; accent-color: var(--kannel-accent)" />
+          <p class="caption">Tempo changes re-render the practice track. Playback keeps its place.</p>
+        </aside>
+      </main>
+    </div>
+  </body>
+</html>

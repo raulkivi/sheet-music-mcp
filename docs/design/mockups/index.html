@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kannel mockups</title>
+    <link rel="stylesheet" href="../tokens.css" />
+    <link rel="stylesheet" href="mockup.css" />
+  </head>
+  <body>
+    <p class="mock-note">Kannel · visual identity mockups for the MCP Apps · static, sample data</p>
+    <div class="app">
+      <div class="flag-bar" aria-hidden="true"></div>
+      <header class="app-head">
+        <div class="brand">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 5 H19" />
+            <path d="M7 5 C5 9 6 16 9 20 M17 5 C19 9 18 16 15 20 M9 20 H15" />
+            <path d="M9.5 6.5 L10 19 M12 6 V19 M14.5 6.5 L14 19" />
+          </svg>
+          <span>Kannel</span>
+          <small>Design system: <a href="../design-system.md">design-system.md</a> · tokens: <a href="../tokens.css">tokens.css</a></small>
+        </div>
+      </header>
+
+      <main class="main">
+        <section class="panel" aria-labelledby="apps-heading">
+          <h2 id="apps-heading">Seven apps, each in light and dark</h2>
+          <p class="caption" style="margin-bottom: 12px">
+            Each page is responsive: open it at phone width (360 px) and at desktop width. The
+            Score Viewer is the built app; the others are mockups of planned apps.
+          </p>
+          <ul class="list">
+            <li>
+              <span style="min-width: 190px"><strong>Score Viewer</strong><br /><span class="caption">render-mcp · built</span></span>
+              <span class="group">
+                <a class="btn" href="score-viewer.html?theme=light">Light</a>
+                <a class="btn" href="score-viewer.html?theme=dark">Dark</a>
+              </span>
+            </li>
+            <li>
+              <span style="min-width: 190px"><strong>Practice Player</strong><br /><span class="caption">synth-mcp · planned</span></span>
+              <span class="group">
+                <a class="btn" href="practice-player.html?theme=light">Light</a>
+                <a class="btn" href="practice-player.html?theme=dark">Dark</a>
+              </span>
+            </li>
+            <li>
+              <span style="min-width: 190px"><strong>Recognition Review</strong><br /><span class="caption">omr-mcp · planned</span></span>
+              <span class="group">
+                <a class="btn" href="recognition-review.html?theme=light">Light</a>
+                <a class="btn" href="recognition-review.html?theme=dark">Dark</a>
+              </span>
+            </li>
+            <li>
+              <span style="min-width: 190px"><strong>ABC Workbench</strong><br /><span class="caption">musicxml-abc-mcp · planned</span></span>
+              <span class="group">
+                <a class="btn" href="abc-workbench.html?theme=light">Light</a>
+                <a class="btn" href="abc-workbench.html?theme=dark">Dark</a>
+              </span>
+            </li>
+            <li>
+              <span style="min-width: 190px"><strong>Practice Coach</strong><br /><span class="caption">pitch-mcp · planned</span></span>
+              <span class="group">
+                <a class="btn" href="practice-coach.html?theme=light">Light</a>
+                <a class="btn" href="practice-coach.html?theme=dark">Dark</a>
+              </span>
+            </li>
+            <li>
+              <span style="min-width: 190px"><strong>Diff Viewer</strong><br /><span class="caption">comparer-mcp · planned</span></span>
+              <span class="group">
+                <a class="btn" href="diff-viewer.html?theme=light">Light</a>
+                <a class="btn" href="diff-viewer.html?theme=dark">Dark</a>
+              </span>
+            </li>
+            <li>
+              <span style="min-width: 190px"><strong>Setup Doctor</strong><br /><span class="caption">all servers · planned</span></span>
+              <span class="group">
+                <a class="btn" href="setup-doctor.html?theme=light">Light</a>
+                <a class="btn" href="setup-doctor.html?theme=dark">Dark</a>
+              </span>
+            </li>
+          </ul>
+        </section>
+
+        <section class="panel" aria-labelledby="type-heading">
+          <h2 id="type-heading">Type and colour check</h2>
+          <p style="margin: 0 0 8px">Hääldus on õige. Šveits, Žanr, Mõõt 12, Jätka.</p>
+          <p class="caption" style="margin: 0 0 12px">Estonian diacritics in the system font. Body 14 px, labels 600 weight.</p>
+          <div class="group">
+            <span class="badge ok">Ready</span>
+            <span class="badge warn">Check</span>
+            <span class="badge bad">Must fix</span>
+            <span class="badge info">Note</span>
+          </div>
+          <div class="group" style="margin-top: 12px">
+            <button class="btn primary" type="button">Primary</button>
+            <button class="btn" type="button">Secondary</button>
+            <button class="btn" type="button" aria-pressed="true">Pressed</button>
+            <button class="btn" type="button" disabled>Disabled</button>
+          </div>
+          <div class="ornament" style="margin-top: 16px" aria-hidden="true"></div>
+          <p class="caption" style="margin-top: 8px">Specimen only: the ornament band is shown here, not used in an app except at an end state.</p>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,105 @@
+/*
+ * Kannel design tokens: the visual identity for the MCP Apps (see design-system.md).
+ *
+ * Two layers:
+ *  1. Host-compatible names (--color-*, --font-*, --border-radius-*). These are the names the MCP
+ *     Apps host sends in its theme variables (kit theme.ts). A host that sends them overrides
+ *     these values; a host that sends nothing gets the Kannel values below.
+ *  2. Brand names (--kannel-*). Hosts never send these, so the identity is always present.
+ *
+ * Dark values appear twice on purpose: under prefers-color-scheme (when the host sends no theme
+ * attribute) and under data-theme="dark" (when it does). Keep the two blocks identical.
+ * Contrast is checked by ui/test/theme/brand-tokens.test.ts.
+ */
+
+:root {
+  /* Estonian flag: sinine (blue), must (black), valge (white). */
+  --kannel-flag-blue: #0072ce;
+  --kannel-flag-black: #15171c;
+  --kannel-flag-white: #ffffff;
+
+  /* Accent: flag blue for fills, a deeper blue for text on white, pressed state. */
+  --kannel-accent: #0072ce;
+  --kannel-accent-pressed: #00508f;
+  --kannel-accent-text: #005fae;
+  --kannel-on-accent: #ffffff;
+  /* Cornflower tint (rukkilill): selected rows, quiet panels. */
+  --kannel-tint: #eaf2fb;
+  /* Gold of the coat of arms, darkened to a 3:1 mark: playhead, in-tune marker, current note. */
+  --kannel-marker: #b7850f;
+
+  /* Status, each a text colour on its tint. */
+  --kannel-success-text: #1e6b3a;
+  --kannel-success-tint: #e4f2e8;
+  --kannel-warning-text: #7a5300;
+  --kannel-warning-tint: #fbf0d2;
+  --kannel-danger-text: #a8322d;
+  --kannel-danger-tint: #f9e3e1;
+
+  /* Host-compatible semantic names. */
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f4f6fa;
+  --color-text-primary: #15171c;
+  --color-text-secondary: #4b5563;
+  --color-border-primary: #d5dce6;
+  --color-ring-primary: #0072ce;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --border-radius-md: 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --kannel-flag-blue: #0072ce;
+    --kannel-flag-black: #15171c;
+    --kannel-flag-white: #ffffff;
+    --kannel-accent: #0072ce;
+    --kannel-accent-pressed: #00508f;
+    --kannel-accent-text: #7fbcf5;
+    --kannel-on-accent: #ffffff;
+    --kannel-tint: #1b2b40;
+    --kannel-marker: #f2c14e;
+    --kannel-success-text: #8fd3a4;
+    --kannel-success-tint: #17301f;
+    --kannel-warning-text: #f2c14e;
+    --kannel-warning-tint: #3a2d0c;
+    --kannel-danger-text: #f09a94;
+    --kannel-danger-tint: #3a1c1a;
+    --color-background-primary: #101217;
+    --color-background-secondary: #1a1e27;
+    --color-text-primary: #eef2f7;
+    --color-text-secondary: #b4bdcb;
+    --color-border-primary: #2e3645;
+    --color-ring-primary: #6cb4f0;
+    --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --border-radius-md: 6px;
+  }
+}
+
+:root[data-theme="dark"] {
+  --kannel-flag-blue: #0072ce;
+  --kannel-flag-black: #15171c;
+  --kannel-flag-white: #ffffff;
+  --kannel-accent: #0072ce;
+  --kannel-accent-pressed: #00508f;
+  --kannel-accent-text: #7fbcf5;
+  --kannel-on-accent: #ffffff;
+  --kannel-tint: #1b2b40;
+  --kannel-marker: #f2c14e;
+  --kannel-success-text: #8fd3a4;
+  --kannel-success-tint: #17301f;
+  --kannel-warning-text: #f2c14e;
+  --kannel-warning-tint: #3a2d0c;
+  --kannel-danger-text: #f09a94;
+  --kannel-danger-tint: #3a1c1a;
+  --color-background-primary: #101217;
+  --color-background-secondary: #1a1e27;
+  --color-text-primary: #eef2f7;
+  --color-text-secondary: #b4bdcb;
+  --color-border-primary: #2e3645;
+  --color-ring-primary: #6cb4f0;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --border-radius-md: 6px;
+}

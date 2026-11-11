@@ -1,0 +1,398 @@
+/* Shared chrome for the Kannel mockups. Uses only tokens (../tokens.css); no web fonts, no network. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Mockup label, outside the app. Not part of any app. */
+.mock-note {
+  margin: 0;
+  padding: 6px 16px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  background: var(--color-background-secondary);
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.app {
+  max-width: 1280px;
+  min-height: calc(100vh - 30px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The identity's signature: the flag's three bands, blue, black, white, top to bottom. */
+.flag-bar {
+  height: 3px;
+  background: linear-gradient(
+    var(--kannel-flag-blue) 0 33.33%,
+    var(--kannel-flag-black) 33.33% 66.66%,
+    var(--kannel-flag-white) 66.66% 100%
+  );
+}
+
+.app-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--color-background-secondary);
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.brand {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.brand .icon {
+  color: var(--kannel-accent-text);
+}
+
+.brand small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+}
+
+.head-end {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--color-border-primary);
+}
+
+.main {
+  flex: 1;
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .main.split {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  }
+  .main.split-wide {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.panel {
+  min-width: 0;
+  padding: 12px;
+  background: var(--color-background-secondary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: 10px;
+}
+
+.panel h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.caption {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* Buttons: 40 px targets, the touch size; primary is a flag-blue fill. */
+.btn {
+  min-height: 40px;
+  padding: 6px 14px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-text-secondary);
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+}
+
+.btn.primary {
+  color: var(--kannel-on-accent);
+  background: var(--kannel-accent);
+  border-color: var(--kannel-accent);
+}
+
+.btn.primary:hover {
+  background: var(--kannel-accent-pressed);
+  border-color: var(--kannel-accent-pressed);
+}
+
+.btn.quiet {
+  border-color: transparent;
+  background: transparent;
+  font-weight: 400;
+}
+
+.btn[aria-pressed="true"],
+.btn.on {
+  background: var(--kannel-tint);
+  border-color: var(--kannel-accent-text);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btn.icon-only {
+  width: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-ring-primary);
+  outline-offset: 1px;
+}
+
+/* Chips: one per part, equal in size and shape. */
+.chip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 40px;
+  padding: 6px 12px;
+  font: inherit;
+  color: var(--color-text-primary);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-text-secondary);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.chip[aria-pressed="true"] {
+  background: var(--kannel-tint);
+  border-color: var(--kannel-accent-text);
+}
+
+.chip .voice {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* Status badges: icon or word plus colour, never colour alone. */
+.badge {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge.ok {
+  color: var(--kannel-success-text);
+  background: var(--kannel-success-tint);
+}
+
+.badge.warn {
+  color: var(--kannel-warning-text);
+  background: var(--kannel-warning-tint);
+}
+
+.badge.bad {
+  color: var(--kannel-danger-text);
+  background: var(--kannel-danger-tint);
+}
+
+.badge.info {
+  color: var(--kannel-accent-text);
+  background: var(--kannel-tint);
+}
+
+/* Icons: 24 px grid, 1.75 stroke, round, currentColor. */
+.icon {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon.fill {
+  fill: currentColor;
+}
+
+/* Score placeholder: notation is drawn in currentColor, as in the Score Viewer. */
+.score {
+  width: 100%;
+  height: auto;
+  display: block;
+  color: var(--color-text-primary);
+}
+
+.score .staff {
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.score .notehead {
+  fill: currentColor;
+}
+
+.score .stem {
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+
+.score .playhead {
+  stroke: var(--kannel-marker);
+  stroke-width: 2.5;
+}
+
+.score .lyric {
+  fill: var(--color-text-secondary);
+  font-size: 9px;
+  font-family: var(--font-sans);
+}
+
+/* The playhead: gold, the only saturated mark besides the primary button. */
+.marker {
+  display: block;
+  width: 2px;
+  background: var(--kannel-marker);
+  border-radius: 2px;
+}
+
+/* Ornament band: at most once per app, on an empty state or the end of a practice. */
+.ornament {
+  height: 12px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='12'><path d='M12 1 L23 6 L12 11 L1 6 Z' fill='none' stroke='%230072ce' stroke-width='1.25'/></svg>");
+  background-repeat: repeat-x;
+  opacity: 0.85;
+}
+
+:root[data-theme="dark"] .ornament,
+:root:not([data-theme="light"]) .ornament {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='12'><path d='M12 1 L23 6 L12 11 L1 6 Z' fill='none' stroke='%236cb4f0' stroke-width='1.25'/></svg>");
+}
+
+.progress {
+  position: relative;
+  height: 6px;
+  background: var(--color-border-primary);
+  border-radius: 3px;
+}
+
+.progress > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--kannel-accent);
+  border-radius: 3px;
+}
+
+.progress > .marker {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list > li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.list > li:last-child {
+  border-bottom: 0;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Phone width: 360 px with a 16 px gutter, no sideways scroll. */
+@media (max-width: 480px) {
+  .app-head,
+  .toolbar,
+  .main {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .head-end {
+    margin-left: 0;
+  }
+  .sep {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
