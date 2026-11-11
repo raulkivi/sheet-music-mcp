@@ -47,6 +47,7 @@ class TestListTools:
             "health_check",
             "describe_score",
             "get_abc",
+            "apply_abc_edit",
         }
 
     async def test_musicxml_to_abc_schema(self):
@@ -98,6 +99,7 @@ class TestCallToolListCapabilities:
             "health_check",
             "describe_score",
             "get_abc",
+            "apply_abc_edit",
         }
         assert payload["backend"] == "music21"
         assert "backend_version" in payload

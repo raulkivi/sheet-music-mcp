@@ -16,6 +16,7 @@ ABC is ideal for LLM editing because it is concise enough to fit in a context wi
 |------|-------------|
 | `musicxml_to_abc` | Convert MusicXML (`musicxml` text or `musicxml_path`) to ABC notation; optionally filter to a single part and a range of printed bars (`measures`) |
 | `abc_to_musicxml` | Convert ABC notation back to MusicXML; large scores are written to a file (`return`: `auto` / `path` / `inline`) |
+| `apply_abc_edit` | Replace some bars of one part with edited ABC and keep everything else (other parts, dynamics, lyrics, layout) unchanged |
 | `validate_abc` | Parse an ABC string and return errors or warnings |
 | `list_capabilities` | Return server metadata: backend version, ABC standard |
 | `health_check` | Run a MusicXML → ABC → MusicXML round-trip smoke test and report status |

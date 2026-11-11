@@ -17,6 +17,7 @@ EXPECTED = {
     "health_check": ("ABC health check", READ_ONLY),
     "describe_score": ("Describe score", READ_ONLY),
     "get_abc": ("ABC of an export", READ_ONLY),
+    "apply_abc_edit": ("Apply ABC edit", WRITES_FILE),  # writes the edited score in path mode
 }
 
 # Phrases the instructions must contain: the routing knowledge the model needs up front.
