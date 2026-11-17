@@ -1,5 +1,7 @@
 # CLAUDE.md — Choir Music Assistant
 
+**Last changed:** 2026-11-15 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 Project-level instructions for Claude Code. Read this before doing any work in this repository.
 
 ---
@@ -83,8 +85,9 @@ UX deliverables (all servers): PyPI packaging, `install.sh`, `SETUP.md`, `exampl
 - **Integration tests** must be marked `@pytest.mark.integration` and must not run in the default `pytest` invocation
 - **Shared code lives in `sheet-music-mcp-core/`**. Use it for errors, part selection, deprecated parameter names, tool annotations, result content, handler wiring, expiring id tables (`expiring.ExpiringTable`) and `health_check` reports (`health`); don't copy that code into a server. Engines may import only its MCP-free modules (`errors`, `parts`, `params`, `annotations`, `paths`, `scores`, `measures`, `artifacts`, `expiring`, `health`). See [docs/conventions.md](docs/conventions.md#shared-core-library)
 - **Every tool** sets a `title` and an annotation preset; **every part parameter** uses the shared resolver (see [docs/conventions.md](docs/conventions.md#part-selection))
-- **UI behaviour is automated first.** New UI checks go in `ui/` Playwright or Vitest specs (mock host, or real render-mcp over stdio); a manual host check is added only for behaviour that needs a real host (its CSP, iframe sandbox, device timing). See [findings §4](docs/research/mcp-apps-phase0-findings.md#4-host-checks)
+- **UI behavior is automated first.** New UI checks go in `ui/` Playwright or Vitest specs (mock host, or real render-mcp over stdio); a manual host check is added only for behavior that needs a real host (its CSP, iframe sandbox, device timing). See [findings §4](docs/research/mcp-apps-phase0-findings.md#4-host-checks)
 - **Every score input** has a path sibling (`musicxml` / `musicxml_path`, exactly one required) loaded with `references.load_score()`; never open a score path yourself. Score producers take `return: auto|path|inline` via `references.deliver_score()` (see [docs/conventions.md](docs/conventions.md#score-references))
+- **Spelling: US English** (behavior, digitize, color) in README and docs, docstrings, comments, tool descriptions and commit messages, matching code identifiers and open-source norms. CI (`Spelling` job, [.codespellrc](.codespellrc)) checks commit messages and added lines. Keep proper names as they are; convert British spellings in passages you edit
 
 ---
 
@@ -158,7 +161,7 @@ When you finish work or reach a milestone, update:
 
 1. `<server>/docs/HANDOVER.md` — check off done items, add new gotchas
 2. `<server>/docs/PLAN.md` — check off phase items, note any changed decisions
-3. `<server>/docs/requirements.md` — update if behaviour or interfaces changed
+3. `<server>/docs/requirements.md` — update if behavior or interfaces changed
 4. `<server>/docs/architecture.md` — update diagrams/algorithms if implementation changed
 5. `.github/copilot-instructions.md` — update status markers
 6. This file (`CLAUDE.md`) — update status table if needed
