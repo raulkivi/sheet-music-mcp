@@ -1,4 +1,8 @@
 {
+  "attribution": {
+    "commit": "Co-authored-by: Kratt",
+    "pr": ""
+  },
   "permissions": {
     "allow": [
       "Bash(gh issue:*)",
