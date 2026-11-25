@@ -1,5 +1,7 @@
 # omr-mcp — Technical Architecture
 
+**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## Overview
 
 omr-mcp is a stateless MCP server that converts sheet music images to MusicXML. Every tool call is independent; no state is retained between calls.
@@ -365,3 +367,13 @@ out a path, and the score is not re-sent in results.
 
 `recognize_images()` adds an internal `_pages` list (per-page `staves_detected` and `measures`); the
 server moves it into `structuredContent.pages` and drops it from the text, so `content` is unchanged.
+
+### The page
+
+`ui/apps/recognition-review/` is the `ui://omr/recognition-review` page (built to
+`recognition-review.html`, copied to `omr_mcp/ui/assets/`). It shows the source photo
+(`get_source_preview`, read in chunks into a data URL), the recognized score drawn with Verovio
+(`get_recognized_score`), the issue list from `warnings[]`, advice from the staff estimate, the engine
+switch and Accept. Pure modules: `issues.ts` (warnings to issues), `advice.ts` (estimate to advice),
+`messages.ts` (fixed texts), `review.ts` (result reading), `preview.ts`; behavior in `reviewer.ts`
+over the host bridge. See `ui/README.md`.

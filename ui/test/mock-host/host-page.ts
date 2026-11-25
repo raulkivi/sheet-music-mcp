@@ -15,6 +15,7 @@ import { hostStyleVariables } from "./host-styles.ts";
 import { hostOptions } from "./options.ts";
 import { isAbcScenario, abcTools } from "./abc-tools.ts";
 import { diffTools } from "./diff-backend.ts";
+import { isOmrScenario, omrTools } from "./omr-tools.ts";
 import { pitchTools } from "./pitch-backend.ts";
 import { openingCall } from "./scenarios.ts";
 import { composeTools, noTools, placeholderTools, relayedTools, type Relay, type ToolBackend } from "./tool-backends.ts";
@@ -42,6 +43,7 @@ function viewTools(): ToolBackend {
   if (options.tools === "placeholder") {
     if (isAbcScenario(options.scenario)) return abcTools(options.scenario);
     if (options.app === "diff-viewer") return diffTools;
+    if (isOmrScenario(options.scenario)) return omrTools;
     // The coach scenarios add pitch-mcp's session tools to the placeholder pages.
     if (!options.scenario.startsWith("coach")) return placeholderTools;
     const state = options.scenario === "coach-loaded" ? "loaded" : "monitoring";
