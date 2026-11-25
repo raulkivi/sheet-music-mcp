@@ -111,4 +111,4 @@ box.append(frame);
 // Listen before the app loads, so its ui/initialize is never missed; the iframe's WindowProxy
 // stays the same across the navigation.
 await bridge.connect(new LoggingTransport(new PostMessageTransport(frame.contentWindow!, frame.contentWindow!), log));
-frame.src = `/app.html?csp=${encodeURIComponent(options.csp)}`;
+frame.src = `/app.html?app=${encodeURIComponent(options.app)}&csp=${encodeURIComponent(options.csp)}`;

@@ -10,6 +10,8 @@
 //             1 = five placeholder pages for render_page_svg, 0 = no tool at all,
 //             real = the real render-mcp over stdio, through window.mcpHostRelay
 //             (test/e2e/host-fixture.ts). With real, render_to_pdf runs there too.
+//   app       a registered app name (apps.config.mjs)   (default score-viewer); the frame loads
+//             /app.html?app=<name>, which server.mjs resolves to dist/<name>.html or answers 404
 //   host      default | claude   style variables the host sends (default default): a partial
 //             set, or the recording of Claude Desktop (host-styles.ts); theme picks light or dark
 
@@ -29,8 +31,11 @@ export interface HostOptions {
   width: number;
   tools: ToolsMode;
   host: HostName;
+  app: string;
 }
 
+// Only the shape is checked here (this module is bundled for the browser); server.mjs checks the registry.
+const APP_NAME = /^[a-z][a-z0-9-]*$/;
 const TOOLS: Record<string, ToolsMode> = { "1": "placeholder", "0": "none", real: "real" };
 
 export function hostOptions(search: string): HostOptions {
@@ -44,6 +49,8 @@ export function hostOptions(search: string): HostOptions {
   if (!tools) throw new Error(`Unknown server=${server}; expected 1, 0 or real`);
   const host = params.get("host") ?? "default";
   if (!(HOSTS as readonly string[]).includes(host)) throw new Error(`Unknown host=${host}; expected ${HOSTS.join(" or ")}`);
+  const app = params.get("app") ?? "score-viewer";
+  if (!APP_NAME.test(app)) throw new Error(`Invalid app=${app}; expected a registered app name such as score-viewer`);
   return {
     scenario: scenario as ScenarioName,
     theme: params.get("theme") === "dark" ? "dark" : "light",
@@ -53,5 +60,6 @@ export function hostOptions(search: string): HostOptions {
     width: Number(params.get("width") ?? 1000),
     tools,
     host: host as HostName,
+    app,
   };
 }
