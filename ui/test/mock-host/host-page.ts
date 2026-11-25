@@ -42,14 +42,16 @@ function viewTools(): ToolBackend {
 }
 
 const tools = viewTools();
-const opening = await openingCall(options.scenario, options.tools === "real" ? tools : undefined);
+// The Practice Player scenarios have the host run synthesize, so they always get a backend.
+const runsOnBackend = options.tools === "real" || options.scenario.startsWith("practice");
+const opening = await openingCall(options.scenario, runsOnBackend ? tools : undefined);
 
 const log = new MessageLog();
 const box = document.getElementById("frame-box")!;
 let inlineWidth = options.width;
 box.style.width = `${inlineWidth}px`;
 const frame = document.createElement("iframe");
-frame.title = "Score Viewer";
+frame.title = options.app;
 frame.setAttribute("sandbox", options.downloads ? "allow-scripts allow-downloads" : "allow-scripts");
 // A host grants the resource's `clipboardWrite` permission by delegating it to the frame.
 if (options.clipboard) frame.setAttribute("allow", "clipboard-write");

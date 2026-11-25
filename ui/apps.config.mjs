@@ -13,6 +13,9 @@ export const APPS = {
   "score-viewer": {
     targets: [{ server: "render-mcp", pkg: "render_mcp" }],
   },
+  "practice-player": {
+    targets: [{ server: "synth-mcp", pkg: "synth_mcp" }],
+  },
   // One page, six copies: each server serves it from its own package and shows only its own
   // health_check report (decision DA5), so nothing here knows another server exists.
   "setup-doctor": {

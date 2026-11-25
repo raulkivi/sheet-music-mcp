@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = 4173;
+// UI_E2E_PORT lets parallel checkouts run side by side without sharing a server.
+const PORT = Number(process.env.UI_E2E_PORT ?? 4173);
 
 // A machine with another pre-installed Chromium can point at it; unset, Playwright uses its own.
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;

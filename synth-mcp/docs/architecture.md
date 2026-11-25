@@ -1,5 +1,7 @@
 # synth-mcp — Technical Architecture
 
+**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## Overview
 
 synth-mcp is a stateless MCP server that synthesizes WAV audio from MusicXML. It uses music21 to parse the score and extract MIDI, then pyfluidsynth to render MIDI to a WAV file using a soundfont. Every tool call is independent; no session state is retained.
@@ -142,6 +144,11 @@ synthesize ──► synthesize_midi ──► WAV file ──► artifact_store
 app: read_audio_chunk(audio_id, offset, length) ──► chunk_payload(store) ──► base64 slice
 app: get_score_xml(audio_id) ──► score_book.get ──► MusicXML
 ```
+
+The page is `ui/apps/practice-player/` (see requirements IR-3d): `player.ts` (controller over a
+`HostBridge` and small ports), `mixer.ts`, `tempo.ts`, `playhead.ts`, `track.ts` (pure),
+`follower.ts` (score and playhead), `audio.ts` and `dom.ts` (browser). Tempo and loop are local;
+a change of voices, volumes, count-in or timbre is one `synthesize` call.
 
 `server.py` registers `PRACTICE_PLAYER` (`ui://synth/practice-player`) in a `UiRegistry` over
 `PackageAssetSource("synth_mcp")`; `meta_for()` drops the link while the HTML is not packaged.

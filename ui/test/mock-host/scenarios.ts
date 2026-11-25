@@ -1,6 +1,7 @@
 // The tool call that opens the view: its arguments (tool-input) and its result (tool-result).
 // With placeholder tools the result is a canned render_to_pdf answer; with the real server the
 // host plays the model and runs render_to_pdf there, so the view gets the server's own result.
+// Practice Player scenarios: the host plays the model and runs synthesize on the backend it is given.
 
 import type { CallToolResult } from "@modelcontextprotocol/client";
 import type { ScenarioName } from "./options.ts";
@@ -8,6 +9,7 @@ import type { ToolBackend } from "./tool-backends.ts";
 
 export const OPENING_TOOL = "render_to_pdf";
 export const HEALTH_TOOL = "health_check";
+export const SYNTH_OPENING_TOOL = "synthesize";
 
 export const PDF_RESULT: CallToolResult = {
   content: [{ type: "text", text: "Rendered 5 page(s) to /tmp/sheet-music-output/score.pdf" }],
@@ -78,8 +80,27 @@ const INPUTS: Partial<Record<ScenarioName, () => Promise<Record<string, unknown>
 // folder); without it render-mcp would write to its shared temp folder.
 const REAL_OUTPUT_PATH = "score.pdf";
 
+// A four-bar SATB score cut to its own bars with a one-bar count-in: what a singer asks for.
+const PRACTICE_INPUT = { measures: [1, 4], count_in_bars: 1 };
+
+const PRACTICE_SCENARIOS: readonly ScenarioName[] = ["practice", "practice-empty", "practice-unknown-audio"];
+
+async function practiceCall(name: ScenarioName, model: ToolBackend | undefined): Promise<OpeningCall> {
+  if (!model) throw new Error(`Scenario ${name} needs a tool backend to run synthesize on`);
+  const input = { musicxml: await fixture("satb-4bars.musicxml"), ...PRACTICE_INPUT };
+  const track = await model.callTool({ name: SYNTH_OPENING_TOOL, arguments: input });
+  const tool = SYNTH_OPENING_TOOL;
+  if (name === "practice-empty") return { tool, input, result: { content: [{ type: "text", text: "The track was written." }] } };
+  if (name === "practice-unknown-audio") {
+    const structuredContent = { ...(track.structuredContent as Record<string, unknown>), audio_id: "unknown-audio-id" };
+    return { tool, input, result: { ...track, structuredContent } };
+  }
+  return { tool, input, result: track };
+}
+
 /** `model` runs the opening tool for real; without it the canned result stands in. */
 export async function openingCall(name: ScenarioName, model?: ToolBackend): Promise<OpeningCall> {
+  if (PRACTICE_SCENARIOS.includes(name)) return practiceCall(name, model);
   // Health scenarios are fixed: the Setup Doctor needs no score and the real render-mcp is not asked.
   const health = HEALTH_SCENARIOS[name];
   if (health) return { tool: HEALTH_TOOL, input: {}, result: health };

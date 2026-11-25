@@ -15,6 +15,7 @@ declare module "verovio/esm" {
     qstamp: number;
     on?: string[];
     off?: string[];
+    measureOn?: string;
     tempo?: number;
   }
 
@@ -24,6 +25,7 @@ declare module "verovio/esm" {
     loadData(data: string): boolean;
     redoLayout(options?: Record<string, unknown>): void;
     getPageCount(): number;
+    getPageWithElement(xmlId: string): number;
     renderToSVG(page?: number, xmlDeclaration?: boolean): string;
     renderToTimemap(options?: Record<string, unknown>): TimemapEntry[];
     getLog(): string;

@@ -2,6 +2,8 @@
 //
 //   scenario  inline-long | inline-satb | path-only        (default inline-long); these open with render_to_pdf
 //             health-mixed | health-ready | health-empty | health-error   open with health_check (Setup Doctor)
+//             practice | practice-empty | practice-unknown-audio   open with synthesize (Practice Player); the host
+//             plays the model and runs it on the placeholder synth server
 //   theme     light | dark                                 (default light)
 //   csp       spec | spec-wasm                             (default spec-wasm; see server.mjs)
 //   downloads 1 | 0   adds allow-downloads to the sandbox  (default 1)
@@ -28,6 +30,9 @@ export const SCENARIOS = [
   "health-ready",
   "health-empty",
   "health-error",
+  "practice",
+  "practice-empty",
+  "practice-unknown-audio",
 ] as const;
 export type ScenarioName = (typeof SCENARIOS)[number];
 export type ToolsMode = "placeholder" | "none" | "real";
