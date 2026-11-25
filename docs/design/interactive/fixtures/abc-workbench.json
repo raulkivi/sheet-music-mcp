@@ -1,0 +1,29 @@
+{
+  "abc_id": "demo-abc",
+  "part": "P2",
+  "part_name": "Alto",
+  "measures": [9, 12],
+  "measures_replaced": 1,
+  "original_abc": [
+    "M:4/4",
+    "L:1/8",
+    "K:Eb",
+    "V:A  name=\"Alto\"",
+    "|: d2 c2 B2 A2 | G4 z4 |",
+    "   c2 d2 e2 f2 | g4 z4 :|"
+  ],
+  "proposed_abc": [
+    "M:4/4",
+    "L:1/8",
+    "K:Eb",
+    "V:A  name=\"Alto\"",
+    "|: d2 c2 B2 A2 | G4 z4 |",
+    "   c2 d2 e2 f2 | g4 G4 :|"
+  ],
+  "changed_lines": [5],
+  "valid": true,
+  "errors": [],
+  "warnings": [
+    {"code": "rest_to_note", "severity": "warning", "message": "Bar 12 changes from a rest to a G. Is the alto meant to sing here?", "measure": 12, "part": "P2"}
+  ]
+}

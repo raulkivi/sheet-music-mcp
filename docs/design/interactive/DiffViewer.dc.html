@@ -1,9 +1,76 @@
+<!--
+**Last changed:** 2026-11-25
+**Source:** https://github.com/raulkivi/sheet-music-mcp
+-->
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>Diff Viewer</title>
 <script src="./support.js"></script>
+<script type="application/json" id="fixture">
+{
+  "reference_label": "Edition A (1962)",
+  "target_label": "Edition B (2024)",
+  "similarity_score": 0.92,
+  "view_measures": [
+    17,
+    18
+  ],
+  "changes": [
+    {
+      "id": 1,
+      "kind": "pitch",
+      "part_name": "Alto",
+      "measure": 18,
+      "beat": 2,
+      "reference": "E♭",
+      "target": "E♮"
+    },
+    {
+      "id": 2,
+      "kind": "rhythm",
+      "part_name": "Tenor",
+      "measure": 20,
+      "reference": "dotted quaver",
+      "target": "two semiquavers"
+    },
+    {
+      "id": 3,
+      "kind": "lyrics",
+      "part_name": "Soprano",
+      "measure": 21,
+      "reference": "“cor-pus”",
+      "target": "“cor-pus-”"
+    },
+    {
+      "id": 4,
+      "kind": "dynamics",
+      "part_name": "Bass",
+      "measure": 22,
+      "reference": "mp",
+      "target": "mf"
+    },
+    {
+      "id": 5,
+      "kind": "pitch",
+      "part_name": "Soprano",
+      "measure": 23,
+      "beat": 1,
+      "reference": "A♭",
+      "target": "A♮"
+    },
+    {
+      "id": 6,
+      "kind": "rhythm",
+      "part_name": "Alto",
+      "measure": 24,
+      "reference": "crotchet rest",
+      "target": "quaver rest"
+    }
+  ]
+}
+</script>
 </head>
 <body>
 <x-dc>
@@ -17,8 +84,8 @@ button{font:inherit;cursor:pointer}
   <div style="height:3px;background:linear-gradient(#0072ce 0 33.33%,#15171c 33.33% 66.66%,{{t.flagWhite}} 66.66% 100%)"></div>
   <header style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 16px;background:{{t.panel}};border-bottom:1px solid {{t.border}}">
     <strong style="font-size:16px">Diff Viewer</strong>
-    <span style="font-size:12px;color:{{t.muted}}">Edition A (1962) vs Edition B (2024)</span>
-    <span style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:999px;background:{{t.tint}};color:{{t.accentText}}">Similarity 92%</span>
+    <span style="font-size:12px;color:{{t.muted}}">{{editionsLabel}}</span>
+    <span style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:999px;background:{{t.tint}};color:{{t.accentText}}">{{similarityLabel}}</span>
     <button type="button" aria-pressed="{{ dark }}" onClick="{{ toggleDark }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">{{darkLabel}}</button>
   </header>
   <div role="toolbar" aria-label="Diff filters" style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:8px 16px;border-bottom:1px solid {{t.border}}">
@@ -37,11 +104,11 @@ button{font:inherit;cursor:pointer}
   <p role="status" aria-live="polite" style="margin:0;padding:6px 16px;font-size:12px;color:{{t.muted}}">{{statusNote}}</p>
   <main style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;padding:16px;align-items:start">
     <section aria-label="Changes side by side" style="min-width:0;padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
-      <h2 style="margin:0 0 6px;font-size:14px">Bars 17 to 18, alto</h2>
+      <h2 style="margin:0 0 6px;font-size:14px">{{viewLabel}}</h2>
       <p style="margin:0 0 8px;font-size:12px;color:{{t.muted}}">
         <span style="color:{{t.accentText}}">━━</span> only in A (solid) &nbsp;&nbsp; <span style="color:{{t.warnText}}">╍╍</span> only in B (dashed)
       </p>
-      <svg viewBox="0 0 600 170" role="img" aria-label="Bars 17 and 18 in both editions" style="display:block;width:100%;height:auto;color:{{t.text}}">
+      <svg viewBox="0 0 600 170" role="img" aria-label="Both editions, the changed measures" style="display:block;width:100%;height:auto;color:{{t.text}}">
         <path d="M20 40H580M20 50H580M20 60H580M20 70H580M20 80H580" stroke="currentColor" stroke-width="1" fill="none"/>
         <path d="M96 80V50M150 70V40M206 65V35M262 60V30M340 80V50M396 70V40" stroke="currentColor" stroke-width="1.2" fill="none"/>
         <g fill="currentColor">
@@ -72,36 +139,37 @@ button{font:inherit;cursor:pointer}
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+const FIX = JSON.parse(document.getElementById('fixture').textContent);
+const KIND_LABEL = { pitch: 'Pitch', rhythm: 'Rhythm', lyrics: 'Lyrics', dynamics: 'Dynamics' };
 class Component extends DCLogic {
   renderVals() {
     const s = this.state || {};
     const dark = !!s.dark;
-    const kindOn = s.kindOn || { Pitch: true, Rhythm: true, Lyrics: true, Dynamics: true };
-    const selectedId = s.selectedId || 1;
+    const kinds = [...new Set(FIX.changes.map((c) => c.kind))];
+    const kindOn = s.kindOn || Object.fromEntries(kinds.map((k) => [k, true]));
+    const selectedId = s.selectedId || FIX.changes[0].id;
     const exported = !!s.exported;
     const reported = !!s.reported;
     const LIGHT = { bg: '#ffffff', panel: '#f4f6fa', text: '#15171c', muted: '#4b5563', border: '#d5dce6', accent: '#0072ce', accentText: '#005fae', warnText: '#7a5300', tint: '#eaf2fb', flagWhite: '#ffffff', tagBg: '#eaf2fb', tagText: '#005fae' };
     const DARK = { bg: '#101217', panel: '#1a1e27', text: '#eef2f7', muted: '#b4bdcb', border: '#2e3645', accent: '#0072ce', accentText: '#7fbcf5', warnText: '#f2c14e', tint: '#1b2b40', flagWhite: '#101217', tagBg: '#1b2b40', tagText: '#7fbcf5' };
     const t = dark ? DARK : LIGHT;
-    const all = [
-      { id: 1, kind: 'Pitch', where: 'Bar 18, beat 2 · alto', detail: 'E♭ in A, E♮ in B', bar: 18 },
-      { id: 2, kind: 'Rhythm', where: 'Bar 20 · tenor', detail: 'dotted quaver in A, two semiquavers in B', bar: 20 },
-      { id: 3, kind: 'Lyrics', where: 'Bar 21 · soprano', detail: '“cor-pus” in A, “cor-pus-” in B', bar: 21 },
-      { id: 4, kind: 'Dynamics', where: 'Bar 22 · bass', detail: 'mp in A, mf in B', bar: 22 },
-      { id: 5, kind: 'Pitch', where: 'Bar 23, beat 1 · soprano', detail: 'A♭ in A, A♮ in B', bar: 23 },
-      { id: 6, kind: 'Rhythm', where: 'Bar 24 · alto', detail: 'crotchet rest in A, quaver rest in B', bar: 24 },
-    ];
-    const kinds = ['Pitch', 'Rhythm', 'Lyrics', 'Dynamics'].map((name) => ({
-      name,
-      on: !!kindOn[name],
-      bg: kindOn[name] ? t.tint : 'transparent',
-      toggle: () => this.setState({ kindOn: { ...kindOn, [name]: !kindOn[name] } }),
+    const all = FIX.changes.map((c) => ({
+      ...c,
+      kindLabel: KIND_LABEL[c.kind] || c.kind,
+      where: 'Bar ' + c.measure + (c.beat ? ', beat ' + c.beat : '') + ' · ' + c.part_name,
+      detail: c.reference + ' in A, ' + c.target + ' in B',
+    }));
+    const kindItems = kinds.map((k) => ({
+      name: KIND_LABEL[k] || k,
+      on: !!kindOn[k],
+      bg: kindOn[k] ? t.tint : 'transparent',
+      toggle: () => this.setState({ kindOn: { ...kindOn, [k]: !kindOn[k] } }),
     }));
     const visible = all.filter((c) => kindOn[c.kind]);
     const changes = visible.map((c) => {
       const sel = c.id === selectedId;
       return {
-        kind: c.kind,
+        kind: c.kindLabel,
         where: c.where,
         detail: c.detail,
         selected: sel,
@@ -113,17 +181,22 @@ class Component extends DCLogic {
       };
     });
     const current = all.find((c) => c.id === selectedId) || all[0];
+    const [v0, v1] = FIX.view_measures;
+    const pct = Math.round(FIX.similarity_score * 100);
     return {
       t,
       flagWhite: t.flagWhite,
       dark,
       darkLabel: dark ? 'Light theme' : 'Dark theme',
       toggleDark: () => this.setState({ dark: !dark }),
-      kinds,
+      editionsLabel: FIX.reference_label + ' vs ' + FIX.target_label,
+      similarityLabel: 'Similarity ' + pct + '%',
+      viewLabel: 'Bars ' + v0 + ' to ' + v1,
+      kinds: kindItems,
       changes,
       shownCount: visible.length + ' of ' + all.length,
       countLabel: visible.length + ' changes shown',
-      focusNote: 'Selected: ' + current.where + ' (' + current.detail + '). Bar ' + current.bar + ' is in the score view when it is in bars 17 to 18.',
+      focusNote: 'Selected: ' + current.where + ' (' + current.detail + '). Bar ' + current.measure + ' is in the score view when it is in bars ' + v0 + ' to ' + v1 + '.',
       makeReport: () => this.setState({ reported: true }),
       exportScores: () => this.setState({ exported: true }),
       exportLabel: exported ? 'Annotated scores exported' : 'Export annotated scores',
