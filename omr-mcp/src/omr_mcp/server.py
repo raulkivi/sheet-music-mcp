@@ -347,7 +347,7 @@ def _file_warnings(result: dict, input_path: str) -> list[dict]:
     return build_warnings(
         text,
         parts=result["metadata"].get("staves_detected", 0),
-        staves_on_page=estimate_staves(input_path),
+        staves_per_system=estimate_staves(input_path),
         engine_notes=result.get("warnings", []),
     )
 
@@ -378,7 +378,7 @@ async def _present_recognition(result: dict, mode, image_paths: list[str], ctx) 
     warnings = build_warnings(
         result["musicxml"],
         parts=result["metadata"].get("staves_detected", 0),
-        staves_on_page=max(counted) if counted else None,
+        staves_per_system=max(counted) if counted else None,
         engine_notes=result.get("warnings", []),
     )
     # The per-page detail is for structuredContent only; content stays what it was plus warnings.

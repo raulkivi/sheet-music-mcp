@@ -39,37 +39,37 @@ def _result(xml, staves=1, **metadata):
 
 class TestBuildWarnings:
     def test_clean_score_gives_an_empty_list(self):
-        assert build_warnings(_xml([NOTE, REST]), parts=1, staves_on_page=1) == []
+        assert build_warnings(_xml([NOTE, REST]), parts=1, staves_per_system=1) == []
 
     def test_parts_fewer_than_staves(self):
-        assert build_warnings(_xml([NOTE]), parts=1, staves_on_page=4) == [
-            {"code": "PARTS_FEWER_THAN_STAVES", "severity": "warning",
-             "message": "1 part recognised but 4 staves found on the page; voices may be merged"}
+        assert build_warnings(_xml([NOTE]), parts=1, staves_per_system=4) == [
+            {"code": "PARTS_FEWER_THAN_STAVES", "severity": "info",
+             "message": "1 part recognized but the page has 4 staves per system; voices may be merged"}
         ]
 
     @pytest.mark.parametrize("staves", [None, 0, 1])
     def test_no_warning_when_the_page_count_is_unknown_or_not_larger(self, staves):
-        assert build_warnings(_xml([NOTE]), parts=1, staves_on_page=staves) == []
+        assert build_warnings(_xml([NOTE]), parts=1, staves_per_system=staves) == []
 
     def test_empty_measure_names_the_bar_and_the_part(self):
-        assert build_warnings(_xml([NOTE, NOTE], [NOTE, ""]), parts=2, staves_on_page=None) == [
+        assert build_warnings(_xml([NOTE, NOTE], [NOTE, ""]), parts=2, staves_per_system=None) == [
             {"code": "EMPTY_MEASURE", "severity": "warning",
              "message": "Measure 2 has no notes or rests", "measure": 2, "part": "P2"}
         ]
 
     def test_a_rest_is_not_empty(self):
-        assert build_warnings(_xml([REST]), parts=1, staves_on_page=None) == []
+        assert build_warnings(_xml([REST]), parts=1, staves_per_system=None) == []
 
     def test_unparseable_score_adds_no_empty_measure_warnings(self):
-        assert build_warnings("not xml", parts=1, staves_on_page=None) == []
+        assert build_warnings("not xml", parts=1, staves_per_system=None) == []
 
     def test_a_non_numeric_measure_number_omits_the_measure_field(self):
         xml = '<score-partwise><part id="P1"><measure number="X1"/></part></score-partwise>'
-        (item,) = build_warnings(xml, parts=1, staves_on_page=None)
+        (item,) = build_warnings(xml, parts=1, staves_per_system=None)
         assert item["code"] == "EMPTY_MEASURE" and "measure" not in item and item["part"] == "P1"
 
     def test_engine_strings_become_items_and_are_not_dropped(self):
-        items = build_warnings(_xml([NOTE]), parts=1, staves_on_page=None, engine_notes=["Page 2: low resolution"])
+        items = build_warnings(_xml([NOTE]), parts=1, staves_per_system=None, engine_notes=["Page 2: low resolution"])
         assert items == [{"code": "LOW_RESOLUTION", "severity": "warning", "message": "Page 2: low resolution"}]
 
 
@@ -77,13 +77,13 @@ class TestTools:
     def _stub(self, monkeypatch, result):
         monkeypatch.setattr(srv, "recognize_image", lambda path, engine="oemer": json.loads(json.dumps(result)))
 
-    def _call(self, tmp_path, staves_on_page=0, **args):
-        image = str(_page_image(tmp_path, staves=staves_on_page))
+    def _call(self, tmp_path, staves_per_system=0, **args):
+        image = str(_page_image(tmp_path, staves=staves_per_system))
         return asyncio.run(call_tool_result("recognize_sheet", {"image": image, **args}))
 
     def test_clean_fixture_has_an_empty_array_in_both_places(self, tmp_path, monkeypatch):
         self._stub(monkeypatch, _result(_xml([NOTE, NOTE])))
-        result = self._call(tmp_path, staves_on_page=1)
+        result = self._call(tmp_path, staves_per_system=1)
         assert json.loads(result.content[0].text)["warnings"] == []
         assert result.structured_content["warnings"] == []
 
@@ -103,16 +103,40 @@ class TestTools:
         assert codes == ["PARTS_FEWER_THAN_STAVES"]
         assert result.structured_content["warnings"] == json.loads(result.content[0].text)["warnings"]
 
+    @pytest.mark.parametrize("ui", [True, False])
+    def test_ac_o3_one_part_from_an_satb_page_flags_merged_voices(self, tmp_path, monkeypatch, ui):
+        # AC-O3: oemer reports 1 part for a page whose systems hold 4 staves.
+        self._stub(monkeypatch, _result(_xml([NOTE]), staves=1))
+        image = str(_page_image(tmp_path, staves=4, systems=3))
+        result = asyncio.run(call_tool_result("recognize_sheet", {"image": image}, _ctx(ui=ui)))
+        sc = result.structured_content
+        assert sc["metadata"]["engine"] == "oemer"
+        assert sc["metadata"]["staves_detected"] == 1
+        if ui:
+            assert sc["metadata"]["staff_systems_estimate"] == 4
+        assert sc["warnings"] == [
+            {"code": "PARTS_FEWER_THAN_STAVES", "severity": "info",
+             "message": "1 part recognized but the page has 4 staves per system; voices may be merged"}
+        ]
+
+    def test_a_melody_page_of_many_lines_raises_no_staff_warning(self, tmp_path, monkeypatch):
+        # Eight one-staff systems are one part, not eight merged voices.
+        self._stub(monkeypatch, _result(_xml([NOTE]), staves=1))
+        image = str(_page_image(tmp_path, staves=1, systems=8))
+        result = asyncio.run(call_tool_result("recognize_sheet", {"image": image}, _ctx(ui=True)))
+        assert result.structured_content["metadata"]["staff_systems_estimate"] == 1
+        assert result.structured_content["warnings"] == []
+
     def test_the_path_mode_text_carries_warnings_too(self, tmp_path, monkeypatch):
         self._stub(monkeypatch, _result(_xml([NOTE], [NOTE, ""]), staves=2))
-        result = self._call(tmp_path, staves_on_page=2, **{"return": "path"})
+        result = self._call(tmp_path, staves_per_system=2, **{"return": "path"})
         payload = json.loads(result.content[0].text)
         assert [w["code"] for w in payload["warnings"]] == ["EMPTY_MEASURE"]
         assert "musicxml_path" in payload
 
     def test_structured_content_validates_against_the_output_schema(self, tmp_path, monkeypatch):
         self._stub(monkeypatch, _result(_xml([NOTE, ""]), staves=1))
-        result = self._call(tmp_path, staves_on_page=3)
+        result = self._call(tmp_path, staves_per_system=3)
         tool = {t.name: t for t in asyncio.run(list_tools())}["recognize_sheet"]
         jsonschema.validate(result.structured_content, tool.output_schema)
         assert len(result.structured_content["warnings"]) == 2

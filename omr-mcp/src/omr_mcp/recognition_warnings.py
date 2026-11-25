@@ -30,25 +30,28 @@ def build_warnings(
     musicxml: str,
     *,
     parts: int,
-    staves_on_page: int | None,
+    staves_per_system: int | None,
     engine_notes: Iterable[str] = (),
 ) -> list[dict]:
     """Warning items for one recognition.
 
-    ``parts`` is the recognised part count (metadata ``staves_detected``); ``staves_on_page`` the
-    image's staff count, None when unknown. ``engine_notes`` are the engine's plain-text
-    low-resolution notes, kept as LOW_RESOLUTION items so the array has one shape.
+    ``parts`` is the recognized part count (metadata ``staves_detected``); ``staves_per_system``
+    the image's staff count per system (``staff_estimate.estimate_staves``), None when unknown.
+    ``engine_notes`` are the engine's plain-text low-resolution notes, kept as LOW_RESOLUTION items
+    so the array has one shape.
     """
     items = [
         {"code": "LOW_RESOLUTION", "severity": "warning", "message": note} for note in engine_notes
     ]
-    if staves_on_page and parts < staves_on_page:
+    if staves_per_system and parts < staves_per_system:
+        # info, not warning: the image count is a heuristic, and a piano or short score has more
+        # staves than parts without anything being merged (owner decision 2026-11-11).
         items.append(
             {
                 "code": "PARTS_FEWER_THAN_STAVES",
-                "severity": "warning",
-                "message": f"{parts} {'part' if parts == 1 else 'parts'} recognised but "
-                f"{staves_on_page} staves found on the page; voices may be merged",
+                "severity": "info",
+                "message": f"{parts} {'part' if parts == 1 else 'parts'} recognized but the page "
+                f"has {staves_per_system} staves per system; voices may be merged",
             }
         )
     items.extend(_empty_measures(musicxml))

@@ -7,7 +7,7 @@ in-process) and `audiveris` (opt-in via `engine="audiveris"`, subprocess). Entry
 pipeline — all other servers consume MusicXML produced here.
 
 **Status:** Phases 1–4 code complete, including the Audiveris backend option (shipped 2026-08-16).
-UX Wave 2 (score references) done. 299 unit tests pass (+89 skipped). MCP Apps Recognition Review server side done (`structuredContent`, app-only `get_source_preview`, `staff_systems_estimate`); the page is not built yet. Integration tests run
+UX Wave 2 (score references) done. 341 unit tests pass (+150 skipped). MCP Apps Recognition Review server side done (`structuredContent`, app-only `get_source_preview`, `staff_systems_estimate` = staves per system, checked on 60 real sample pages); the page is not built yet. Integration tests run
 against real oemer for the first time (2026-08-15): fixing a 100%-blocking API bug plus pinning
 `onnxruntime` and `opencv-python-headless` took the suite from 0/41 to 20/41 passing. **oemer's default output is not usable for SATB scores** — it
 reads multi-staff systems sequentially instead of simultaneously, so a 4-voice choir score comes
@@ -26,7 +26,7 @@ both root-caused 2026-08-16 (one is the SATB bug itself manifesting as a hard cr
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v                # 299 unit tests (+89 skipped; fast; all subprocess/network calls mocked)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v                # 341 unit tests (+150 skipped; fast; all subprocess/network calls mocked)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration # invokes real oemer (~3–5 min/page)
 ```
 
@@ -42,7 +42,7 @@ Install dependencies: `uv sync`
 | `src/omr_mcp/omr_engine.py` | oemer + Audiveris wrappers, `_ENGINE_RUNNERS` dispatch table (no MCP imports) |
 | `src/omr_mcp/presenter.py` | `structuredContent` and output schemas for the Recognition Review |
 | `src/omr_mcp/previews.py` | Source-preview JPEG and the job table (score + previews) |
-| `src/omr_mcp/staff_estimate.py` | Staff count from the image (`staff_systems_estimate`) |
+| `src/omr_mcp/staff_estimate.py` | Staves per system from the image (`staff_systems_estimate`); evidence in `docs/staff-estimate-evidence.md` |
 | `src/omr_mcp/utils.py` | Image validation, base64 helpers |
 | `tests/test_omr.py` | Unit + integration tests |
 | `test_samples/pdmx_satb_samples/` | 10 SATB PNG + MXL ground-truth fixtures |
@@ -147,6 +147,11 @@ asyncio.run(_run())
   want the app pass a ctx (see `_ctx` in `tests/test_recognition_review.py`). `get_*` app tools never
   take a path; every input image is re-encoded into the output root first. `pytest` runs with
   `asyncio_mode = "auto"`.
+- **The staff estimate counts staves per system, not per page.** Test pages must join a system's
+  staves with a vertical system line (`_page_image(staves=4)` in `tests/test_recognition_review.py`
+  does); unjoined staves count as one-staff systems. `tests/test_staff_estimate_samples.py`
+  (integration) checks it on the real pages; from a worktree set `OMR_TEST_SAMPLES` to the main
+  checkout's `omr-mcp/test_samples`.
 
 ---
 

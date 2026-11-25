@@ -1,5 +1,7 @@
 # omr-mcp — Technical Architecture
 
+**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## Overview
 
 omr-mcp is a stateless MCP server that converts sheet music images to MusicXML. Every tool call is independent; no state is retained between calls.
@@ -351,7 +353,7 @@ omr-mcp/
 |---|---|
 | `presenter.py` | `present_recognition` / `present_score` / `present_preview`: `content` plus `structuredContent`; the output schemas |
 | `previews.py` | `write_source_preview()` (JPEG of at most 1600 px into the output root) and `ReviewJobs` (job id to the score and per-page artifact ids; a core `ExpiringTable`: bounded, with a TTL) |
-| `staff_estimate.py` | `estimate_staves()`: counts staff lines in the image with numpy; no engine run |
+| `staff_estimate.py` | `estimate_staves()`: staves in the largest system of the image, with numpy; no engine run (see below) |
 | `server.py` | `ui_registry`, `artifact_store`, `review_jobs`; `call_tool_result` returns `CallToolResult` |
 
 Runtime flow of `recognize_sheet`: decode or take the image path, run the engine off the event loop
@@ -362,6 +364,24 @@ worker thread) and `ReviewJobs.register` (stores each preview and the score, ret
 calls `get_recognized_score(job_id)` and `get_source_preview(job_id, page, offset, length)`, which
 resolve the id and return the score or `chunk_payload(...)`. Neither the table nor the store hands
 out a path, and the score is not re-sent in results.
+
+### Staff estimate
+
+`estimate_staves()` feeds `metadata.staff_systems_estimate` and the `PARTS_FEWER_THAN_STAVES` check:
+
+1. Ink: pixels darker than the page's median (paper) by a quarter of the paper-to-ink contrast, so
+   one-pixel lines smoothed to gray by scaling or rotation still count, and gray paper does not.
+2. Deskew: the small rotation (up to ±3°, 0.025° steps) that makes the row profile of the ink
+   sharpest; a level page is left as it is.
+3. Staff lines: rows inked across at least 35 % of the width. Lines closer than 2.5 line spacings
+   form a staff; strays too close to the line above (long beams) are dropped; a staff needs 3+
+   evenly spaced, unbroken lines (title lettering and frame rules fail this).
+4. Systems: two neighboring staves belong to one system when a vertical line (the system line,
+   a bracket or a barline) covers 90 % of the rows between them, within their shared width plus
+   two line spacings. The result is the largest system.
+
+Per-sample results (60 sample pages, all correct) are in
+[staff-estimate-evidence.md](staff-estimate-evidence.md).
 
 `recognize_images()` adds an internal `_pages` list (per-page `staves_detected` and `measures`); the
 server moves it into `structuredContent.pages` and drops it from the text, so `content` is unchanged.
