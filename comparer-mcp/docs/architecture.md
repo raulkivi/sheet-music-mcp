@@ -1,5 +1,7 @@
 # MusicXML Comparer — Vision & Architecture
 
+**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 Created: 2026-03-26
 Status: Implemented — Phases 1-4 complete (see `docs/HANDOVER.md`/`docs/PLAN.md` for current
 state; this document is the original design vision and is annotated below where the
@@ -429,7 +431,8 @@ All error responses use `{"error": "...", "error_code": "..."}` per conventions.
 
 | Tool | Input | Output |
 |------|-------|--------|
-| `compare_musicxml` | reference, target, optional `options` | Full `ComparisonResult` JSON |
+| `compare_scores` | reference, target, `detail` (`summary`/`changes`/`report`/`full`), optional `parts`, `measures`, `options` | Cumulative view built by `comparison_view.view_of()`: `{detail, similarity_score, summary[, changes, count][, report][, part_diffs]}`. Thin dispatcher over `engine.compare()` |
+| `compare_musicxml` | reference, target, optional `options` | Deprecated alias (`detail="full"`). Full `ComparisonResult` JSON |
 | `compare_musicxml_files` | `reference_path` (string), `target_path` (string), optional `options` | Full `ComparisonResult` JSON |
 | `quick_similarity` | reference, target | `{ "similarity_score": 0.87, "summary": {...} }` |
 | `list_changes` | reference, target, optional `part` filter, optional `measures` (deprecated alias `measure_range`) | Filtered list of `NoteDiff` entries (for targeted queries) |

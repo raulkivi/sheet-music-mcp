@@ -18,6 +18,7 @@ def _mxl_to_musicxml(mxl_path) -> str:
     return GeneralObjectExporter(converter.parse(str(mxl_path))).parse().decode("utf-8")
 
 _TOOL_NAMES = {
+    "compare_scores",
     "compare_musicxml",
     "compare_musicxml_files",
     "quick_similarity",
@@ -61,7 +62,7 @@ TARGET_XML = _score_xml(
 
 
 class TestListTools:
-    async def test_returns_nine_tools(self):
+    async def test_returns_ten_tools(self):
         tools = await list_tools()
         names = {t.name for t in tools}
         assert names == _TOOL_NAMES

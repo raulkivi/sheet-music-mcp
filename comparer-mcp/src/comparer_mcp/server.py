@@ -22,6 +22,12 @@ from sheet_music_mcp_core.wiring import make_handlers, make_resource_handlers
 
 from . import __version__
 from .annotator import annotate
+from .comparison_view import (
+    COMPARE_SCORES_OUTPUT_SCHEMA,
+    DEFAULT_DETAIL,
+    DETAILS,
+    merged_options,
+)
 from .engine import ProcessingError, compare, health_check
 from .health import build_health_report
 from .presenter import (
@@ -29,6 +35,7 @@ from .presenter import (
     REPORT_OUTPUT_SCHEMA,
     present_comparison,
     present_report,
+    present_view,
 )
 from .report import generate_report
 from .score_inputs import INPUT_PARAMETERS, load_pair, pair_schema
@@ -70,14 +77,17 @@ _OPTIONS_SCHEMA = {
 
 # Sent to the client at initialize (docs/conventions.md, Server Instructions).
 INSTRUCTIONS = (
-    "Music-aware comparison of two MusicXML scores (reference and target). Use quick_similarity "
-    "for a 0-1 score, list_changes for targeted questions (one part, a range of measures), "
-    "generate_comparison_report for a readable summary and export_annotated_musicxml for "
-    "color-marked scores to render. compare_musicxml returns the full structured diff, which can "
-    "be large. Prefer reference_path and target_path over inline reference_xml and target_xml, "
-    "pass on the paths other tools return (export_annotated_musicxml returns paths for large "
-    "scores), and use describe_score to learn part IDs cheaply. options.measures (list_changes: "
-    "measures) limits the differences to [start, end] measure numbers without cutting the scores."
+    "Music-aware comparison of two MusicXML scores (reference and target). Use compare_scores: "
+    "detail 'summary' (default) gives the 0-1 similarity and statistics, 'changes' adds the "
+    "note-level differences (parts and measures narrow the question, e.g. the Alto in bars "
+    "17-24), 'report' a readable summary, 'full' everything including the per-measure detail, "
+    "which can be large. quick_similarity, list_changes, generate_comparison_report, "
+    "compare_musicxml and compare_musicxml_files are deprecated aliases of it. "
+    "export_annotated_musicxml makes color-marked scores to render. Prefer reference_path and "
+    "target_path over inline reference_xml and target_xml, pass on the paths other tools return "
+    "(export_annotated_musicxml returns paths for large scores), and use describe_score to learn "
+    "part IDs cheaply. measures [start, end] (options.measures on the aliases) limits the "
+    "differences to those measure numbers without cutting the scores."
 )
 
 
@@ -96,17 +106,57 @@ DEFAULT_UI_REGISTRY = UiRegistry([DIFF_VIEWER, SETUP_DOCTOR], PackageAssetSource
 ui_registry = DEFAULT_UI_REGISTRY
 
 
+def _deprecated(detail: str, description: str) -> str:
+    return f'Deprecated: use compare_scores(detail="{detail}"). {description}'
+
+
 async def list_tools():
     return [
+        Tool(
+            name="compare_scores",
+            title="Compare scores (summary, changes, report or full diff)",
+            annotations=ToolAnnotations(**READ_ONLY),
+            description=(
+                "Music-aware comparison of two MusicXML scores, each given inline or as a file "
+                "path. `detail` picks how much comes back: 'summary' (default) is the 0-1 "
+                "similarity score and statistics; 'changes' adds the note-level differences "
+                "(kind, part, measure, beat, both notes); 'report' adds a human-readable report; "
+                "'full' adds the per-part, per-measure diff as well. `parts` (IDs, names or "
+                "voices) and `measures` ([start, end] printed bar numbers) narrow the "
+                "comparison, e.g. 'what changed in the Alto, measures 17-24?'. Replaces "
+                "compare_musicxml, compare_musicxml_files, quick_similarity, list_changes and "
+                "generate_comparison_report."
+            ),
+            input_schema=pair_schema(
+                {
+                    "detail": {
+                        "type": "string",
+                        "enum": list(DETAILS),
+                        "default": DEFAULT_DETAIL,
+                        "description": "How much to return: summary, changes, report or full.",
+                    },
+                    "parts": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Compare only these parts: part IDs, names or voices (e.g. 'P1', 'Alto', 'A').",
+                    },
+                    **MEASURES_PROPERTY,
+                    "options": _OPTIONS_SCHEMA,
+                }
+            ),
+            output_schema=COMPARE_SCORES_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(DIFF_VIEWER),
+        ),
         Tool(
             name="compare_musicxml",
             title="Compare scores",
             annotations=ToolAnnotations(**READ_ONLY),
-            description=(
+            description=_deprecated(
+                "full",
                 "Full music-aware diff of two MusicXML scores, given inline or as file paths. "
                 "Returns a structured "
                 "ComparisonResult with global similarity score, summary statistics, and "
-                "per-part/measure/note detail."
+                "per-part/measure/note detail.",
             ),
             input_schema=pair_schema({"options": _OPTIONS_SCHEMA}),
             output_schema=COMPARISON_OUTPUT_SCHEMA,
@@ -116,11 +166,12 @@ async def list_tools():
             name="compare_musicxml_files",
             title="Compare score files",
             annotations=ToolAnnotations(**READ_ONLY),
-            description=(
+            description=_deprecated(
+                "full",
                 "Full music-aware diff of two MusicXML files on disk (.musicxml, .xml, or "
                 "compressed .mxl). Returns the same structured ComparisonResult as "
                 "compare_musicxml. Files must be inside the allowed folders (the output folder, "
-                "the client's roots or SHEET_MUSIC_INPUT_ROOTS)."
+                "the client's roots or SHEET_MUSIC_INPUT_ROOTS).",
             ),
             input_schema={
                 "type": "object",
@@ -144,9 +195,10 @@ async def list_tools():
             name="quick_similarity",
             title="Score similarity",
             annotations=ToolAnnotations(**READ_ONLY),
-            description=(
+            description=_deprecated(
+                "summary",
                 "Fast similarity check between two MusicXML strings: returns only the "
-                "0.0-1.0 similarity score and summary statistics, without per-note detail."
+                "0.0-1.0 similarity score and summary statistics, without per-note detail.",
             ),
             input_schema=pair_schema(),
         ),
@@ -154,10 +206,11 @@ async def list_tools():
             name="list_changes",
             title="List score changes",
             annotations=ToolAnnotations(**READ_ONLY),
-            description=(
+            description=_deprecated(
+                "changes",
                 "List only the note-level differences (operation != MATCH) between two "
                 "MusicXML strings, optionally filtered to one part and/or a measure range. "
-                "Useful for targeted queries like 'what changed in the Alto, measures 17-24?'"
+                "Useful for targeted queries like 'what changed in the Alto, measures 17-24?'",
             ),
             input_schema=pair_schema(
                 {
@@ -180,11 +233,12 @@ async def list_tools():
             name="generate_comparison_report",
             title="Comparison report",
             annotations=ToolAnnotations(**READ_ONLY),
-            description=(
+            description=_deprecated(
+                "report",
                 "Human-readable version comparison report: overall similarity headline, "
                 "missing/extra parts, missing/extra measures, key/time signature changes, "
                 "and note-level differences grouped into measure-range summaries (e.g. "
-                "'transposed by 3 semitones in measures 17-24')."
+                "'transposed by 3 semitones in measures 17-24').",
             ),
             input_schema=pair_schema({"options": _OPTIONS_SCHEMA}),
             output_schema=REPORT_OUTPUT_SCHEMA,
@@ -280,13 +334,53 @@ async def call_tool(name: str, arguments: dict, ctx=None) -> list:
     return (await call_tool_result(name, arguments, ctx)).content
 
 
+# Deprecated tool names already warned about in this process; one warning each is enough.
+_warned_tools: set[str] = set()
+_DEPRECATED_TOOLS = {
+    "compare_musicxml": "full",
+    "compare_musicxml_files": "full",
+    "quick_similarity": "summary",
+    "list_changes": "changes",
+    "generate_comparison_report": "report",
+}
+
+
+def _warn_if_deprecated(name: str) -> None:
+    if name in _DEPRECATED_TOOLS and name not in _warned_tools:
+        _warned_tools.add(name)
+        logger.warning(
+            "Tool '%s' is deprecated; use compare_scores(detail=\"%s\") instead.", name, _DEPRECATED_TOOLS[name]
+        )
+
+
 async def call_tool_result(name: str, arguments: dict, ctx=None) -> CallToolResult:
+    _warn_if_deprecated(name)
     result = await _dispatch(name, arguments, ctx)
     return result if isinstance(result, CallToolResult) else CallToolResult(content=result)
 
 
 async def _dispatch(name: str, arguments: dict, ctx=None):
-    if name == "compare_musicxml":
+    if name == "compare_scores":
+        try:
+            reference_xml, target_xml = await load_pair(arguments, ctx)
+            options = merged_options(arguments)
+        except ProcessingError as e:
+            return _processing_error(e)
+
+        detail = arguments.get("detail", DEFAULT_DETAIL)
+        if detail not in DETAILS:
+            return _error(f"detail must be one of {', '.join(DETAILS)}.", "INVALID_PARAMETER")
+
+        try:
+            result = compare(reference_xml, target_xml, options)
+            return _result(present_view(result, detail))
+        except ProcessingError as e:
+            return _processing_error(e)
+        except Exception as e:
+            logger.error("compare_scores unexpected error: %s", e)
+            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+
+    elif name == "compare_musicxml":
         options = arguments.get("options")
 
         try:
@@ -420,6 +514,7 @@ async def _dispatch(name: str, arguments: dict, ctx=None):
             "input_parameters": INPUT_PARAMETERS,
             "output_formats": ["json"],
             "tools": [
+                "compare_scores",
                 "compare_musicxml",
                 "compare_musicxml_files",
                 "quick_similarity",
@@ -492,7 +587,7 @@ def main():
         )
 
     logger.info(
-        "comparer-mcp ready. Tools: compare_musicxml, compare_musicxml_files, "
+        "comparer-mcp ready. Tools: compare_scores, compare_musicxml, compare_musicxml_files, "
         "quick_similarity, list_changes, generate_comparison_report, "
         "export_annotated_musicxml, list_capabilities, health_check, describe_score"
     )

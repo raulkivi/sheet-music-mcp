@@ -25,7 +25,7 @@ from .conftest import VIEWER_HTML
 from .test_server import REFERENCE_XML, TARGET_XML
 
 VIEWER_URI = "ui://comparer/diff-viewer"
-LINKED = ("compare_musicxml", "compare_musicxml_files", "generate_comparison_report")
+LINKED = ("compare_scores", "compare_musicxml", "compare_musicxml_files", "generate_comparison_report")
 PAIR = {"reference_xml": REFERENCE_XML, "target_xml": TARGET_XML}
 
 

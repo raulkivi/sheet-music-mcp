@@ -12,6 +12,7 @@ import json
 
 from mcp.types import TextContent
 
+from .comparison_view import view_of
 from .models import ComparisonResult
 from .result_schema import json_schema_for
 
@@ -35,6 +36,12 @@ def present_comparison(result: ComparisonResult) -> tuple[list, dict]:
 def present_report(payload: dict) -> tuple[list, dict]:
     """``(content, structured_content)`` for the readable report and its similarity score."""
     return _json_text(payload), dict(payload)
+
+
+def present_view(result: ComparisonResult, detail: str) -> tuple[list, dict]:
+    """``(content, structured_content)`` for ``compare_scores``; both are the same view."""
+    view = view_of(result, detail)
+    return _json_text(view), view
 
 
 def _json_text(data: dict) -> list:
