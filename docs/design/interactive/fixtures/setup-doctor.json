@@ -1,0 +1,23 @@
+{
+  "status": "ready",
+  "servers": ["render-mcp", "synth-mcp", "omr-mcp"],
+  "checked_label": "just now",
+  "checks": [
+    {"name": "Verovio (music engraving)", "status": "ok", "version": "built in"},
+    {"name": "FluidSynth (audio)", "status": "ok", "version": "2.3"},
+    {"name": "Soundfont", "status": "ok", "version": "/usr/share/sounds/sf2/TimGM6mb.sf2"},
+    {"name": "PortAudio (microphone)", "status": "ok", "version": "USB microphone"},
+    {
+      "name": "Audiveris (keeps SATB parts)",
+      "status": "warn",
+      "hint": "Not found. Without it, OMR uses oemer, which loses the SATB voice structure of choir scores.",
+      "doc_url": "https://github.com/Audiveris/audiveris",
+      "fix_snippet": "Download the Audiveris release for your system from its project page.\nUnpack it and note the folder.\nSet its path in the server settings, then press Check again."
+    },
+    {
+      "name": "Model cache (oemer)",
+      "status": "warn",
+      "hint": "Last used 40 days ago. First run downloads again if the cache was cleared."
+    }
+  ]
+}

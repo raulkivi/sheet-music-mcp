@@ -4,6 +4,8 @@
 written. Next step: [Phase 0 spike plan](mcp-apps-phase0-spike-plan.md). Related tool and
 architecture changes: [ux-architecture-and-tool-improvements.md](ux-architecture-and-tool-improvements.md).
 **Date:** 2026-10-27
+**Last changed:** 2026-11-25
+**Source:** https://github.com/raulkivi/sheet-music-mcp
 **Scope:** All 34 tools across the six servers (`omr-mcp`, `render-mcp`, `synth-mcp`,
 `musicxml-abc-mcp`, `pitch-mcp`, `comparer-mcp`).
 **Question:** Where would an [MCP App](#references) (an interactive UI that the server ships and
@@ -551,9 +553,13 @@ returns text. To *see* the diff, the model must call `export_annotated_musicxml`
 | Model context | Active filters and the selected change |
 | Display modes | `inline`, `fullscreen` (two panes need width; on `mobile`, stack the panes vertically) |
 
-**To verify:** that Verovio applies MusicXML `color` attributes on `<note>` and `<notehead>` from
-the annotator. If it does not, map the colours to CSS on Verovio element IDs instead (the
-annotator already knows the note IDs).
+**Verified:** Verovio applies the MusicXML `color` that the annotator writes to `<note>`, so the
+noteheads render in the annotated color (`fill="#FF8800"` in the SVG). See
+[Phase 0 findings §3, item 3](mcp-apps-phase0-findings.md#3-findings) and the test
+"keeps MusicXML note colors in the SVG" in
+[`ui/packages/kit/src/score/ScoreView.test.ts`](../../ui/packages/kit/src/score/ScoreView.test.ts).
+Not yet checked: stems and text. Map those to CSS on Verovio element IDs only if the Diff Viewer
+needs them.
 
 **Acceptance criteria**
 
@@ -927,7 +933,8 @@ Agreed with the project owner on 2026-10-27. Earlier sections have been updated 
 
 **Still open (answered by the Phase 0 spike, not by a decision):**
 
-- Does Verovio apply the comparer's MusicXML `color` attributes? ([§5.4](#54-comparer-mcp-diff-viewer))
+- ~~Does Verovio apply the comparer's MusicXML `color` attributes?~~ Answered: yes for noteheads
+  ([§5.4](#54-comparer-mcp-diff-viewer), [findings §3](mcp-apps-phase0-findings.md#3-findings)).
 - Do Claude Desktop and VS Code allow Blob downloads from the app iframe? (D6 fallback either way)
 - Actual bundle size and load time (D4).
 

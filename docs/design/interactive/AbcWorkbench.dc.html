@@ -1,9 +1,55 @@
+<!--
+**Last changed:** 2026-11-25
+**Source:** https://github.com/raulkivi/sheet-music-mcp
+-->
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>ABC Workbench</title>
 <script src="./support.js"></script>
+<script type="application/json" id="fixture">
+{
+  "abc_id": "demo-abc",
+  "part": "P2",
+  "part_name": "Alto",
+  "measures": [
+    9,
+    12
+  ],
+  "measures_replaced": 1,
+  "original_abc": [
+    "M:4/4",
+    "L:1/8",
+    "K:Eb",
+    "V:A  name=\"Alto\"",
+    "|: d2 c2 B2 A2 | G4 z4 |",
+    "   c2 d2 e2 f2 | g4 z4 :|"
+  ],
+  "proposed_abc": [
+    "M:4/4",
+    "L:1/8",
+    "K:Eb",
+    "V:A  name=\"Alto\"",
+    "|: d2 c2 B2 A2 | G4 z4 |",
+    "   c2 d2 e2 f2 | g4 G4 :|"
+  ],
+  "changed_lines": [
+    5
+  ],
+  "valid": true,
+  "errors": [],
+  "warnings": [
+    {
+      "code": "rest_to_note",
+      "severity": "warning",
+      "message": "Bar 12 changes from a rest to a G. Is the alto meant to sing here?",
+      "measure": 12,
+      "part": "P2"
+    }
+  ]
+}
+</script>
 </head>
 <body>
 <x-dc>
@@ -17,8 +63,8 @@ button{font:inherit;cursor:pointer}
   <div style="height:3px;background:linear-gradient(#0072ce 0 33.33%,#15171c 33.33% 66.66%,{{t.flagWhite}} 66.66% 100%)"></div>
   <header style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 16px;background:{{t.panel}};border-bottom:1px solid {{t.border}}">
     <strong style="font-size:16px">ABC Workbench</strong>
-    <span style="font-size:12px;color:{{t.muted}}">Proposed edit by the assistant · alto, bars 9 to 12</span>
-    <span style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:999px;background:{{t.okTint}};color:{{t.okText}}">Valid ABC</span>
+    <span style="font-size:12px;color:{{t.muted}}">{{headerLabel}}</span>
+    <span style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:999px;background:{{validBg}};color:{{validText}}">{{validLabel}}</span>
     <button type="button" aria-pressed="{{ dark }}" onClick="{{ toggleDark }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">{{darkLabel}}</button>
   </header>
   <div role="toolbar" aria-label="Review controls" style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:8px 16px;border-bottom:1px solid {{t.border}}">
@@ -45,7 +91,7 @@ button{font:inherit;cursor:pointer}
       <p style="margin:6px 0 0;font-size:12px;color:{{t.muted}}">{{choiceNote}}</p>
       <div style="margin-top:12px;padding:8px 0;border-top:1px solid {{t.border}};display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <span style="font-size:14px;font-weight:600;padding:2px 8px;border-radius:999px;background:{{t.warnTint}};color:{{t.warnText}}">Check</span>
-        <span style="font-size:14px">Bar 12 changes from a rest to a G. Is the alto meant to sing here?</span>
+        <span style="font-size:14px">{{warningText}}</span>
       </div>
       <button type="button" onClick="{{ toggleBar12 }}" style="margin-top:8px;min-height:40px;padding:6px 14px;border-radius:6px;border:1px solid {{t.muted}};background:{{t.bg}};color:{{t.text}}">{{bar12Label}}</button>
       <p role="status" aria-live="polite" style="margin:12px 0 0;font-size:14px;font-weight:600">{{outcome}}</p>
@@ -54,55 +100,65 @@ button{font:inherit;cursor:pointer}
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+const FIX = JSON.parse(document.getElementById('fixture').textContent);
 class Component extends DCLogic {
   renderVals() {
     const s = this.state || {};
     const dark = !!s.dark;
     const view = s.view || 'changes';
-    const keep = s.keepBar12 !== false;
+    const keep = s.keepEdit !== false;
     const decided = s.decision === 'accepted' || s.decision === 'rejected';
     const LIGHT = { bg: '#ffffff', panel: '#f4f6fa', text: '#15171c', muted: '#4b5563', border: '#d5dce6', accent: '#0072ce', flagWhite: '#ffffff', tint: '#eaf2fb', okTint: '#e4f2e8', okText: '#1e6b3a', warnTint: '#fbf0d2', warnText: '#7a5300', addText: '#1e6b3a', addBg: '#e4f2e8', delText: '#a8322d', delBg: '#f9e3e1' };
     const DARK = { bg: '#101217', panel: '#1a1e27', text: '#eef2f7', muted: '#b4bdcb', border: '#2e3645', accent: '#0072ce', flagWhite: '#101217', tint: '#1b2b40', okTint: '#17301f', okText: '#8fd3a4', warnTint: '#3a2d0c', warnText: '#f2c14e', addText: '#8fd3a4', addBg: '#17301f', delText: '#f09a94', delBg: '#3a1c1a' };
     const t = dark ? DARK : LIGHT;
-    const before = ['M:4/4', 'L:1/8', 'K:Eb', 'V:A  name="Alto"', '|: d2 c2 B2 A2 | G4 z4 |', '   c2 d2 e2 f2 | g4 z4 :|'];
-    const after = ['M:4/4', 'L:1/8', 'K:Eb', 'V:A  name="Alto"', '|: d2 c2 B2 A2 | G4 z4 |', '   c2 d2 e2 f2 | g4 G4 :|'];
-    const changedIndex = 5;
+    const before = FIX.original_abc;
+    const after = FIX.proposed_abc;
+    const changed = new Set(FIX.changed_lines);
+    const warning = FIX.warnings[0];
+    const bar = warning ? warning.measure : null;
     const rows = [];
     after.forEach((line, i) => {
-      const changed = i === changedIndex;
-      if (view === 'changes' && !changed) return;
-      if (changed && keep) {
+      const isChanged = changed.has(i);
+      if (view === 'changes' && !isChanged) return;
+      if (isChanged && keep) {
         rows.push({ prefix: '− ', text: before[i], edge: t.delText, bg: t.delBg, color: t.delText, deco: 'line-through' });
         rows.push({ prefix: '+ ', text: line, edge: t.addText, bg: t.addBg, color: t.addText, deco: 'none' });
-      } else if (changed) {
+      } else if (isChanged) {
         rows.push({ prefix: '  ', text: before[i], edge: 'transparent', bg: 'transparent', color: t.text, deco: 'none' });
       } else {
         rows.push({ prefix: '  ', text: line, edge: 'transparent', bg: 'transparent', color: t.text, deco: 'none' });
       }
     });
+    const n = changed.size;
+    const edit = bar !== null ? 'the bar ' + bar + ' edit' : 'the edit';
     return {
       t,
       flagWhite: t.flagWhite,
       dark,
       darkLabel: dark ? 'Light theme' : 'Dark theme',
       toggleDark: () => this.setState({ dark: !dark }),
+      headerLabel: 'Proposed edit · ' + FIX.part_name.toLowerCase() + ', bars ' + FIX.measures[0] + ' to ' + FIX.measures[1],
+      validLabel: FIX.valid ? 'Valid ABC' : 'Invalid ABC',
+      validBg: FIX.valid ? t.okTint : t.delBg,
+      validText: FIX.valid ? t.okText : t.delText,
       changesOnly: view === 'changes',
       fullText: view === 'full',
       changesBg: view === 'changes' ? t.tint : 'transparent',
       fullBg: view === 'full' ? t.tint : 'transparent',
       showChanges: () => this.setState({ view: 'changes' }),
       showFull: () => this.setState({ view: 'full' }),
-      changeSummary: keep ? '1 line changed · 1 added · 1 removed' : 'no change kept',
+      changeSummary: keep ? n + ' line' + (n === 1 ? '' : 's') + ' changed · ' + n + ' added · ' + n + ' removed' : 'no change kept',
       originalText: before.join('\n'),
       rows,
-      choiceNote: keep ? 'The bar 12 edit is kept in the proposal.' : 'The bar 12 edit is undone in the proposal.',
-      toggleBar12: () => this.setState({ keepBar12: !keep }),
-      bar12Label: keep ? 'Undo the bar 12 edit' : 'Put the bar 12 edit back',
+      warningText: warning ? warning.message : '',
+      choiceNote: keep ? 'The ' + edit + ' is kept in the proposal.' : 'The ' + edit + ' is undone in the proposal.',
+      toggleBar12: () => this.setState({ keepEdit: !keep }),
+      bar12Label: keep ? 'Undo ' + edit : 'Put ' + edit + ' back',
       decided,
       accept: () => this.setState({ decision: 'accepted' }),
       reject: () => this.setState({ decision: 'rejected' }),
       acceptLabel: s.decision === 'accepted' ? 'Accepted' : 'Accept and write MusicXML',
-      outcome: s.decision === 'accepted' ? (keep ? 'Accepted: MusicXML written with the bar 12 edit.' : 'Accepted: MusicXML written without the bar 12 edit.') : s.decision === 'rejected' ? 'Rejected: the original score stays as it is.' : '',
+      outcome: s.decision === 'accepted' ? (keep ? 'Accepted: MusicXML written with ' + edit + '.' : 'Accepted: MusicXML written without ' + edit + '.') : s.decision === 'rejected' ? 'Rejected: the original score stays as it is.' : '',
     };
   }
 }
