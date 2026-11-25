@@ -28,12 +28,16 @@ from .comparison_view import (
     DETAILS,
     merged_options,
 )
+from .diff_book import DiffBook
 from .engine import ProcessingError, compare, health_check
 from .health import build_health_report
 from .presenter import (
     COMPARISON_OUTPUT_SCHEMA,
+    DIFF_SCORES_OUTPUT_SCHEMA,
+    EXPORT_DIFF_OUTPUT_SCHEMA,
     REPORT_OUTPUT_SCHEMA,
     present_comparison,
+    present_diff_scores,
     present_report,
     present_view,
 )
@@ -104,6 +108,17 @@ SETUP_DOCTOR = setup_doctor_resource("comparer")
 # assets. Without a UI build the viewer is hidden and the tools carry no _meta.ui.
 DEFAULT_UI_REGISTRY = UiRegistry([DIFF_VIEWER, SETUP_DOCTOR], PackageAssetSource("comparer_mcp"))
 ui_registry = DEFAULT_UI_REGISTRY
+
+# The scores behind each compare_scores result, for the viewer's app-only tools.
+diff_book = DiffBook()
+
+
+_DIFF_ID_SCHEMA = {
+    "type": "object",
+    "properties": {"diff_id": {"type": "string", "description": "diff_id from compare_scores"}},
+    "required": ["diff_id"],
+    "additionalProperties": False,
+}
 
 
 def _deprecated(detail: str, description: str) -> str:
@@ -262,6 +277,31 @@ async def list_tools():
             input_schema=pair_schema({"options": _OPTIONS_SCHEMA, **RETURN_PROPERTY}),
         ),
         Tool(
+            name="get_diff_scores",
+            title="Scores of a comparison, differences marked",
+            annotations=ToolAnnotations(**READ_ONLY),
+            description=(
+                "For the Diff Viewer app only: both scores of a compare_scores result as MusicXML "
+                "with the differences colored, so the app can draw them. Takes a diff_id, never a path."
+            ),
+            input_schema=_DIFF_ID_SCHEMA,
+            output_schema=DIFF_SCORES_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(DIFF_VIEWER, app_only=True),
+        ),
+        Tool(
+            name="export_diff_scores",
+            title="Save the color-annotated scores of a comparison",
+            annotations=ToolAnnotations(**WRITES_FILE),
+            description=(
+                "For the Diff Viewer app only: writes the color-annotated reference and target scores of "
+                "a compare_scores result to files and returns their paths (what export_annotated_musicxml "
+                "does for a pair). Takes a diff_id, never a path."
+            ),
+            input_schema=_DIFF_ID_SCHEMA,
+            output_schema=EXPORT_DIFF_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(DIFF_VIEWER, app_only=True),
+        ),
+        Tool(
             name="list_capabilities",
             title="Comparer capabilities",
             annotations=ToolAnnotations(**READ_ONLY),
@@ -373,7 +413,12 @@ async def _dispatch(name: str, arguments: dict, ctx=None):
 
         try:
             result = compare(reference_xml, target_xml, options)
-            return _result(present_view(result, detail))
+            content, view = present_view(result, detail)
+            if ui_registry.meta_for(DIFF_VIEWER) is not None:
+                # Only a build that can show the viewer needs the scores kept for it.
+                view["diff_id"] = diff_book.remember(reference_xml, target_xml, options)
+                content = [TextContent(type="text", text=json.dumps(view, indent=2))]
+            return _result((content, view))
         except ProcessingError as e:
             return _processing_error(e)
         except Exception as e:
@@ -499,6 +544,44 @@ async def _dispatch(name: str, arguments: dict, ctx=None):
             logger.error("export_annotated_musicxml unexpected error: %s", e)
             return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
 
+    elif name == "get_diff_scores":
+        try:
+            diff_id = arguments.get("diff_id")
+            record = diff_book.get(diff_id)
+            payload = await asyncio.to_thread(annotate, record.reference_xml, record.target_xml, record.options)
+            return _result(
+                present_diff_scores(
+                    {
+                        "diff_id": diff_id,
+                        "reference_musicxml": payload["reference_annotated_musicxml"],
+                        "target_musicxml": payload["target_annotated_musicxml"],
+                        "legend": payload["legend"],
+                    }
+                )
+            )
+        except ProcessingError as e:
+            return _processing_error(e)
+        except Exception as e:
+            logger.error("get_diff_scores unexpected error: %s", e)
+            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+
+    elif name == "export_diff_scores":
+        try:
+            record = diff_book.get(arguments.get("diff_id"))
+            payload = await asyncio.to_thread(annotate, record.reference_xml, record.target_xml, record.options)
+            content = deliver_score(
+                payload,
+                field=("reference_annotated_musicxml", "target_annotated_musicxml"),
+                mode="path",
+                stem="annotated",
+            )
+            return CallToolResult(content=content, structured_content=json.loads(content[0].text))
+        except ProcessingError as e:
+            return _processing_error(e)
+        except Exception as e:
+            logger.error("export_diff_scores unexpected error: %s", e)
+            return _error(f"Unexpected error: {e}", "PROCESSING_FAILED")
+
     elif name == "list_capabilities":
         backend_version = "unknown"
         try:
@@ -521,6 +604,8 @@ async def _dispatch(name: str, arguments: dict, ctx=None):
                 "list_changes",
                 "generate_comparison_report",
                 "export_annotated_musicxml",
+                "get_diff_scores",
+                "export_diff_scores",
                 "list_capabilities",
                 "health_check",
                 "describe_score",
@@ -589,7 +674,7 @@ def main():
     logger.info(
         "comparer-mcp ready. Tools: compare_scores, compare_musicxml, compare_musicxml_files, "
         "quick_similarity, list_changes, generate_comparison_report, "
-        "export_annotated_musicxml, list_capabilities, health_check, describe_score"
+        "export_annotated_musicxml, get_diff_scores, export_diff_scores, list_capabilities, health_check, describe_score"
     )
 
     async def _run():
