@@ -4,6 +4,7 @@
 
 import type { CallToolResult } from "@modelcontextprotocol/client";
 import { HEALTH_REPORTS, HEALTH_TOOL } from "./scenarios.ts";
+import { createPdfMock, PDF_TOOLS } from "./pdf-mock.ts";
 import { createSynthMock, SYNTH_TOOLS } from "./synth-mock.ts";
 
 export interface ToolCall {
@@ -56,6 +57,7 @@ function placeholderPage(args: Record<string, unknown>): CallToolResult {
 
 // synth-mcp's tools too (Practice Player); the audio store lives as long as the host page.
 const synth = createSynthMock();
+const pdf = createPdfMock();
 
 export const placeholderTools: ToolBackend = {
   async callTool(call) {
@@ -64,6 +66,7 @@ export const placeholderTools: ToolBackend = {
     if (call.name === HEALTH_TOOL) {
       return { content: [{ type: "text", text: "Health report" }], structuredContent: { ...HEALTH_REPORTS.ready, checks: [...HEALTH_REPORTS.ready.checks] } };
     }
+    if (PDF_TOOLS.has(call.name)) return pdf.callTool(call);
     if (SYNTH_TOOLS.has(call.name)) return synth.callTool(call);
     throw new NoSuchTool(call.name);
   },

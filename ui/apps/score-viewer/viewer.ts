@@ -10,6 +10,8 @@ import {
   type RendererFactory,
   type ScoreRenderer,
 } from "@sheet-music-mcp/ui-kit/score/ScoreRenderer";
+import { loadArtifact } from "@sheet-music-mcp/ui-kit/audio/loadAudio";
+import { errorEnvelope } from "@sheet-music-mcp/ui-kit/host/toolErrors";
 import { helpMessage, pageContext, readSavedFile, readScoreInput } from "./messages.ts";
 
 export interface ViewerUi {
@@ -23,7 +25,9 @@ export interface ViewerUi {
   showFullscreen(available: boolean, active: boolean): void;
   applyHostContext(context: HostContext): void;
   containerWidth(): number;
-  download(filename: string, content: string, mime: string): void;
+  /** A line for the polite live region: progress and outcome of a download. */
+  showStatus(text: string): void;
+  download(filename: string, content: BlobPart, mime: string): void;
 }
 
 export const NOTICES = {
@@ -35,15 +39,23 @@ export const NOTICES = {
     "The rendered file is listed below.",
   unreadable: "The viewer could not read this score.",
   pageFailed: "The viewer could not render this page. The rendered file is listed below.",
+  pdfFailed: "The viewer could not make the PDF. The rendered file is listed below.",
   noScore: "This tool call did not include a score.",
   renderFailed: (code: string) => `Rendering failed (${code}).`,
 };
+
+const PDF_TOOL = "get_pdf";
+const PDF_CHUNK_TOOL = { tool: "read_pdf_chunk", idArgument: "pdf_id" } as const;
+const PDF_FILENAME = "score.pdf";
 
 export class ScoreViewer {
   private renderer: ScoreRenderer | undefined;
   private page = 1;
   private pageCount = 1;
   private svg: string | undefined;
+  /** The score the pages show; the PDF is made from it. */
+  private xml: string | undefined;
+  private busy = false;
   private width = 0;
   private savedPath: string | undefined;
   private context: HostContext = {};
@@ -105,6 +117,27 @@ export class ScoreViewer {
     if (this.savedPath) this.ui.showDownloadFallback(this.savedPath);
   }
 
+  /** App-only get_pdf makes the PDF; read_pdf_chunk streams it by id (no path reaches the page). */
+  async downloadPdf(): Promise<void> {
+    if (!this.xml || this.busy) return;
+    this.busy = true;
+    this.ui.showStatus("Preparing the PDF…");
+    try {
+      const made = await this.bridge.callTool(PDF_TOOL, { musicxml: this.xml });
+      const pdfId = made.structuredContent?.pdf_id;
+      if (errorEnvelope(made) || typeof pdfId !== "string") throw new Error("no PDF");
+      const blob = await loadArtifact(this.bridge, PDF_CHUNK_TOOL, pdfId, { mimeType: "application/pdf" });
+      this.ui.download(PDF_FILENAME, blob, "application/pdf");
+      this.ui.showStatus(`PDF ready: ${PDF_FILENAME}`);
+    } catch {
+      this.ui.showStatus(NOTICES.pdfFailed);
+    } finally {
+      this.busy = false;
+    }
+    // A sandbox without allow-downloads drops the click silently, so always offer the fallback.
+    if (this.savedPath) this.ui.showDownloadFallback(this.savedPath);
+  }
+
   async askForHelp(): Promise<void> {
     if (!this.savedPath) return;
     await this.bridge.sendMessage(helpMessage(this.savedPath));
@@ -140,6 +173,7 @@ export class ScoreViewer {
   }
 
   private async open(xml: string): Promise<void> {
+    this.xml = xml;
     this.width = Math.round(this.ui.containerWidth());
     try {
       if (this.renderer) {

@@ -16,6 +16,8 @@ EXPECTED = {
     "health_check": ("Render health check", READ_ONLY),
     "describe_score": ("Describe score", READ_ONLY),
     "render_page_svg": ("Render score page as SVG", READ_ONLY),
+    "get_pdf": ("Render score PDF for download", WRITES_FILE),
+    "read_pdf_chunk": ("Read PDF chunk", READ_ONLY),
 }
 
 # Phrases the instructions must contain: the routing knowledge the model needs up front.

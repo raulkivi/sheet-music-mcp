@@ -145,6 +145,7 @@ raulkivi/agent-cost-analyzer (`packages/web/e2e/support/axe.ts`, `packages/mcp-a
 | ABC Workbench: six states x desktop and 360 px x default host, Claude light and Claude dark: axe, a focus ring on every Tab stop, no sideways scroll; recorded theme; X1 reduced motion | `apps/abc-workbench/e2e/themes-and-sizes.spec.ts` |
 | X1 ABC Workbench Tab order, arrow keys between changes, Space, Enter, live regions | `apps/abc-workbench/e2e/keyboard.spec.ts` |
 | T4.1 Kannel chrome: the 3 px tricolor bar (blue, black, white; the white band follows the theme), the 2 px ring in `--color-ring-primary`, 40 x 40 px minimum on every control at 360 px | `apps/score-viewer/e2e/t41-kannel-chrome.spec.ts` |
+| T4.2 Download PDF beside SVG: `get_pdf` then `read_pdf_chunk` through the mock host (placeholder PDF, `pdf-mock.ts`), `%PDF` bytes, status line, keyboard, the D6 fallback without allow-downloads, a host with no tools; the real render-mcp makes a real PDF (`real-server.spec.ts`) | `apps/score-viewer/e2e/t42-pdf-download.spec.ts`, `real-server.spec.ts` |
 | U5 Tab reaches every control with a ring; Enter and Space activate Next, Prev, zoom, Fullscreen and Download; focus is kept when a paging button disables itself; arrow and Page keys (there is no page-jump field) | `apps/score-viewer/e2e/u5-keyboard.spec.ts` |
 
 ## Performance budget (U7)

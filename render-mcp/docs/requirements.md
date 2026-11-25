@@ -1,5 +1,7 @@
 # render-mcp Requirements
 
+**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## Purpose
 
 Render a MusicXML score to a printable PDF or a screen-ready PNG/SVG image. Produces output for printing (Goal 2) and for displaying score pages in the web and Android apps.
@@ -252,6 +254,25 @@ Output:
 tools it holds the same data as the JSON text in `content[0]`. Error results are `isError`, keep
 the `{error, error_code}` content and carry no `structuredContent`, so clients do not validate
 them against the schema.
+
+### IR-8 — Tools: `get_pdf` and `read_pdf_chunk` (app-only)
+
+Behind the Score Viewer's "Download PDF" (DA2). Same visibility rules as IR-7.
+`get_pdf`: title "Render score PDF for download", preset `WRITES_FILE`. `read_pdf_chunk`: title
+"Read PDF chunk", preset `READ_ONLY`. Neither takes or returns a path.
+
+```
+get_pdf input (required, no other properties):  musicxml  string  inline MusicXML
+  structuredContent: pdf_id (opaque), byte_length, page_count, backend
+read_pdf_chunk input (all required):  pdf_id string, offset integer >= 0, length integer 1..1048576
+  structuredContent: artifact_id, offset, length, byte_length, eof, data_b64   (core chunk_payload)
+```
+
+`get_pdf` writes the PDF under `<output root>/pdf/` and stores it in a `FileArtifactStore`
+(1 h TTL, 64 entries, lost on restart); the first bytes of the file are `%PDF`. Errors use the
+`{"error", "error_code"}` envelope: a non-score `INVALID_INPUT`, a score over
+`SHEET_MUSIC_MAX_SCORE_BYTES` or an unknown, expired or malformed id `INVALID_PARAMETER`, a failed
+render `PROCESSING_FAILED`. Tests: `tests/test_get_pdf.py`.
 
 ### IR-7 — Tool: `render_page_svg` (app-only)
 

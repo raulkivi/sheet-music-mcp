@@ -20,11 +20,13 @@
       </div>
       <div class="group end">
         <button id="download" type="button" disabled>Download SVG</button>
+        <button id="download-pdf" type="button" disabled>Download PDF</button>
         <button id="fullscreen" type="button" aria-pressed="false" hidden>Fullscreen</button>
       </div>
     </div>
     <main id="score" aria-label="Score page"></main>
     <p id="notice" role="status" hidden></p>
+    <p id="status" class="status" role="status" aria-live="polite"></p>
     <div id="fallback" hidden>
       <span>If the download did not start, the rendered file is saved on your computer.</span>
       <button id="ask" type="button">Ask the assistant to open it</button>

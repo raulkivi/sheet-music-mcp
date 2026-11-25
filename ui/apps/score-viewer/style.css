@@ -103,6 +103,11 @@ button:focus-visible {
   color: var(--color-text-primary);
 }
 
+#status:empty {
+  display: none;
+}
+
+#status,
 #notice,
 #fallback,
 #saved {

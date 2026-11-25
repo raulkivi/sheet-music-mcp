@@ -12,6 +12,7 @@ export interface Controls {
   zoomOut(): void;
   resize(width: number): void;
   downloadSvg(): void;
+  downloadPdf(): Promise<void>;
   askForHelp(): Promise<void>;
   toggleFullscreen(): Promise<void>;
 }
@@ -35,6 +36,8 @@ export class DomUi implements ViewerUi {
     zoomIn: HTMLButtonElement;
     zoomOut: HTMLButtonElement;
     download: HTMLButtonElement;
+    downloadPdf: HTMLButtonElement;
+    status: HTMLElement;
     fullscreen: HTMLButtonElement;
     saved: HTMLElement;
     savedPath: HTMLElement;
@@ -60,6 +63,8 @@ export class DomUi implements ViewerUi {
       zoomIn: byId("zoom-in"),
       zoomOut: byId("zoom-out"),
       download: byId("download"),
+      downloadPdf: byId("download-pdf"),
+      status: byId("status"),
       fullscreen: byId("fullscreen"),
       saved: byId("saved"),
       savedPath: byId("saved-path"),
@@ -76,6 +81,11 @@ export class DomUi implements ViewerUi {
     el.zoomIn.addEventListener("click", () => controls.zoomIn());
     el.zoomOut.addEventListener("click", () => controls.zoomOut());
     el.download.addEventListener("click", () => controls.downloadSvg());
+    // Not disabled while it works: that would drop keyboard focus. The viewer ignores a second click.
+    el.downloadPdf.addEventListener("click", () => {
+      el.downloadPdf.setAttribute("aria-busy", "true");
+      controls.downloadPdf().finally(() => el.downloadPdf.removeAttribute("aria-busy"));
+    });
     el.fullscreen.addEventListener("click", () => void controls.toggleFullscreen());
     el.ask.addEventListener("click", () => {
       el.ask.disabled = true;
@@ -105,7 +115,7 @@ export class DomUi implements ViewerUi {
     el.next.disabled = page >= pageCount;
     if (focused === el.next && el.next.disabled && !el.prev.disabled) el.prev.focus();
     if (focused === el.prev && el.prev.disabled && !el.next.disabled) el.next.focus();
-    for (const button of [el.zoomIn, el.zoomOut, el.download]) button.disabled = false;
+    for (const button of [el.zoomIn, el.zoomOut, el.download, el.downloadPdf]) button.disabled = false;
     if (!this.firstPageShown) {
       this.firstPageShown = true;
       performance.mark(FIRST_PAGE_MARK);
@@ -126,6 +136,10 @@ export class DomUi implements ViewerUi {
     this.el.engine.textContent = ENGINE_LABELS[engine];
     this.el.engine.dataset.engine = engine;
     this.el.engine.hidden = false;
+  }
+
+  showStatus(text: string): void {
+    this.el.status.textContent = text;
   }
 
   showSavedPath(path: string): void {
@@ -154,7 +168,7 @@ export class DomUi implements ViewerUi {
     return Math.max(0, this.el.score.clientWidth - padding);
   }
 
-  download(filename: string, content: string, mime: string): void {
+  download(filename: string, content: BlobPart, mime: string): void {
     const url = URL.createObjectURL(new Blob([content], { type: mime }));
     const link = this.doc.createElement("a");
     link.href = url;

@@ -14,6 +14,7 @@ export type Control =
   | "Zoom out"
   | "Zoom in"
   | "Download SVG"
+  | "Download PDF"
   | "Fullscreen"
   | "Exit fullscreen"
   | "Ask the assistant to open it";

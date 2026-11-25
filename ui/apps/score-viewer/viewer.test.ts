@@ -50,7 +50,8 @@ class FakeUi implements ViewerUi {
   zoom = 1;
   fullscreen = { available: false, active: false };
   theme: HostContext | undefined;
-  downloads: { filename: string; content: string; mime: string }[] = [];
+  downloads: { filename: string; content: BlobPart; mime: string }[] = [];
+  statuses: string[] = [];
   width = 900;
 
   showPage(svg: string, page: number, pageCount: number) {
@@ -81,7 +82,10 @@ class FakeUi implements ViewerUi {
   containerWidth() {
     return this.width;
   }
-  download(filename: string, content: string, mime: string) {
+  showStatus(text: string) {
+    this.statuses.push(text);
+  }
+  download(filename: string, content: BlobPart, mime: string) {
     this.downloads.push({ filename, content, mime });
   }
 }
@@ -332,5 +336,76 @@ describe("ScoreViewer", () => {
       { method: "ui/request-display-mode", params: { mode: "fullscreen" } },
       { method: "ui/request-display-mode", params: { mode: "inline" } },
     ]);
+  });
+});
+
+describe("ScoreViewer PDF download (T4.2)", () => {
+  const PDF_BYTES = new TextEncoder().encode("%PDF-1.4 fake");
+  const b64 = btoa(String.fromCharCode(...PDF_BYTES));
+  const answers = {
+    get_pdf: { structuredContent: { pdf_id: "pdf-1", byte_length: PDF_BYTES.length, page_count: 5, backend: "verovio" } },
+    read_pdf_chunk: (args: Record<string, unknown>) => ({
+      structuredContent: {
+        artifact_id: args.pdf_id,
+        offset: 0,
+        length: PDF_BYTES.length,
+        byte_length: PDF_BYTES.length,
+        eof: true,
+        data_b64: b64,
+      },
+    }),
+  };
+  const script = (extra: Partial<FakeScript> = {}): FakeScript => ({
+    toolInput: { arguments: { musicxml: "<score/>" } },
+    toolResult: PDF_RESULT,
+    toolAnswers: answers,
+    ...extra,
+  });
+  const called = (bridge: FakeBridge, tool: string) =>
+    bridge.calls.filter((call) => (call.params as { name?: string }).name === tool);
+
+  it("renders the shown score on the server, reads it by id and downloads the bytes", async () => {
+    const { bridge, ui, viewer } = await started(script());
+    await viewer.downloadPdf();
+
+    const [get] = called(bridge, "get_pdf");
+    expect((get!.params as { arguments: unknown }).arguments).toEqual({ musicxml: "<score/>" });
+    const [read] = called(bridge, "read_pdf_chunk");
+    expect((read!.params as { arguments: Record<string, unknown> }).arguments).toMatchObject({ pdf_id: "pdf-1", offset: 0 });
+    expect(ui.downloads).toHaveLength(1);
+    const download = ui.downloads[0]!;
+    expect([download.filename, download.mime]).toEqual(["score.pdf", "application/pdf"]);
+    expect(new Uint8Array(await (download.content as Blob).arrayBuffer())).toEqual(PDF_BYTES);
+    expect(ui.fallbackPath).toBe("/out/score.pdf");
+  });
+
+  it("announces the progress in the status line", async () => {
+    const { ui, viewer } = await started(script());
+    await viewer.downloadPdf();
+    expect(ui.statuses).toEqual(["Preparing the PDF…", "PDF ready: score.pdf"]);
+  });
+
+  it("does nothing before a score is open", async () => {
+    const { bridge, ui, viewer } = await started({ toolAnswers: answers });
+    await viewer.downloadPdf();
+    expect(called(bridge, "get_pdf")).toHaveLength(0);
+    expect(ui.downloads).toEqual([]);
+  });
+
+  it("shows a notice and the fallback when the server cannot make the PDF", async () => {
+    const failure = { isError: true, content: [{ type: "text", text: JSON.stringify({ error: "x", error_code: "PROCESSING_FAILED" }) }] };
+    const { ui, viewer } = await started(script({ toolAnswers: { get_pdf: failure } }));
+    await viewer.downloadPdf();
+
+    expect(ui.downloads).toEqual([]);
+    expect(ui.statuses.at(-1)).toBe(NOTICES.pdfFailed);
+    expect(ui.fallbackPath).toBe("/out/score.pdf");
+  });
+
+  it("treats an unknown tool the same way", async () => {
+    const { ui, viewer } = await started(script({ toolAnswers: {} }));
+    await viewer.downloadPdf();
+    expect(ui.statuses.at(-1)).toBe(NOTICES.pdfFailed);
+    expect(ui.downloads).toEqual([]);
   });
 });
