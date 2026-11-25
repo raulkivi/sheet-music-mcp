@@ -144,6 +144,7 @@ raulkivi/agent-cost-analyzer (`packages/web/e2e/support/axe.ts`, `packages/mcp-a
 | AC-A3 error marker on the reported line within 500 ms; `validate_abc` debounced (one call per typing burst); Accept blocked while invalid | `apps/abc-workbench/e2e/live-validation.spec.ts` |
 | ABC Workbench: six states x desktop and 360 px x default host, Claude light and Claude dark: axe, a focus ring on every Tab stop, no sideways scroll; recorded theme; X1 reduced motion | `apps/abc-workbench/e2e/themes-and-sizes.spec.ts` |
 | X1 ABC Workbench Tab order, arrow keys between changes, Space, Enter, live regions | `apps/abc-workbench/e2e/keyboard.spec.ts` |
+| T4.1 Kannel chrome: the 3 px tricolor bar (blue, black, white; the white band follows the theme), the 2 px ring in `--color-ring-primary`, 40 x 40 px minimum on every control at 360 px | `apps/score-viewer/e2e/t41-kannel-chrome.spec.ts` |
 | U5 Tab reaches every control with a ring; Enter and Space activate Next, Prev, zoom, Fullscreen and Download; focus is kept when a paging button disables itself; arrow and Page keys (there is no page-jump field) | `apps/score-viewer/e2e/u5-keyboard.spec.ts` |
 
 ## Performance budget (U7)

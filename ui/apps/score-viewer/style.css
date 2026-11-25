@@ -1,4 +1,14 @@
-/* Colours and fonts come from theme.ts custom properties (host values or fallbacks). */
+/* Colors and fonts come from theme.ts custom properties (host values or fallbacks). The flag
+   white is the one Kannel brand token hosts never send (docs/design/tokens.css), so it is
+   declared here for both themes. */
+
+:root {
+  --kannel-flag-white: #ffffff;
+}
+
+:root[data-theme="dark"] {
+  --kannel-flag-white: #101217;
+}
 
 *,
 *::before,
@@ -13,6 +23,11 @@ body {
   color: var(--color-text-primary);
   font-family: var(--font-sans);
   font-size: 14px;
+}
+
+.tricolor {
+  height: 3px;
+  background: linear-gradient(#0072ce 0 33.33%, #15171c 33.33% 66.66%, var(--kannel-flag-white) 66.66% 100%);
 }
 
 .toolbar {
@@ -39,9 +54,11 @@ body {
 }
 
 button {
-  min-height: 32px;
-  padding: 4px 10px;
-  /* The host's border colours are translucent and reach only 1.5:1 to 2.9:1 (U3); a button's
+  /* 40 px on every control (design system §5), so a thumb hits it on a phone host. */
+  min-width: 40px;
+  min-height: 40px;
+  padding: 4px 12px;
+  /* The host's border colors are translucent and reach only 1.5:1 to 2.9:1 (U3); a button's
      edge is a mark, so it takes the secondary text colour, which clears 3:1 on every host set. */
   border: 1px solid var(--color-text-secondary);
   border-radius: var(--border-radius-md);
