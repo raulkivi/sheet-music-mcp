@@ -46,7 +46,7 @@ function appRoute(name) {
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost:${port}`);
-  const fixture = url.pathname.match(/^\/fixtures\/([\w.-]+\.musicxml)$/);
+  const fixture = url.pathname.match(/^\/fixtures\/([\w.-]+\.(?:musicxml|json))$/);
   const route = fixture
     ? { file: `test/fixtures/${fixture[1]}`, type: "application/xml; charset=utf-8" }
     : url.pathname === "/app.html"

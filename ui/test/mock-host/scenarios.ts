@@ -7,6 +7,7 @@ import type { ScenarioName } from "./options.ts";
 import type { ToolBackend } from "./tool-backends.ts";
 
 export const OPENING_TOOL = "render_to_pdf";
+export const DIFF_OPENING_TOOL = "compare_scores";
 export const HEALTH_TOOL = "health_check";
 
 export const PDF_RESULT: CallToolResult = {
@@ -68,7 +69,12 @@ async function fixture(name: string): Promise<string> {
   return res.text();
 }
 
+const DIFF_INPUT = { reference_path: "/home/user/scores/v1.musicxml", target_path: "/home/user/scores/v2.musicxml", detail: "full" };
+
 const INPUTS: Partial<Record<ScenarioName, () => Promise<Record<string, unknown>>>> = {
+  diff: async () => DIFF_INPUT,
+  "diff-identical": async () => DIFF_INPUT,
+  "diff-error": async () => DIFF_INPUT,
   "inline-long": async () => ({ musicxml: await fixture("satb-long.musicxml") }),
   "inline-satb": async () => ({ musicxml: await fixture("satb-4bars.musicxml") }),
   "path-only": async () => ({ musicxml_path: "/home/user/scores/satb.musicxml" }),
@@ -78,6 +84,18 @@ const INPUTS: Partial<Record<ScenarioName, () => Promise<Record<string, unknown>
 // folder); without it render-mcp would write to its shared temp folder.
 const REAL_OUTPUT_PATH = "score.pdf";
 
+const DIFF_ERROR: CallToolResult = {
+  isError: true,
+  content: [{ type: "text", text: '{"error":"reference_xml: not MusicXML","error_code":"INVALID_INPUT"}' }],
+};
+
+async function diffResult(name: ScenarioName): Promise<CallToolResult> {
+  if (name === "diff-error") return DIFF_ERROR;
+  const data = JSON.parse(await fixture("diff-result.json"));
+  const structuredContent = name === "diff-identical" ? { ...data, similarity_score: 1, changes: [], count: 0 } : data;
+  return { content: [{ type: "text", text: JSON.stringify(structuredContent) }], structuredContent };
+}
+
 /** `model` runs the opening tool for real; without it the canned result stands in. */
 export async function openingCall(name: ScenarioName, model?: ToolBackend): Promise<OpeningCall> {
   // Health scenarios are fixed: the Setup Doctor needs no score and the real render-mcp is not asked.
@@ -86,6 +104,7 @@ export async function openingCall(name: ScenarioName, model?: ToolBackend): Prom
   const makeInput = INPUTS[name];
   if (!makeInput) throw new Error(`No scenario ${name}`);
   const score = await makeInput();
+  if (name.startsWith("diff")) return { tool: DIFF_OPENING_TOOL, input: score, result: await diffResult(name) };
   if (!model) return { tool: OPENING_TOOL, input: score, result: PDF_RESULT };
   const input = { ...score, output_path: REAL_OUTPUT_PATH };
   return { tool: OPENING_TOOL, input, result: await model.callTool({ name: OPENING_TOOL, arguments: input }) };

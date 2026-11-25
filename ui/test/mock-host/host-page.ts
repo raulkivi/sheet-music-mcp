@@ -14,6 +14,7 @@ import { LoggingTransport, MessageLog, type LoggedMessage } from "./message-log.
 import { hostStyleVariables } from "./host-styles.ts";
 import { hostOptions } from "./options.ts";
 import { openingCall } from "./scenarios.ts";
+import { diffTools } from "./diff-backend.ts";
 import { noTools, placeholderTools, relayedTools, type Relay, type ToolBackend } from "./tool-backends.ts";
 
 declare global {
@@ -36,7 +37,7 @@ const options = hostOptions(location.search);
 
 function viewTools(): ToolBackend {
   if (options.tools === "none") return noTools;
-  if (options.tools === "placeholder") return placeholderTools;
+  if (options.tools === "placeholder") return options.app === "diff-viewer" ? diffTools : placeholderTools;
   if (!window.mcpHostRelay) throw new Error("server=real needs window.mcpHostRelay: use the renderMcp fixture (test/e2e/host-fixture.ts)");
   return relayedTools(window.mcpHostRelay);
 }
@@ -49,7 +50,7 @@ const box = document.getElementById("frame-box")!;
 let inlineWidth = options.width;
 box.style.width = `${inlineWidth}px`;
 const frame = document.createElement("iframe");
-frame.title = "Score Viewer";
+frame.title = options.app === "diff-viewer" ? "Diff Viewer" : "Score Viewer";
 frame.setAttribute("sandbox", options.downloads ? "allow-scripts allow-downloads" : "allow-scripts");
 // A host grants the resource's `clipboardWrite` permission by delegating it to the frame.
 if (options.clipboard) frame.setAttribute("allow", "clipboard-write");

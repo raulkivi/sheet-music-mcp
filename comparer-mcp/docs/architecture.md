@@ -447,6 +447,9 @@ MCP Apps (Diff Viewer): `server.py` registers `ui://comparer/diff-viewer` in a `
 tools via `presenter.py` (`content` = the original JSON text, `structuredContent` = the same data,
 `output_schema` from `result_schema.json_schema_for(ComparisonResult)`), every failure as
 `isError` without `structuredContent`. `call_tool()` keeps returning the content blocks.
+`compare_scores` also keeps the two scores in `diff_book.DiffBook` under an opaque `diff_id` (only
+when the viewer HTML is packaged); the app-only `get_diff_scores` and `export_diff_scores` read it,
+annotate with `annotator.annotate()` in a worker thread and return the colored pair or its file paths.
 
 "Reference, target" means each score is given inline or by path: `reference_xml` or
 `reference_path`, and `target_xml` or `target_path`, exactly one of each (`allOf` of two

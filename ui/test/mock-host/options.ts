@@ -2,6 +2,7 @@
 //
 //   scenario  inline-long | inline-satb | path-only        (default inline-long); these open with render_to_pdf
 //             health-mixed | health-ready | health-empty | health-error   open with health_check (Setup Doctor)
+//             diff | diff-identical | diff-error   open with compare_scores (Diff Viewer)
 //   theme     light | dark                                 (default light)
 //   csp       spec | spec-wasm                             (default spec-wasm; see server.mjs)
 //   downloads 1 | 0   adds allow-downloads to the sandbox  (default 1)
@@ -24,6 +25,9 @@ export const SCENARIOS = [
   "inline-long",
   "inline-satb",
   "path-only",
+  "diff",
+  "diff-identical",
+  "diff-error",
   "health-mixed",
   "health-ready",
   "health-empty",

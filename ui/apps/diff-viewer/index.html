@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Diff Viewer</title>
+  </head>
+  <body>
+    <header class="head">
+      <h1>Score differences</h1>
+      <p id="headline" class="headline">Waiting for a comparison…</p>
+    </header>
+    <div class="bar">
+      <div role="tablist" aria-label="View" class="tabs">
+        <button id="tab-scores" type="button" role="tab" aria-selected="true" aria-controls="panel-scores">Scores</button>
+        <button id="tab-report" type="button" role="tab" aria-selected="false" aria-controls="panel-report" tabindex="-1" disabled>Report</button>
+      </div>
+      <div class="actions">
+        <button id="export" type="button" disabled>Save annotated scores</button>
+        <button id="open-viewer" type="button" disabled>Open in Score Viewer</button>
+      </div>
+    </div>
+    <ul id="exported" class="chips" aria-label="Saved files" hidden></ul>
+    <p id="notice" role="status" hidden></p>
+    <section id="panel-scores" role="tabpanel" aria-labelledby="tab-scores">
+      <div class="layout">
+        <div class="changes">
+          <div id="filters" role="group" aria-label="Show only these kinds of change" class="filters" hidden></div>
+          <ul id="changes" class="change-list" aria-label="Changes"></ul>
+        </div>
+        <div class="viewing">
+          <p id="selection" class="selection" role="status" aria-live="polite">Select a change to see it in both scores.</p>
+          <div class="panes">
+            <section class="pane" aria-labelledby="reference-title">
+              <h2 id="reference-title">Reference</h2>
+              <div id="pane-reference" class="pane-body" role="region" aria-label="Reference score" tabindex="0"></div>
+            </section>
+            <section class="pane" aria-labelledby="target-title">
+              <h2 id="target-title">Target</h2>
+              <div id="pane-target" class="pane-body" role="region" aria-label="Target score" tabindex="0"></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section id="panel-report" role="tabpanel" aria-labelledby="tab-report" hidden>
+      <pre id="report" class="report" tabindex="0" aria-label="Comparison report"></pre>
+    </section>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

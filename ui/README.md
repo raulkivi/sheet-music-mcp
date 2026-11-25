@@ -9,6 +9,7 @@ Verovio WASM inlined; no network references). See
 |---|---|
 | `packages/kit/` | Shared kit: `HostBridge` (interface; `openLink` asks the host to open a URL, `ui/open-link`), `ExtAppsBridge` (the only importer of `@modelcontextprotocol/ext-apps`), `FakeBridge`, `toolErrors.ts` (error envelope), `theme.ts`, `score/ScoreRenderer.ts` (interface), `score/ScoreView.ts` (Verovio WASM renderer, the only importer of Verovio), `score/ServerScoreRenderer.ts` (pages from render-mcp's app-only `render_page_svg`), `score/openScore.ts` (first renderer that starts wins), `score/paging.ts` (pure; `layout-cases.json` is shared with render-mcp's tests), `audio/loadAudio.ts` (pure; pages synth-mcp's app-only `read_audio_chunk` into a `Blob`; `AudioLoadError` carries the server's error code) |
 | `apps/score-viewer/` | Score Viewer for render-mcp (`ui://render/score-viewer`); `e2e/` holds its Playwright tests |
+| `apps/diff-viewer/` | Diff Viewer for comparer-mcp (`ui://comparer/diff-viewer`): `model.ts` (change list, kinds, filters, selection text), `messages.ts` (app-only tool contract, the one `ui/message`, measure lookup), `viewer.ts` (behavior over `HostBridge`), `dom.ts` and `panes.ts` (DOM and the two Verovio panes); `e2e/` holds its Playwright tests |
 | `apps/setup-doctor/` | Setup Doctor for all six servers (`ui://<server>/setup-doctor`): shows the hosting server's own `health_check` report. Pure modules `report.ts` (report to view model and plain-text copy) and `clipboard.ts` (async clipboard, legacy copy, manual fallback), behavior in `doctor.ts`, markup in `dom.ts`; `e2e/` holds its Playwright tests |
 | `test/mock-host/` | Mock MCP Apps host: embeds the built HTML in a sandboxed iframe and speaks the host side with ext-apps' `AppBridge`; logs every message (`window.__host.log`). `mcp-relay.ts` runs the real render-mcp over stdio for specs that ask for it |
 | `test/e2e/` | Spec helpers, one job each: `host-helpers.ts` (`openHost`, `messages`, `pageLabel`), `axe.ts` (axe-core in a frame), `focus.ts` (focused control and its ring), `layout.ts` (sideways scroll, frame width), `view-frame.ts` (`ScoreViewerFrame` page object and the U4 `SIZES`); and the `renderMcp` Playwright fixture (`host-fixture.ts`) |
@@ -37,6 +38,8 @@ The tokens in `docs/design/tokens.css` are tested by `test/theme/brand-tokens.te
 | `npm run copy-assets` | Copies each built page to every server registered for it, `<server>/src/<pkg>/ui/assets/<name>.html` |
 | `npm run measure` | Page size, time to first rendered page (desktop; phone viewport with 4x CPU throttle) and peak JS heap |
 | `npm run perf` | `measure`, then checks the numbers against `perf-budget.json`; exits 1 on a breach (run `build` first) |
+
+Another worktree may already hold port 4173: set `MOCK_HOST_PORT` to run the e2e server on another port.
 
 Playwright uses its cached Chromium; on a fresh machine run `npx playwright install chromium`, or point
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` at a pre-installed Chromium binary. The real-server spec needs
@@ -99,11 +102,11 @@ folder), the host plays the model and runs `render_to_pdf` there, and the view's
 ### Options
 
 Query parameters:
-`scenario` (`inline-long`, `inline-satb`, `path-only` open with `render_to_pdf`; `health-mixed`, `health-ready`, `health-empty`, `health-error` open with `health_check`, for the Setup Doctor), `theme` (`light`, `dark`), `csp` (`spec` =
+`scenario` (`inline-long`, `inline-satb`, `path-only` open with `render_to_pdf`; `health-mixed`, `health-ready`, `health-empty`, `health-error` open with `health_check`, for the Setup Doctor; `diff`, `diff-identical`, `diff-error` open with `compare_scores`, for the Diff Viewer: a recorded result with changes, with none, or an error), `theme` (`light`, `dark`), `csp` (`spec` =
 the spec's default policy, `spec-wasm` = the same plus `'wasm-unsafe-eval'`), `host` (`default` = a partial set of variables; `claude` = the recorded Claude Desktop variables, with `theme` picking the `light-dark()` branch; `test/mock-host/host-styles.ts`), `clipboard` (`1` default, `0`: delegate `clipboard-write` to the frame or not, as a host honoring the resource's `clipboardWrite` permission does), `downloads` (`1`/`0`:
 `allow-downloads` in the iframe sandbox), `modes` (display modes offered, e.g. `inline,fullscreen`),
 `app` (registered app name, default `score-viewer`; a spec opens another page with `openHost(page, { app: "practice-coach" })`; 404 if that page is not built), `width` (container width in CSS pixels; in fullscreen the view fills the window) and `server`: `1` (default) answers `render_page_svg` with five
-placeholder pages, `0` offers no tool, `real` relays to render-mcp (needs the `renderMcp` fixture).
+placeholder pages (for `app=diff-viewer`: `get_diff_scores` and `export_diff_scores` from `test/fixtures/diff-*`, made with the real comparer-mcp, see `diff-backend.ts`), `0` offers no tool, `real` relays to render-mcp (needs the `renderMcp` fixture).
 
 ## Specs and the rows they cover
 
@@ -117,6 +120,8 @@ raulkivi/agent-cost-analyzer (`packages/web/e2e/support/axe.ts`, `packages/mcp-a
 | AC-R1 self-contained page; AC-R3 Next and Prev; handshake, zoom, theme, resize, download, fullscreen, both render paths | `apps/score-viewer/e2e/score-viewer.spec.ts` |
 | R1 / U1 real render-mcp over stdio; U2 real fallback path (spec CSP, pages from the real `render_page_svg`) | `apps/score-viewer/e2e/real-server.spec.ts` |
 | U4 six stops (first page; later page zoomed in; download fallback; server page; path-only notice; no-engine notice) at 1280 px, 360 px and fullscreen: axe on the chrome (SVG notation excluded), Tab order with a visible ring, no sideways scroll | `apps/score-viewer/e2e/u4-stops-and-sizes.spec.ts` |
+| Diff Viewer: render (kinds from the operations present, both scores drawn, diff colors), AC-C3 (clicking bar 19 marks and scrolls both panes), filters, Report tab, export and Open in Score Viewer call log (one `ui/message`, one export call), identical / error / no-engine states | `apps/diff-viewer/e2e/diff-viewer.spec.ts` |
+| Diff Viewer U8: five stops in the default host, Claude light and Claude dark at 1280 px and 360 px (axe, ring on every Tab stop, no sideways scroll), Tab order, stacked panes at 360 px, X1 keyboard (list arrows, Home/End, Enter, Space on a kind, tab arrows, `aria-live` summary) | `apps/diff-viewer/e2e/u8-states-and-sizes.spec.ts` |
 | Setup Doctor: ok/warn/fail, ready, empty and error states; Check again (the `health_check` call); copy report and copy fix (clipboard, legacy and manual fallback); doc link through `ui/open-link`; Claude light and dark with axe; 360 px and 1280 px without sideways scroll; Tab order with a ring, Enter and Space; `aria-live` copy confirmation; reduced motion | `apps/setup-doctor/e2e/setup-doctor.spec.ts` |
 | U3 contrast in Node: text 4.5:1 and marks 3:1 (button borders, focus ring, the score's notes and staff lines in `currentColor`) from the real `style.css`, in Claude light, Claude dark and the fallbacks, each failing pair named | `test/theme/theme-contrast.test.ts` |
 | U3 the mock host applies the recorded Claude theme and variables, also on a theme change; the U4 stops also run in Claude dark | `apps/score-viewer/e2e/u3-host-themes.spec.ts`, `u4-stops-and-sizes.spec.ts` |

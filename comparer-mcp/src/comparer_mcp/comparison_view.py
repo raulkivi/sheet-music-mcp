@@ -98,6 +98,10 @@ COMPARE_SCORES_OUTPUT_SCHEMA = {
         "count": {"type": "integer", "minimum": 0},
         "report": {"type": "string", "description": "Human-readable comparison report"},
         "part_diffs": {"type": "array", "items": json_schema_for(PartDiff)},
+        "diff_id": {
+            "type": "string",
+            "description": "Opaque id of this comparison's scores, present when the Diff Viewer is available",
+        },
     },
     "required": ["detail", "similarity_score", "summary"],
 }

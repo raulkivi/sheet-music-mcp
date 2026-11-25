@@ -35,6 +35,43 @@ describe("openingCall", () => {
   });
 });
 
+describe("diff scenarios", () => {
+  const DIFF = { changes: [{ operation: "PITCH_CHANGE" }], count: 1, similarity_score: 0.9, diff_id: "d" };
+
+  function stubDiffFixture() {
+    vi.stubGlobal("fetch", async () => ({ text: async () => JSON.stringify(DIFF) }));
+  }
+
+  it("opens with compare_scores, the others with render_to_pdf", async () => {
+    stubDiffFixture();
+    expect((await openingCall("diff")).tool).toBe("compare_scores");
+    expect((await openingCall("diff-error")).tool).toBe("compare_scores");
+    expect((await openingCall("inline-satb")).tool).toBe("render_to_pdf");
+  });
+
+  it("diff replays the recorded comparison", async () => {
+    stubDiffFixture();
+    const { input, result } = await openingCall("diff");
+    expect(input).toMatchObject({ detail: "full" });
+    expect(result.structuredContent).toEqual(DIFF);
+  });
+
+  it("diff-identical has no changes and similarity 1", async () => {
+    stubDiffFixture();
+    expect((await openingCall("diff-identical")).result.structuredContent).toMatchObject({
+      similarity_score: 1,
+      changes: [],
+      count: 0,
+    });
+  });
+
+  it("diff-error is an error envelope", async () => {
+    const { result } = await openingCall("diff-error");
+    expect(result.isError).toBe(true);
+    expect(JSON.parse((result.content![0] as { text: string }).text).error_code).toBe("INVALID_INPUT");
+  });
+});
+
 describe("health scenarios", () => {
   it("open with the server's own health_check and a report built like the core's", async () => {
     const mixed = await openingCall("health-mixed");
