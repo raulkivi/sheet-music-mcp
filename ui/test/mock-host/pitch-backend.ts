@@ -7,12 +7,10 @@
 
 import type { CallToolResult } from "@modelcontextprotocol/client";
 import type { TakeName } from "./options.ts";
+import { SESSION_ID, SESSION_VIEW } from "./pitch-session.ts";
 import { NoSuchTool, toolError, type ToolBackend, type ToolCall } from "./tool-backends.ts";
 
-export const SESSION_ID = "mock-session";
 
-// pitch-mcp's session view (engine.describe_session) for the four-bar Alto.
-export const SESSION_VIEW = { session_id: SESSION_ID, part_id: "P2", part_name: "Alto", measure_count: 4, duration_seconds: 16, tempo_bpm: 60 };
 
 export interface TakeStep {
   measure: number;

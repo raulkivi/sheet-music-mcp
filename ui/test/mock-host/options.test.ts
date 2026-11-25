@@ -15,6 +15,7 @@ describe("hostOptions", () => {
       app: "score-viewer",
       take: "steady",
       latencyMs: 0,
+      clipboard: true,
     });
   });
 
@@ -38,7 +39,12 @@ describe("hostOptions", () => {
       app: "score-viewer",
       take: "steady",
       latencyMs: 0,
+      clipboard: true,
     });
+  });
+
+  it("scenario=health-mixed and clipboard=0 are read", () => {
+    expect(hostOptions("?scenario=health-mixed&clipboard=0")).toMatchObject({ scenario: "health-mixed", clipboard: false });
   });
 
   it("app= picks which registered page the frame loads", () => {

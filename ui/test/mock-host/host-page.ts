@@ -13,8 +13,9 @@ import {
 import { LoggingTransport, MessageLog, type LoggedMessage } from "./message-log.ts";
 import { hostStyleVariables } from "./host-styles.ts";
 import { hostOptions } from "./options.ts";
+import { diffTools } from "./diff-backend.ts";
 import { pitchTools } from "./pitch-backend.ts";
-import { openingCall, openingTool } from "./scenarios.ts";
+import { openingCall } from "./scenarios.ts";
 import { composeTools, noTools, placeholderTools, relayedTools, type Relay, type ToolBackend } from "./tool-backends.ts";
 
 declare global {
@@ -38,6 +39,7 @@ const options = hostOptions(location.search);
 function viewTools(): ToolBackend {
   if (options.tools === "none") return noTools;
   if (options.tools === "placeholder") {
+    if (options.app === "diff-viewer") return diffTools;
     // The coach scenarios add pitch-mcp's session tools to the placeholder pages.
     if (!options.scenario.startsWith("coach")) return placeholderTools;
     const state = options.scenario === "coach-loaded" ? "loaded" : "monitoring";
@@ -57,8 +59,10 @@ const box = document.getElementById("frame-box")!;
 let inlineWidth = options.width;
 box.style.width = `${inlineWidth}px`;
 const frame = document.createElement("iframe");
-frame.title = options.app === "practice-coach" ? "Practice Coach" : "Score Viewer";
+frame.title = options.app === "diff-viewer" ? "Diff Viewer" : options.app === "practice-coach" ? "Practice Coach" : "Score Viewer";
 frame.setAttribute("sandbox", options.downloads ? "allow-scripts allow-downloads" : "allow-scripts");
+// A host grants the resource's `clipboardWrite` permission by delegating it to the frame.
+if (options.clipboard) frame.setAttribute("allow", "clipboard-write");
 
 let displayMode: McpUiDisplayMode = "inline";
 const hostContext: McpUiHostContext = {
@@ -69,18 +73,20 @@ const hostContext: McpUiHostContext = {
   containerDimensions: { width: options.width, maxHeight: MAX_HEIGHT },
   locale: "en-US",
   platform: "web",
-  toolInfo: { tool: { name: openingTool(options.scenario), inputSchema: { type: "object" } } },
+  toolInfo: { tool: { name: opening.tool, inputSchema: { type: "object" } } },
 } as McpUiHostContext;
 
 const bridge = new AppBridge(
   null,
   { name: "mock-host", version: "0.0.0" },
-  { serverTools: {}, logging: {}, message: { text: {} }, updateModelContext: { text: {} } },
+  { serverTools: {}, logging: {}, openLinks: {}, message: { text: {} }, updateModelContext: { text: {} } },
   { hostContext },
 );
 
 bridge.oncalltool = (params) => tools.callTool(params);
 bridge.onmessage = async () => ({});
+// The host would open the link in the user's browser; the log records the request.
+bridge.onopenlink = async () => ({});
 bridge.onupdatemodelcontext = async () => ({});
 bridge.onrequestdisplaymode = async ({ mode }) => {
   if (options.modes.includes(mode)) displayMode = mode;

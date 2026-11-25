@@ -3,6 +3,7 @@
 // Node relay that the Playwright fixture exposes as window.mcpHostRelay.
 
 import type { CallToolResult } from "@modelcontextprotocol/client";
+import { HEALTH_REPORTS, HEALTH_TOOL } from "./scenarios.ts";
 
 export interface ToolCall {
   name: string;
@@ -55,6 +56,10 @@ function placeholderPage(args: Record<string, unknown>): CallToolResult {
 export const placeholderTools: ToolBackend = {
   async callTool(call) {
     if (call.name === "render_page_svg") return placeholderPage(call.arguments ?? {});
+    // Check again: the problems are fixed by the time the user asks again.
+    if (call.name === HEALTH_TOOL) {
+      return { content: [{ type: "text", text: "Health report" }], structuredContent: { ...HEALTH_REPORTS.ready, checks: [...HEALTH_REPORTS.ready.checks] } };
+    }
     throw new NoSuchTool(call.name);
   },
 };

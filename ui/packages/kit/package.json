@@ -9,6 +9,7 @@
     "./host/FakeBridge": "./src/host/FakeBridge.ts",
     "./host/toolErrors": "./src/host/toolErrors.ts",
     "./theme": "./src/theme.ts",
+    "./audio/loadAudio": "./src/audio/loadAudio.ts",
     "./score/ScoreView": "./src/score/ScoreView.ts",
     "./score/ScoreRenderer": "./src/score/ScoreRenderer.ts",
     "./score/ServerScoreRenderer": "./src/score/ServerScoreRenderer.ts",

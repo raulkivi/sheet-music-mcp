@@ -18,6 +18,8 @@ EXPECTED = {
     "generate_comparison_report": ("Comparison report", READ_ONLY),
     # May write the annotated scores to files (return: auto/path), plan decision W2-5
     "export_annotated_musicxml": ("Export color-annotated diff", WRITES_FILE),
+    "get_diff_scores": ("Scores of a comparison, differences marked", READ_ONLY),
+    "export_diff_scores": ("Save the color-annotated scores of a comparison", WRITES_FILE),
     "list_capabilities": ("Comparer capabilities", READ_ONLY),
     "health_check": ("Comparer health check", READ_ONLY),
     "describe_score": ("Describe score", READ_ONLY),

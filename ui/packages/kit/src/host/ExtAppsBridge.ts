@@ -28,6 +28,7 @@ export interface AppLike {
   callServerTool(params: { name: string; arguments?: Record<string, unknown> }): Promise<object>;
   sendMessage(params: { role: "user"; content: TextBlock[] }): Promise<{ isError?: boolean }>;
   updateModelContext(params: { content: TextBlock[] }): Promise<unknown>;
+  openLink(params: { url: string }): Promise<{ isError?: boolean }>;
   sendSizeChanged(params: Size): Promise<void>;
   requestDisplayMode(params: { mode: DisplayMode }): Promise<{ mode: DisplayMode }>;
 }
@@ -99,6 +100,11 @@ export class ExtAppsBridge implements HostBridge {
 
   async updateModelContext(text: string): Promise<void> {
     await this.app.updateModelContext({ content: [{ type: "text", text }] });
+  }
+
+  async openLink(url: string): Promise<void> {
+    const result = await this.app.openLink({ url });
+    if (result.isError) throw new Error("The host refused to open the link.");
   }
 
   notifySize(size: Size): void {

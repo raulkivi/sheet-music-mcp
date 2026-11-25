@@ -165,3 +165,34 @@ class TestSetupDoctorResource:
     @pytest.mark.parametrize("server", ["render", "synth", "abc", "omr", "pitch", "comparer", "musicxml-abc"])
     def test_accepts_the_servers_uri_names(self, server):
         assert setup_doctor_resource(server).uri == f"ui://{server}/setup-doctor"
+
+
+class TestSetupDoctorServing:
+    """Each server serves the built page from its own package (``ui/assets/setup-doctor.html``)."""
+
+    PAGE = "<!doctype html><title>Setup Doctor</title>"
+
+    def test_a_packaged_page_is_listed_linked_and_read_with_the_clipboard_permission(self):
+        from sheet_music_mcp_core.ui import InMemoryAssetSource, UiRegistry
+
+        resource = setup_doctor_resource("synth")
+        registry = UiRegistry([resource], InMemoryAssetSource({"setup-doctor.html": self.PAGE}))
+
+        assert [r.uri for r in registry.list_resources()] == ["ui://synth/setup-doctor"]
+        assert registry.meta_for(resource) == {"ui": {"resourceUri": "ui://synth/setup-doctor"}}
+        contents = registry.read("ui://synth/setup-doctor").contents[0]
+        assert contents.text == self.PAGE
+        assert contents.meta == {"ui": {"permissions": {"clipboardWrite": {}}}}
+
+    def test_a_missing_page_is_hidden_and_a_read_says_to_build_it(self):
+        from sheet_music_mcp_core.ui import InMemoryAssetSource, UiAssetMissing, UiRegistry
+
+        resource = setup_doctor_resource("synth")
+        registry = UiRegistry([resource], InMemoryAssetSource({}))
+
+        assert registry.list_resources() == []
+        assert registry.meta_for(resource) is None
+        with pytest.raises(UiAssetMissing) as caught:
+            registry.read("ui://synth/setup-doctor")
+        assert caught.value.error_code == "UI_ASSET_MISSING"
+        assert "npm run build" in str(caught.value)

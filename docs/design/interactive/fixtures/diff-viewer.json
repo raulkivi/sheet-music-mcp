@@ -1,0 +1,14 @@
+{
+  "reference_label": "Edition A (1962)",
+  "target_label": "Edition B (2024)",
+  "similarity_score": 0.92,
+  "view_measures": [17, 18],
+  "changes": [
+    {"id": 1, "kind": "pitch", "part_name": "Alto", "measure": 18, "beat": 2, "reference": "E♭", "target": "E♮"},
+    {"id": 2, "kind": "rhythm", "part_name": "Tenor", "measure": 20, "reference": "dotted quaver", "target": "two semiquavers"},
+    {"id": 3, "kind": "lyrics", "part_name": "Soprano", "measure": 21, "reference": "“cor-pus”", "target": "“cor-pus-”"},
+    {"id": 4, "kind": "dynamics", "part_name": "Bass", "measure": 22, "reference": "mp", "target": "mf"},
+    {"id": 5, "kind": "pitch", "part_name": "Soprano", "measure": 23, "beat": 1, "reference": "A♭", "target": "A♮"},
+    {"id": 6, "kind": "rhythm", "part_name": "Alto", "measure": 24, "reference": "crotchet rest", "target": "quaver rest"}
+  ]
+}

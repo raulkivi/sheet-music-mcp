@@ -13,6 +13,21 @@ export const APPS = {
   "score-viewer": {
     targets: [{ server: "render-mcp", pkg: "render_mcp" }],
   },
+  "diff-viewer": {
+    targets: [{ server: "comparer-mcp", pkg: "comparer_mcp" }],
+  },
+  // One page, six copies: each server serves it from its own package and shows only its own
+  // health_check report (decision DA5), so nothing here knows another server exists.
+  "setup-doctor": {
+    targets: [
+      { server: "render-mcp", pkg: "render_mcp" },
+      { server: "synth-mcp", pkg: "synth_mcp" },
+      { server: "omr-mcp", pkg: "omr_mcp" },
+      { server: "musicxml-abc-mcp", pkg: "musicxml_abc_mcp" },
+      { server: "pitch-mcp", pkg: "pitch_mcp" },
+      { server: "comparer-mcp", pkg: "comparer_mcp" },
+    ],
+  },
   "practice-coach": {
     targets: [{ server: "pitch-mcp", pkg: "pitch_mcp" }],
   },

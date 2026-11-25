@@ -87,6 +87,10 @@ export class FakeBridge implements HostBridge {
     this.calls.push({ method: "ui/update-model-context", params: { text } });
   }
 
+  async openLink(url: string): Promise<void> {
+    this.calls.push({ method: "ui/open-link", params: { url } });
+  }
+
   notifySize(size: Size): void {
     this.calls.push({ method: "ui/notifications/size-changed", params: size });
   }

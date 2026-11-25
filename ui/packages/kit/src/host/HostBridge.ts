@@ -52,6 +52,8 @@ export interface HostBridge {
   sendMessage(text: string): Promise<void>;
   /** Replaces what the model knows about the app's state; no follow-up turn. */
   updateModelContext(text: string): Promise<void>;
+  /** Asks the host to open a URL in the user's browser; rejects when the host refuses. */
+  openLink(url: string): Promise<void>;
   notifySize(size: Size): void;
   /** Resolves with the mode the host actually granted. */
   requestDisplayMode(mode: DisplayMode): Promise<DisplayMode>;

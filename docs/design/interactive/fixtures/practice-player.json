@@ -1,0 +1,15 @@
+{
+  "title": "Ave verum",
+  "duration_seconds": 30,
+  "tempo_bpm": 84,
+  "tempo_factor": 1.0,
+  "measures": [17, 24],
+  "loop": true,
+  "count_in": true,
+  "parts": [
+    {"id": "P1", "name": "Soprano", "included": true, "gain": 1.0},
+    {"id": "P2", "name": "Alto", "included": true, "gain": 1.0},
+    {"id": "P3", "name": "Tenor", "included": false, "gain": 0.0},
+    {"id": "P4", "name": "Bass", "included": false, "gain": 0.0}
+  ]
+}

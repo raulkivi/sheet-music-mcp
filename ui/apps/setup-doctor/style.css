@@ -1,0 +1,233 @@
+/* Colors and fonts come from theme.ts custom properties (host values or fallbacks). Status
+   colors are fixed pairs (Kannel tokens, docs/design/design-system.md) so a badge's text always
+   clears 4.5:1 on its own tint; the badge also says the status in words. */
+
+:root {
+  --ok-bg: light-dark(#e4f2e8, #17301f);
+  --ok-fg: light-dark(#1e6b3a, #8fd3a4);
+  --warn-bg: light-dark(#fbf0d2, #3a2d0c);
+  --warn-fg: light-dark(#7a5300, #f2c14e);
+  --fail-bg: light-dark(#f9e3e1, #3a1c1a);
+  --fail-fg: light-dark(#a8322d, #f09a94);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--color-background-secondary);
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+h1 {
+  margin: 0;
+  font-size: 16px;
+}
+
+h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.pill,
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pill {
+  margin-left: auto;
+}
+
+.ok {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.warn {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.fail {
+  background: var(--fail-bg);
+  color: var(--fail-fg);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+button {
+  min-height: 40px;
+  padding: 6px 14px;
+  /* The host's border colors are translucent (U3); a button's edge is a mark, so it takes the
+     secondary text color, which clears 3:1 on every host set. */
+  border: 1px solid var(--color-text-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* The main action is set apart by weight and a heavier edge, not by a fill: the host's accent
+   colors do not promise contrast against any text color. */
+button.primary {
+  border-width: 2px;
+  font-weight: 600;
+}
+
+button:disabled,
+button[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+button.small {
+  min-height: 32px;
+  padding: 2px 10px;
+}
+
+button:focus-visible,
+a:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-ring-primary);
+  outline-offset: 2px;
+}
+
+main {
+  padding: 16px;
+}
+
+.status {
+  min-height: 1.4em;
+  margin: 8px 16px 0;
+  color: var(--color-text-secondary);
+}
+
+#notice {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+#notice.error {
+  color: var(--fail-fg);
+}
+
+.checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.check .title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
+}
+
+.version,
+.hint {
+  color: var(--color-text-secondary);
+}
+
+.hint {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.fix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.fix pre {
+  flex: 1 1 16em;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-secondary);
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+a {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+
+#manual-box {
+  margin-top: 16px;
+}
+
+#manual-box label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--color-text-secondary);
+}
+
+textarea {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--color-text-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

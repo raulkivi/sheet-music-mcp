@@ -151,9 +151,28 @@ The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The s
 without a UI build the resource is unlisted and the tools carry no `_meta.ui`. Those tools also
 return `structuredContent` and declare an `output_schema`: the full `ComparisonResult` (schema
 generated from `models.py`, AC-C1) or `{report, similarity_score}`. `content` is unchanged text
-(golden test). The viewer reuses `list_changes` and `export_annotated_musicxml` as ordinary
-app-callable tools; no app-only tools exist. Failures stay `{error, error_code}` with `isError: true`
-and no `structuredContent`. Open: AC-C2 (size-bounded `content`, proposal P7) is not implemented.
+(golden test). Failures stay `{error, error_code}` with `isError: true` and no `structuredContent`.
+Open: AC-C2 (size-bounded `content`, proposal P7) is not implemented.
+
+How the scores reach the page: the viewer cannot read paths, and `compare_scores` returns only the
+differences. When the HTML is packaged, `compare_scores` stores the pair and its options in a
+`DiffBook` (`diff_book.py`, an `ExpiringTable`: 1 hour, 16 entries) and adds an opaque `diff_id` to
+`structuredContent` (and the `content` text). Two app-only tools (`_meta.ui.visibility: ["app"]`,
+listed only to clients that support MCP Apps) take that id and never a path; an unknown or expired
+id is `INVALID_PARAMETER` without echoing the id:
+
+- `get_diff_scores(diff_id)` returns `{diff_id, reference_musicxml, target_musicxml, legend}`: both
+  scores annotated as `export_annotated_musicxml` does, so Verovio draws the changed notes in the
+  legend colors.
+- `export_diff_scores(diff_id)` writes the two annotated scores under the output root (`return: path`)
+  and returns `{reference_annotated_musicxml_path, target_annotated_musicxml_path, ...}` plus
+  resource links. It stands in for `export_annotated_musicxml`, which needs the original scores or
+  paths the page does not have.
+
+The page (`ui/apps/diff-viewer/`): change list and kind filters derived from the operations
+present, two score panes that both scroll to the selected change's bar (AC-C3), a Report tab, and
+"Open in Score Viewer", which posts one fixed `ui/message` naming the saved files so the model
+chains to render-mcp (an app cannot call another server).
 
 ### Input formats
 
