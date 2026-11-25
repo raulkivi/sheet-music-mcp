@@ -1,10 +1,10 @@
 # MCP Apps improvement plan (after PR #192)
 
-**last changed:** 2026-11-24
+**last changed:** 2026-11-25
 **source:** https://github.com/raulkivi/sheet-music-mcp
 
-**Status:** Partially implemented (snapshot checked 2026-11-24): 10 tasks done, 5 active/partial,
-14 not started, and 1 skipped. Server-side contracts and foundation work are in place, and the
+**Status:** Partially implemented (updated 2026-11-25): 15 tasks done, 11 active, 4 not started, and
+1 skipped. Server-side contracts and foundation work are in place, and the
 Score Viewer is the only app page shipped. The other six app pages are not built. Input: Kannel
 interactive mockups merged in
 [#192](https://github.com/raulkivi/sheet-music-mcp/pull/192) (`docs/design/interactive/`), the visual
@@ -97,6 +97,7 @@ judgement. Local runs are marked "local candidate"; they are verified outside th
 | T0.3 | Settle the mockup source of truth (DA1) and mark the other set as archived or generated. | S | Haiku | Yes | docs only | One README states the canonical set; links updated |
 | T0.4 | Document the `warnings[]` contract (`{code, severity, message, measure?, part?}`) in `docs/conventions.md`. Needed by G1. | S | Sonnet | No | `docs/conventions.md` | Contract reviewed; used by T2.1 |
 | T0.5 | Remove sample data from the mockups, keep the shape of each `structuredContent` as a fixture. | S | Haiku | Yes | `docs/design/interactive/*.dc.html` (≤3 per run) | Each board renders from a fixture file only; no inline sentences that look like data |
+| T0.6 | Multi-page UI build: one registry (`ui/apps.config.mjs`) drives the vite build, `check-html`, `copy-assets`, the mock host (`?app=<name>`) and `publish.yml`. Added 2026-11-25 (§6 DA11). | M | Sonnet | No | `ui/` build scripts, mock host, workflows | Registry unit tests; Score Viewer e2e unchanged |
 
 ### Phase 1: practice pair (P0)
 
@@ -199,17 +200,18 @@ gantt
     T0.2 Render and check (skipped)     :t02, 2026-11-16, 2d
     T0.3 Mockup source of truth         :done, t03, 2026-11-11, 1d
     T0.4 warnings contract              :done, t04, 2026-11-11, 1d
-    T0.5 Remove sample data             :t05, after t03, 1d
+    T0.5 Remove sample data             :done, t05, 2026-11-25, 1d
+    T0.6 Multi-page UI build            :done, t06, 2026-11-25, 1d
 
     section Phase 1 Practice pair
     T1.1 Grading defects                :done, t11, 2026-11-11, 1d
     T1.2 Grading state uncertain        :done, t12, 2026-11-11, 1d
     T1.7 Verify synth features          :done, t17, 2026-11-11, 1d
-    T1.3 Practice Coach page            :t13, after t12, 4d
-    T1.4 Adaptive polling               :t14, after t13, 2d
+    T1.3 Practice Coach page            :active, t13, 2026-11-25, 4d
+    T1.4 Adaptive polling               :active, t14, 2026-11-25, 2d
     T1.5 Ask Claude for tips            :t15, after t13, 1d
-    T1.8 Audio delivery                 :t18, after t17, 2d
-    T1.9 Practice Player page           :t19, after t18 t01, 4d
+    T1.8 Audio delivery                 :done, t18, 2026-11-25, 1d
+    T1.9 Practice Player page           :active, t19, 2026-11-25, 4d
 
     section Phase 2 Review tools
     T2.1 OMR warnings                   :done, t21, 2026-11-11, 1d
@@ -218,15 +220,15 @@ gantt
     T2.4 Multi-page merge               :t24, after t23, 2d
     T2.5 apply_abc_edit                 :done, t25, 2026-11-11, 1d
     T2.6 Hunk model                     :done, t26, 2026-11-11, 1d
-    T2.7 ABC Workbench page             :t27, after t25 t26, 4d
+    T2.7 ABC Workbench page             :active, t27, 2026-11-25, 4d
 
     section Phase 3 Comparison and setup
-    T3.1 compare_scores                 :t31, after t04, 2d
-    T3.2 Verovio color spike           :active, t32, 2026-10-28, 1d
-    T3.3 Diff Viewer page               :t33, after t31 t32, 4d
-    T3.4 Open in Score Viewer           :t34, after t33, 1d
+    T3.1 compare_scores                 :done, t31, 2026-11-25, 1d
+    T3.2 Verovio color spike            :done, t32, 2026-10-28, 2026-11-25
+    T3.3 Diff Viewer page               :active, t33, 2026-11-25, 4d
+    T3.4 Open in Score Viewer           :active, t34, 2026-11-25, 1d
     T3.5 Standard health structure      :done, t35, 2026-11-11, 1d
-    T3.6 Setup Doctor page              :t36, after t35, 2d
+    T3.6 Setup Doctor page              :active, t36, 2026-11-25, 2d
 
     section Phase 4 Score Viewer
     T4.1 Score Viewer Kannel chrome     :active, t41, 2026-11-11, 2d
@@ -248,29 +250,30 @@ Dates are YYYY-MM-DD. Update this table with the Gantt chart after every step.
 | T0.2 | Render and check boards | Skipped | | | Owner skipped local browser/axe checks; the published Design canvas is not a substitute for the planned validation |
 | T0.3 | Mockup source of truth | Done | 2026-11-11 | 2026-11-11 | DA1 confirmed; `docs/design/interactive/README.md` names the canonical set and supersedes `mockups/` |
 | T0.4 | warnings contract | Done | 2026-11-11 | 2026-11-11 | Contract is documented in `docs/conventions.md` and used by OMR results |
-| T0.5 | Remove sample data | Not started | | | |
+| T0.5 | Remove sample data | Done | 2026-11-25 | 2026-11-25 | PR #214: each board reads an inline copy of `docs/design/interactive/fixtures/<board>.json`; pitch states are the server's. Boards not rendered (no `support.js`) |
+| T0.6 | Multi-page UI build | Done | 2026-11-25 | 2026-11-25 | PR #212: `ui/apps.config.mjs` registry; 300 unit, 64 e2e |
 | T1.1 | Grading defects | Done | 2026-11-11 | 2026-11-11 | PR #203 (#200 now merged; CI 23/23 after timing-flake fix bf32be3 and rebase onto main). xfail 4 → 0; 509 unit. Real-mic release evidence (PM1/PM2) still pending |
 | T1.2 | Grading state uncertain | Done | 2026-11-11 | 2026-11-11 | PR #200, 494 passed. The owner accepted the YIN 0.6 and octave 100-cent thresholds on 2026-11-11 |
-| T1.3 | Practice Coach page | Not started | | | DA7: server microphone is the v1 default; page not built |
-| T1.4 | Adaptive polling | Not started | | | |
+| T1.3 | Practice Coach page | Active | 2026-11-25 | | DA7: server microphone is the v1 default; built with T1.4 on `feat/ui-practice-coach` |
+| T1.4 | Adaptive polling | Active | 2026-11-25 | | With T1.3 |
 | T1.5 | Ask Claude for tips | Not started | | | |
 | T1.6 | Browser mic (optional) | Active | 2026-10-28 | | Server-side pushed sessions and app-only `push_audio_chunk` exist; browser AudioWorklet capture and page are not built |
 | T1.7 | Verify synth features | Done | 2026-11-11 | 2026-11-11 | Report only, §7. All features exist |
-| T1.8 | Audio delivery | Not started | | | Server-side `read_audio_chunk` / `get_score_xml` exist; page-side chunk-to-Blob loader is not built |
-| T1.9 | Practice Player page | Not started | | | DA3/DA4: presets and per-part volume; local `playbackRate` first; page not built |
+| T1.8 | Audio delivery | Done | 2026-11-25 | 2026-11-25 | PR #215: kit `loadAudio`; written by local setup6 in one run, 11 hidden acceptance tests passed |
+| T1.9 | Practice Player page | Active | 2026-11-25 | | DA3/DA4: presets and per-part volume; local `playbackRate` first; `feat/ui-practice-player` |
 | T2.1 | OMR warnings | Done | 2026-11-11 | 2026-11-11 | PR #198, 318 passed. Fewer-parts-than-staves warnings are informational and returned for all clients |
 | T2.2 | SATB staff estimate | Active | 2026-10-28 | | `staff_systems_estimate` is implemented with unit coverage; real-sample integration evidence remains |
 | T2.3 | Recognition Review page | Not started | | | |
 | T2.4 | Multi-page merge (optional) | Not started | | | DA9: excluded from v1; optional future work |
 | T2.5 | apply_abc_edit | Done | 2026-11-11 | 2026-11-11 | PR #201, 306 unit + 6 integration. CI 23/23; the security notes were fixed in PR #204 |
 | T2.6 | Hunk model | Done | 2026-11-11 | 2026-11-11 | PR #197, CI 24/24 pass, 283 unit tests |
-| T2.7 | ABC Workbench page | Not started | | | |
-| T3.1 | compare_scores | Not started | | | |
-| T3.2 | Verovio color spike | Active | 2026-10-28 | | Render test and phase-0 findings confirm note colors; proposal §5.4 still says “To verify” and needs syncing |
-| T3.3 | Diff Viewer page | Not started | | | DA8: use `ui/message` to hand off to the Score Viewer |
-| T3.4 | Open in Score Viewer | Not started | | | |
+| T2.7 | ABC Workbench page | Active | 2026-11-25 | | `feat/ui-abc-workbench` |
+| T3.1 | compare_scores | Done | 2026-11-25 | 2026-11-25 | PR #213: `compare_scores(detail=summary\|changes\|report\|full)` with `output_schema`; five old tools are deprecated aliases; comparer 387 unit, 7 integration |
+| T3.2 | Verovio color spike | Done | 2026-10-28 | 2026-11-25 | Verovio applies MusicXML `color` to noteheads; proposal §5.4 synced in PR #214 |
+| T3.3 | Diff Viewer page | Active | 2026-11-25 | | DA8: use `ui/message` to hand off to the Score Viewer; with T3.4 on `feat/ui-diff-viewer` |
+| T3.4 | Open in Score Viewer | Active | 2026-11-25 | | With T3.3 |
 | T3.5 | Standard health structure | Done | 2026-11-11 | 2026-11-11 | Already on main via PR #178 (merged). Verified: core `health.py`, six servers return it with `output_schema`. No new PR |
-| T3.6 | Setup Doctor page | Not started | | | DA5: one page per server's own checks; shared page not built |
+| T3.6 | Setup Doctor page | Active | 2026-11-25 | | DA5: one page per server's own checks; `feat/ui-setup-doctor` |
 | T4.1 | Score Viewer Kannel chrome | Active | 2026-11-11 | | Theme tokens and focus ring exist; tricolor bar and 40 px targets remain |
 | T4.2 | Download SVG or PDF | Active | 2026-10-28 | | SVG and fallback exist; PDF download remains (DA2: offer both) |
 | T4.3 | Part filter and highlight | Not started | | | |
@@ -304,6 +307,8 @@ After every implementation step, before the next step starts:
 | 2026-11-11 | Interview 2 | naturals bug, T1.2, T2.5, next batch | Naturals bug: fix now, own PR. T1.2 thresholds: accept as is. T2.5: strict bar count, multi-staff as a whole, key/time/clef ignored in ABC; lyrics carry-over not chosen. Next: T1.1, T3.5, naturals; T1.3 waits for #200 merge; T2.2 needs real samples | none |
 | 2026-11-11 | Owner answers | DA1, T0.2 | DA1 confirmed (`interactive/` canonical). T0.2 skipped (no `support.js`). §10 link change pending owner go-ahead | none |
 | 2026-11-24 | Status reconciliation | T1.6, T2.2, T3.2, T4.1–T4.3, baseline | Checked plan claims against current server code, tests, findings, and `ui/`: updated completed/partial work; only Score Viewer exists as a page; other app pages remain unbuilt | Browser capture, real-sample OMR integration, PDF download, and remaining app pages |
+| 2026-11-25 | Batch 1 | T0.5, T0.6, T1.8, T3.1, T3.2 | PRs #212 (ui 300 unit, 64 e2e), #213 (comparer 387 unit, 7 integration), #214 (docs), #215 (ui 306 unit; setup6 first run) merged. T0.6 added: the build was hard-wired to one page | none |
+| 2026-11-25 | Batch 2 started | T1.3, T1.4, T1.9, T2.7, T3.3, T3.4, T3.6 | Five page agents (Sonnet), one branch each | none |
 
 ---
 
@@ -323,6 +328,7 @@ The decisions below were confirmed by the owner on 2026-11-11; they are no longe
 | DA8 | Diff Viewer "open in Score Viewer": `ui/message` (chain through model). | Yes |
 | DA9 | Recognition Review multi-page in v1? | No; single page first, multi-page in T2.4 |
 | DA10 | Icons cornflower and waveform: draw now or drop? | Draw the waveform (Practice Player); drop the cornflower unless used |
+| DA11 | Scope change 2026-11-25 (coordinator, not an owner decision): add T0.6 (multi-page UI build) before the page tasks | Added; one registry entry per page so parallel page branches do not conflict |
 
 ---
 
@@ -332,13 +338,10 @@ The decisions below were confirmed by the owner on 2026-11-11; they are no longe
   - `part_gains`, `preset` (`learning`, `karaoke`, `equal`) with `focus_part`, `measures`, `repeat` (1–20), `count_in_bars` (0–4), `metronome`, `tempo_factor`, `starting_pitches` (`parts`).
   - `timbre` enum is `score` (default), `piano`, `choir`, `organ`. `score` is not in the mockup's list; the page must send one of the four.
   - `read_audio_chunk` and `get_score_xml` are app-only. Not verified that the page is served them.
-- Tests were not run for the read-only T1.7 feature audit; the Practice Player page still needs
-  the client-side loader in T1.8.
+- Tests were not run for the read-only T1.7 feature audit; the T1.8 loader (`loadAudio`) is merged.
 - `start_practice` and `list_sessions` exist server-side; verify their use when the T1.3 page is built.
 - T1.6 still needs browser-side AudioWorklet capture and the permission-denied fallback.
 - T2.2 still needs the planned integration check on real samples.
-- T3.2's result is in `mcp-apps-phase0-findings.md` and `ScoreView.test.ts`; update the proposal's
-  §5.4 open question to match.
 
 ## 8. Rules applied
 
