@@ -10,8 +10,10 @@ version/arrangement comparison, OMR quality evaluation, round-trip fidelity test
 (score references) complete. UX Wave 3: `options.measure_range` renamed to `options.measures`
 (and `list_changes`'s `measure_range` to `measures`), old names kept as deprecated aliases.
 MCP Apps Diff Viewer server side done (`ui://comparer/diff-viewer`, `structuredContent`, output schemas); the page is not built yet.
-341 unit tests pass (+7 integration, which need the omr-mcp `.mxl` samples). `server.py` exposes
-all 9 tools; engine.py/models.py/part_matcher.py/note_aligner.py/measure_comparator.py/report.py/
+`compare_scores` (C24) consolidates the five compare tools (`detail`: summary, changes, report, full);
+the old names are deprecated aliases for one minor release.
+387 unit tests pass (+7 integration, which need the omr-mcp `.mxl` samples). `server.py` exposes
+all 10 tools; engine.py/models.py/part_matcher.py/note_aligner.py/measure_comparator.py/report.py/
 annotator.py/utils.py are all implemented and independently usable.
 
 ---
@@ -36,6 +38,7 @@ Install dependencies: `uv sync --extra dev` (pytest is in the `dev` extra; plain
 | `src/comparer_mcp/score_inputs.py` | Reference/target pair: schema and loading (inline or path) |
 | `src/comparer_mcp/engine.py` | Comparison orchestration (no MCP imports) |
 | `src/comparer_mcp/models.py` | Dataclasses: ComparisonResult, NoteDiff, etc. |
+| `src/comparer_mcp/comparison_view.py` | `compare_scores`: detail levels, `view_of()`, filter folding, output schema (no MCP) |
 | `src/comparer_mcp/presenter.py` | `content` (unchanged JSON text) + `structuredContent` and output schemas for the Diff Viewer |
 | `src/comparer_mcp/result_schema.py` | JSON Schema generated from the `models.py` dataclasses |
 | `src/comparer_mcp/part_matcher.py` | Part matching logic (name, instrument, range) |
@@ -55,17 +58,18 @@ Install dependencies: `uv sync --extra dev` (pytest is in the `dev` extra; plain
 
 | Tool | Description |
 |------|-------------|
-| `compare_musicxml` | Full diff of two scores (inline or by path) |
-| `compare_musicxml_files` | Full diff of two MusicXML file paths (read roots apply) |
-| `quick_similarity` | Similarity score (0.0–1.0) + summary |
-| `list_changes` | Filtered note-level diffs (`part`, `measures`) |
-| `generate_comparison_report` | Human-readable version comparison report |
+| `compare_scores` | The comparison tool: `detail` summary/changes/report/full, `parts`, `measures`, `options`; `structuredContent` + `output_schema` |
+| `compare_musicxml` | Deprecated alias (`detail="full"`): full diff of two scores (inline or by path) |
+| `compare_musicxml_files` | Deprecated alias (`detail="full"`): Full diff of two MusicXML file paths (read roots apply) |
+| `quick_similarity` | Deprecated alias (`detail="summary"`): Similarity score (0.0–1.0) + summary |
+| `list_changes` | Deprecated alias (`detail="changes"`): Filtered note-level diffs (`part`, `measures`) |
+| `generate_comparison_report` | Deprecated alias (`detail="report"`): Human-readable version comparison report |
 | `export_annotated_musicxml` | Colored MusicXML diff export; paths for large results (`return`), feed them to render-mcp's `musicxml_path` |
 | `describe_score` | Shared core tool: parts (IDs), key, time, range, measures — cheap, no music21 |
 | `health_check` | Server status and music21 version |
 | `list_capabilities` | Server metadata per conventions |
 
-MCP Apps Diff Viewer (`ui://comparer/diff-viewer`, `server.DIFF_VIEWER`): `compare_musicxml`,
+MCP Apps Diff Viewer (`ui://comparer/diff-viewer`, `server.DIFF_VIEWER`): `compare_scores`, `compare_musicxml`,
 `compare_musicxml_files` and `generate_comparison_report` link it (`_meta.ui.resourceUri`) only when
 `comparer_mcp/ui/assets/diff-viewer.html` is packaged (hatch `artifacts`; gitignored build output).
 They return `structuredContent` (the full `ComparisonResult`, or `{report, similarity_score}`) and

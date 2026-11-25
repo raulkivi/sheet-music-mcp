@@ -1,5 +1,7 @@
 # comparer-mcp
 
+**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 <!-- mcp-name: io.github.raulkivi/comparer-mcp -->
 
 MCP server for music-aware comparison of MusicXML files. Provides structured, multi-level diffs
@@ -26,11 +28,12 @@ and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if something doesn't work.
 
 | Tool | Description |
 |------|-------------|
-| `compare_musicxml` | Full diff of two scores, inline or by path → structured `ComparisonResult` JSON |
-| `compare_musicxml_files` | Full diff of two MusicXML file paths (`.musicxml`, `.xml`, or `.mxl`) inside the allowed folders → structured `ComparisonResult` JSON |
-| `quick_similarity` | Similarity score (0.0–1.0) + summary statistics only, no per-note detail |
-| `list_changes` | Note-level diffs (operation != `MATCH`), optionally filtered by part name and/or measure range |
-| `generate_comparison_report` | Human-readable version comparison report — similarity headline, missing/extra parts and measures, key/time signature changes, note-level differences grouped by measure range (e.g. "transposed by 3 semitones in measures 17-24") |
+| `compare_scores` | **The comparison tool.** `detail`: `summary` (default: similarity + statistics), `changes` (adds note-level differences), `report` (adds the readable report) or `full` (adds the per-part, per-measure diff); `parts` and `measures` narrow it. Inline or by path → structured result with an `output_schema` |
+| `compare_musicxml` | Deprecated: use `compare_scores(detail="full")`. Full diff of two scores, inline or by path → structured `ComparisonResult` JSON |
+| `compare_musicxml_files` | Deprecated: use `compare_scores(detail="full")`. Full diff of two MusicXML file paths (`.musicxml`, `.xml`, or `.mxl`) inside the allowed folders → structured `ComparisonResult` JSON |
+| `quick_similarity` | Deprecated: use `compare_scores(detail="summary")`. Similarity score (0.0–1.0) + summary statistics only, no per-note detail |
+| `list_changes` | Deprecated: use `compare_scores(detail="changes")`. Note-level diffs (operation != `MATCH`), optionally filtered by part name and/or measure range |
+| `generate_comparison_report` | Deprecated: use `compare_scores(detail="report")`. Human-readable version comparison report — similarity headline, missing/extra parts and measures, key/time signature changes, note-level differences grouped by measure range (e.g. "transposed by 3 semitones in measures 17-24") |
 | `export_annotated_musicxml` | MusicXML with per-note color annotations marking the diff. Small results come back inline (`reference_annotated_musicxml` + `target_annotated_musicxml`); large ones are written to files and returned as `*_path` fields plus a `score_summary` (`return`: `auto`/`path`/`inline`). Pass the paths to render-mcp's `render_to_pdf`/`render_to_image` as `musicxml_path` |
 | `describe_score` | Title, key, time, tempo, parts (IDs, names, clefs, ranges), measures and duration of a score, without returning the score |
 | `health_check` | Server status — verifies music21 is importable and runs a self-comparison smoke test |

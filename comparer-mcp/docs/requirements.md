@@ -1,5 +1,7 @@
 # comparer-mcp — Requirements
 
+**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## Functional requirements
 
 ### FR-1: Full comparison
@@ -61,7 +63,18 @@ Return only the similarity score and summary statistics (no note-level detail) f
 
 ### FR-7: MCP tools
 
-Expose as MCP server with tools: `compare_musicxml`, `compare_musicxml_files`, `quick_similarity`, `list_changes`, `generate_comparison_report`, `export_annotated_musicxml`, `describe_score`, `health_check`, `list_capabilities`.
+Expose as MCP server with tools: `compare_scores`, `compare_musicxml`, `compare_musicxml_files`, `quick_similarity`, `list_changes`, `generate_comparison_report`, `export_annotated_musicxml`, `describe_score`, `health_check`, `list_capabilities`.
+
+`compare_scores` (UX C24) is the one comparison tool:
+`compare_scores(reference_xml | reference_path, target_xml | target_path, detail, parts?, measures?, options?)`
+with `detail` `summary` (default), `changes`, `report` or `full`. The levels are cumulative:
+summary = `{detail, similarity_score, summary}`; changes adds `changes[]` (note diffs with `part_name`;
+`operation` is one of PITCH_CHANGE, DURATION_CHANGE, SUBSTITUTION, INSERTION, DELETION) and `count`;
+report adds `report`; full adds all of them plus `part_diffs`. Top-level `parts` and `measures` are folded
+into `options` (same value in both places is fine, different values are `INVALID_PARAMETER`). Unlike the
+old `list_changes.part`, `parts` narrows the comparison, so the similarity covers those parts only.
+The five older tools stay for one minor release as deprecated aliases: same output shapes, a
+"Deprecated: use compare_scores(detail=…)" description and one log warning per process.
 
 `describe_score` is the shared tool from `sheet-music-mcp-core` (UX Wave 2, C18): title, composer,
 key, time, tempo, parts (MusicXML part ID, name, clef, range), measures, lyrics and duration as small
@@ -133,7 +146,7 @@ The per-tool table of titles and presets is `tests/test_tool_metadata.py`. The s
 
 ### MCP Apps: Diff Viewer
 
-`ui://comparer/diff-viewer` (proposal 5.4). `compare_musicxml`, `compare_musicxml_files` and
+`ui://comparer/diff-viewer` (proposal 5.4). `compare_scores` (`structuredContent` = the same view as `content`, schema `COMPARE_SCORES_OUTPUT_SCHEMA`), `compare_musicxml`, `compare_musicxml_files` and
 `generate_comparison_report` link it through `_meta.ui.resourceUri` when the HTML is packaged;
 without a UI build the resource is unlisted and the tools carry no `_meta.ui`. Those tools also
 return `structuredContent` and declare an `output_schema`: the full `ComparisonResult` (schema

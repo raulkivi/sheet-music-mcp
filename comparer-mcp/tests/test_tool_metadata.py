@@ -10,6 +10,7 @@ from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
 from comparer_mcp.server import app, list_tools
 
 EXPECTED = {
+    "compare_scores": ("Compare scores (summary, changes, report or full diff)", READ_ONLY),
     "compare_musicxml": ("Compare scores", READ_ONLY),
     "compare_musicxml_files": ("Compare score files", READ_ONLY),
     "quick_similarity": ("Score similarity", READ_ONLY),
@@ -23,7 +24,7 @@ EXPECTED = {
 }
 
 # Phrases the instructions must contain: the routing knowledge the model needs up front.
-INSTRUCTION_PHRASES = ('quick_similarity', 'list_changes', 'reference_path', 'describe_score')
+INSTRUCTION_PHRASES = ("compare_scores", 'quick_similarity', 'list_changes', 'reference_path', 'describe_score')
 
 
 def _tools():
