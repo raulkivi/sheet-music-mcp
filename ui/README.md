@@ -14,8 +14,9 @@ Verovio WASM inlined; no network references). See
 | `test/theme/` | U3 contrast (R3), Node only, one job per module: `contrast.ts` (colour parsing, WCAG ratio, `var()`/`color-mix` resolution), `css-vars.ts` (reads `style.css` by selector and property; `light-dark()` and `rgba()`), `host-sets.ts` (host sets: Claude light and dark, recorded, and a fallback set per theme for a host that sends nothing), `recordings/claude-desktop.json` (the recorded Claude Desktop variables), and `theme-contrast.test.ts` |
 | `test/fixtures/` | MusicXML fixtures |
 | `test/perf/` | U7 `budget.ts`: pure `checkBudget` (named breaches) and `summarise` (measure report to metrics), unit-tested in `budget.test.ts` |
+| `apps.config.mjs` | The page registry: app name to the server(s) that serve it. The only shared file a new page edits |
 | `perf-budget.json` | The U7 limits |
-| `scripts/` | `check-html.mjs` (AC-R1), `copy-assets.mjs`, `measure.mjs` (measures), `perf.mjs` (joins measure, budget and check; needs Node 22.18+ to import the `.ts` module) |
+| `scripts/` | `build.mjs` (every registered app, or the ones named), `lib/apps.mjs` (pure registry functions), `has-pages.mjs` (release workflow: does a server ship pages), `check-html.mjs` (AC-R1), `copy-assets.mjs`, `measure.mjs` (measures; Score Viewer only), `perf.mjs` (joins measure, budget and check; needs Node 22.18+ to import the `.ts` module) |
 
 Node 20 or later. Dependency versions are exact and locked in `package-lock.json`.
 
@@ -29,10 +30,10 @@ The tokens in `docs/design/tokens.css` are tested by `test/theme/brand-tokens.te
 | `npm ci` | Installs the locked dependencies |
 | `npm test` | Vitest unit tests (kit, app logic, AC-R1 checker; Verovio runs in Node) |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm run build` | Builds `dist/score-viewer.html`, then fails if it references anything off-origin (AC-R1) |
+| `npm run build` | Builds `dist/<name>.html` for every registered app, then fails if one references anything off-origin (AC-R1). `npm run build -- score-viewer` builds only the named app(s) and keeps the other pages in `dist/` |
 | `npm run test:e2e` | Builds the mock host's script, then runs Playwright against the built page in the mock host (run `build` first). No retries |
 | `npm run build:host` | Builds `test/mock-host/dist/host.js` (the host page and `AppBridge`) |
-| `npm run copy-assets` | Copies `dist/score-viewer.html` to `../render-mcp/src/render_mcp/ui/assets/` |
+| `npm run copy-assets` | Copies each built page to every server registered for it, `<server>/src/<pkg>/ui/assets/<name>.html` |
 | `npm run measure` | Page size, time to first rendered page (desktop; phone viewport with 4x CPU throttle) and peak JS heap |
 | `npm run perf` | `measure`, then checks the numbers against `perf-budget.json`; exits 1 on a breach (run `build` first) |
 
@@ -43,9 +44,27 @@ render-mcp's own venv: `uv sync --frozen --extra dev` in `../render-mcp`.
 ## How the pages reach a server
 
 The built HTML is generated, not committed (decision D1). `npm run build && npm run copy-assets` puts
-it in `render-mcp/src/render_mcp/ui/assets/`, which is gitignored; the release workflow does the
-same before `uv build`, and hatch packages the file through its `artifacts` setting. Without the
-file, render-mcp serves text-only tools.
+each page in `<server>/src/<pkg>/ui/assets/<name>.html` for every server registered for it; those
+paths are gitignored, the release workflow does the same before `uv build` (only for servers in the
+registry, via `scripts/has-pages.mjs`), and hatch packages the files through the server's
+`artifacts = ["src/<pkg>/ui/assets/*.html"]` setting, which all six servers already have. Without
+the file, a server serves text-only tools.
+
+### Adding a page
+
+1. Create `apps/<name>/` with `index.html`, `main.ts`, `package.json` and `e2e/` (the specs, see U8).
+2. Add one entry to `apps.config.mjs`:
+
+   ```js
+   "practice-coach": { targets: [{ server: "pitch-mcp", pkg: "pitch_mcp" }] },
+   ```
+
+   A page for several servers lists several targets (Setup Doctor: one entry, six targets).
+
+Nothing else changes: `vite.config.ts`, `build.mjs`, `check-html.mjs`, `copy-assets.mjs`, the mock
+host and the release workflow all read the registry. `test/apps-registry.test.ts` fails if a name is
+not a safe file name, a target repeats, or an entry has no `apps/<name>/index.html` or points at a
+server package that does not exist.
 
 ## Two render paths
 
@@ -60,7 +79,9 @@ asks render-mcp's app-only `render_page_svg` tool for each page. Both lay pages 
 ## Mock host
 
 `node test/mock-host/server.mjs [port]` serves the host page at `/` (after `npm run build:host`) and
-the built app at `/app.html` with the CSP a host would apply. The page (`host-page.ts`) uses
+the built app at `/app.html` with the CSP a host would apply. `/app.html` serves the Score Viewer;
+`/app.html?app=<name>` serves any registered app's `dist/<name>.html` (404 for a name not in the
+registry). The page (`host-page.ts`) uses
 ext-apps' own `AppBridge` over a `PostMessageTransport`, so the app is tested against the real
 protocol code, not a hand-written copy. Its parts each do one job: `options.ts` parses the query,
 `scenarios.ts` supplies the tool call that opens the view, `tool-backends.ts` answers the view's
@@ -80,7 +101,7 @@ Query parameters:
 `scenario` (`inline-long`, `inline-satb`, `path-only`), `theme` (`light`, `dark`), `csp` (`spec` =
 the spec's default policy, `spec-wasm` = the same plus `'wasm-unsafe-eval'`), `host` (`default` = a partial set of variables; `claude` = the recorded Claude Desktop variables, with `theme` picking the `light-dark()` branch; `test/mock-host/host-styles.ts`), `downloads` (`1`/`0`:
 `allow-downloads` in the iframe sandbox), `modes` (display modes offered, e.g. `inline,fullscreen`),
-`width` (container width in CSS pixels; in fullscreen the view fills the window) and `server`: `1` (default) answers `render_page_svg` with five
+`app` (registered app name, default `score-viewer`; a spec opens another page with `openHost(page, { app: "practice-coach" })`; 404 if that page is not built), `width` (container width in CSS pixels; in fullscreen the view fills the window) and `server`: `1` (default) answers `render_page_svg` with five
 placeholder pages, `0` offers no tool, `real` relays to render-mcp (needs the `renderMcp` fixture).
 
 ## Specs and the rows they cover

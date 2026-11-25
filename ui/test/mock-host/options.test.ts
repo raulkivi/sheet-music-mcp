@@ -12,6 +12,7 @@ describe("hostOptions", () => {
       width: 1000,
       tools: "placeholder",
       host: "default",
+      app: "score-viewer",
     });
   });
 
@@ -32,7 +33,13 @@ describe("hostOptions", () => {
       width: 360,
       tools: "real",
       host: "default",
+      app: "score-viewer",
     });
+  });
+
+  it("app= picks which registered page the frame loads", () => {
+    expect(hostOptions("?app=practice-coach").app).toBe("practice-coach");
+    expect(() => hostOptions("?app=../x")).toThrow(/Invalid app/);
   });
 
   it("maps server=0 to no tools and server=1 to placeholder pages", () => {

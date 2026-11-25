@@ -75,8 +75,8 @@ jobs:
           path: ui/playwright-report/
           if-no-files-found: ignore
           retention-days: 7
-      # Copies the built page into render-mcp, where the wheel packages it.
-      - name: Copy built page into render-mcp
+      # Copies each built page into the servers in ui/apps.config.mjs, where the wheels package them.
+      - name: Copy built pages into the servers
         working-directory: ui
         run: npm run copy-assets
       # Builds the wheel and checks the HTML is inside with no off-origin references.

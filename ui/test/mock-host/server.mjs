@@ -8,6 +8,8 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { APPS } from "../../apps.config.mjs";
+import { distFile } from "../../scripts/lib/apps.mjs";
 
 const root = new URL("../../", import.meta.url);
 const port = Number(process.argv[2] ?? process.env.MOCK_HOST_PORT ?? 4173);
@@ -33,15 +35,23 @@ export const CSP = {
 const routes = {
   "/": { file: "test/mock-host/index.html", type: "text/html; charset=utf-8" },
   "/host.js": { file: "test/mock-host/dist/host.js", type: "text/javascript; charset=utf-8", missing: "run npm run build:host" },
-  "/app.html": { file: "dist/score-viewer.html", type: "text/html; charset=utf-8", app: true, missing: "run npm run build" },
 };
+
+// /app.html serves a registered app: ?app=<name>, the Score Viewer when absent.
+const DEFAULT_APP = "score-viewer";
+function appRoute(name) {
+  if (!Object.hasOwn(APPS, name)) return null;
+  return { file: distFile(name), type: "text/html; charset=utf-8", app: true, missing: `run npm run build -- ${name}` };
+}
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost:${port}`);
   const fixture = url.pathname.match(/^\/fixtures\/([\w.-]+\.musicxml)$/);
   const route = fixture
     ? { file: `test/fixtures/${fixture[1]}`, type: "application/xml; charset=utf-8" }
-    : routes[url.pathname];
+    : url.pathname === "/app.html"
+      ? appRoute(url.searchParams.get("app") ?? DEFAULT_APP)
+      : routes[url.pathname];
   if (!route) {
     res.writeHead(404).end("not found");
     return;

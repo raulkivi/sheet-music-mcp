@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 // AC-R1: a built app page must load nothing from anywhere, so hosts need no CSP allowances.
-// Usage: node scripts/check-html.mjs dist/score-viewer.html [...]
+// Usage: node scripts/check-html.mjs [dist/<name>.html ...]   (no paths = every registered app)
 
 import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { APPS } from "../apps.config.mjs";
+import { appNames, distFile } from "./lib/apps.mjs";
 
 const RAW_TEXT = /<(script|style)\b([^>]*)>[\s\S]*?<\/\1\s*>/gi;
 const TAG = /<([a-z][a-z0-9-]*)\b([^>]*)>/gi;
@@ -30,10 +32,7 @@ function isInDocument(tag, value) {
 }
 
 function main(paths) {
-  if (paths.length === 0) {
-    console.error("usage: check-html.mjs <file.html> [...]");
-    return 2;
-  }
+  if (paths.length === 0) paths = appNames(APPS).map((name) => fileURLToPath(new URL(`../${distFile(name)}`, import.meta.url)));
   let status = 0;
   for (const path of paths) {
     const refs = externalReferences(readFileSync(path, "utf8"));
