@@ -5,6 +5,7 @@
 
 import type { CallToolResult } from "@modelcontextprotocol/client";
 import { ABC_PROPOSED, isAbcScenario, STORED_ABC, type AbcScenario } from "./abc-tools.ts";
+import { isOmrScenario, OMR_INPUT, OMR_OPENING, OMR_OPENING_TOOL } from "./omr-tools.ts";
 import type { ScenarioName } from "./options.ts";
 import { SESSION_VIEW } from "./pitch-session.ts";
 import type { ToolBackend } from "./tool-backends.ts";
@@ -156,6 +157,11 @@ export async function openingCall(name: ScenarioName, model?: ToolBackend): Prom
   if (isAbcScenario(name)) {
     if (model) throw new Error("server=real runs render-mcp; the ABC scenarios use the placeholder tools");
     return ABC_OPENING[name];
+  }
+  // The Recognition Review opens on a recognize_sheet result; omr-tools.ts answers its own calls.
+  if (isOmrScenario(name)) {
+    if (model) throw new Error("server=real runs render-mcp; the review scenarios use the placeholder tools");
+    return { tool: OMR_OPENING_TOOL, input: OMR_INPUT, result: OMR_OPENING[name] };
   }
   // Health scenarios are fixed: the Setup Doctor needs no score and the real render-mcp is not asked.
   const health = HEALTH_SCENARIOS[name];

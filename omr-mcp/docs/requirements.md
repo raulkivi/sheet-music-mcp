@@ -1,6 +1,6 @@
 # omr-mcp Requirements
 
-**Last changed:** 2026-11-11 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 ## Purpose
 
@@ -312,6 +312,19 @@ the resource is not listed. `recognize_sheet_to_file` stays text-only.
   shared `FileArtifactStore`. Jobs and artifacts expire after an hour; the table holds at most 16
   jobs (each a whole score); both are lost on restart. A page whose image cannot be read still
   recognises, with `has_preview: false`.
+
+The page (`ui/apps/recognition-review/`, T2.3) reads only this contract:
+
+- The issue list is `warnings[]` and nothing else (errors first, then warnings, then notes), each
+  with its severity in words, its bar and part; selecting one scrolls the score to that bar. A result
+  with no warnings shows no issues.
+- `metadata.staff_systems_estimate` greater than `metadata.staves_detected` shows advice built from
+  those two numbers (and, for oemer, a pointer to the Audiveris engine); nothing is assumed beyond them.
+- The engine switch calls `recognize_sheet` (or `recognize_sheets` for an `images` request) again with
+  the original tool input and the other `engine`, and shows the new result.
+- Accept sends one fixed `ui/message` (no score, path or warning text) and a `ui/update-model-context`
+  with counts only.
+- v1 shows page 1 of a multi-page result and says so; the multi-page view is a later task.
 
 ## Constraints
 

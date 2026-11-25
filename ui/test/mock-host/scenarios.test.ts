@@ -57,6 +57,24 @@ describe("ABC scenarios", () => {
   });
 });
 
+describe("Recognition Review scenarios", () => {
+  it("review opens on a recognize_sheet result with warnings, for the image the page re-runs", async () => {
+    const opening = await openingCall("review");
+    expect(opening.tool).toBe("recognize_sheet");
+    expect(opening.input).toEqual({ image: expect.stringMatching(/\.png$/) });
+    expect((opening.result.structuredContent as { warnings: unknown[] }).warnings.length).toBeGreaterThan(0);
+  });
+
+  it("review-clean has no warnings and review-error is a failed call", async () => {
+    expect((await openingCall("review-clean")).result.structuredContent).toMatchObject({ warnings: [] });
+    expect((await openingCall("review-error")).result.isError).toBe(true);
+  });
+
+  it("does not run a review scenario against the real render-mcp", async () => {
+    await expect(openingCall("review", { callTool: async () => ({ content: [] }) })).rejects.toThrow(/placeholder/);
+  });
+});
+
 describe("the Practice Coach scenarios", () => {
   it("coach opens with start_practice for the Alto of the four-bar score and returns the session view", async () => {
     stubFixtures();
