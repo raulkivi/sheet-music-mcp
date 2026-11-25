@@ -22,6 +22,10 @@ describe("the registry", () => {
     expect(apps["score-viewer"]?.targets).toEqual([{ server: "render-mcp", pkg: "render_mcp" }]);
   });
 
+  it("holds the Practice Player for synth-mcp", () => {
+    expect(apps["practice-player"]?.targets).toEqual([{ server: "synth-mcp", pkg: "synth_mcp" }]);
+  });
+
   it("holds the Setup Doctor for all six servers, each from its own package", () => {
     expect(apps["setup-doctor"]?.targets).toEqual([
       { server: "render-mcp", pkg: "render_mcp" },

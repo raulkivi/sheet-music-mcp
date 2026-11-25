@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Practice Player</title>
+  </head>
+  <body>
+    <header class="head">
+      <svg class="icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+        <g stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none">
+          <path d="M3 10v4M7 7v10M11 4v16M15 8v8M19 6v12M22 11v2" />
+        </g>
+      </svg>
+      <h1>Practice Player</h1>
+      <span id="state" class="pill" data-state="loading">Loading</span>
+    </header>
+
+    <div class="toolbar" role="toolbar" aria-label="Playback controls">
+      <button id="play" type="button" class="primary" disabled>Play</button>
+      <button id="restart" type="button" disabled>Restart</button>
+      <span class="sep" aria-hidden="true"></span>
+      <label for="tempo">Speed</label>
+      <input id="tempo" aria-label="Speed" type="range" min="25" max="400" step="5" value="100" disabled />
+      <output id="tempo-label" for="tempo">100 %</output>
+      <button id="count-in" type="button" aria-pressed="false" disabled>Count-in</button>
+      <button id="loop" type="button" aria-pressed="false" disabled>Loop</button>
+      <label for="timbre">Sound</label>
+      <select id="timbre" aria-label="Sound" disabled>
+        <option value="score">Score instruments</option>
+        <option value="piano">Piano</option>
+        <option value="choir">Choir</option>
+        <option value="organ">Organ</option>
+      </select>
+      <button id="pitches" type="button" disabled>Starting pitches</button>
+    </div>
+
+    <p id="notice" role="alert" hidden></p>
+
+    <main class="layout">
+      <section class="panel" aria-label="Score with playhead">
+        <div id="score" data-bar="" data-notes=""></div>
+        <div class="seek">
+          <label for="seek">Position</label>
+          <input id="seek" aria-label="Position" type="range" min="0" max="0" step="0.05" value="0" disabled />
+        </div>
+        <p id="position" class="muted">&ndash;</p>
+      </section>
+
+      <aside class="panel" id="mixer" aria-label="Parts and presets">
+        <h2>Parts</h2>
+        <div class="presets">
+          <label for="preset">Preset</label>
+          <select id="preset" aria-label="Preset" disabled>
+            <option value="">Custom</option>
+            <option value="equal">All equal</option>
+            <option value="learning">Learning track</option>
+            <option value="karaoke">Karaoke</option>
+          </select>
+          <label for="focus">My part</label>
+          <select id="focus" aria-label="My part" disabled></select>
+        </div>
+        <ul id="parts" class="parts"></ul>
+        <p id="pitches-text" class="muted" hidden></p>
+      </aside>
+    </main>
+
+    <p id="status" class="sr-only" role="status" aria-live="polite"></p>
+    <audio id="audio" preload="auto" hidden></audio>
+    <audio id="clip" hidden></audio>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

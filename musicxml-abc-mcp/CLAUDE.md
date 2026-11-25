@@ -6,7 +6,7 @@ Converts between MusicXML and ABC notation. ABC is compact and text-based — Cl
 edit it directly in its context window, which is impractical with verbose MusicXML.
 
 **Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references) + UX Wave 3 (`measures`) complete.
-306 unit tests pass (`-m "not integration"`) + 6 integration. MCP Apps ABC Workbench server side done (`structuredContent`, output schemas, app-only `get_abc`); the page is not built yet. `apply_abc_edit` (C16) merges an ABC bar edit back into the score.
+306 unit tests pass (`-m "not integration"`) + 6 integration. MCP Apps ABC Workbench server side done (`structuredContent`, output schemas, app-only `get_abc`); the page is built (`ui/apps/abc-workbench/`: hunk review, live `validate_abc`, accept via `abc_to_musicxml`). `apply_abc_edit` (C16) merges an ABC bar edit back into the score.
 
 ---
 

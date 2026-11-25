@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ABC Workbench</title>
+  </head>
+  <body>
+    <header class="head">
+      <h1>ABC Workbench</h1>
+      <p id="subtitle" class="muted"></p>
+      <p id="validation" class="chip" role="status" aria-live="polite" data-status="idle"></p>
+    </header>
+    <div class="toolbar" role="toolbar" aria-label="Review controls">
+      <div class="group" role="group" aria-label="Mode">
+        <button id="mode-review" type="button" aria-pressed="true">Review</button>
+        <button id="mode-edit" type="button" aria-pressed="false">Edit</button>
+      </div>
+      <div class="group" id="layout-group" role="group" aria-label="Show">
+        <button id="layout-changes" type="button" aria-pressed="true">Changes only</button>
+        <button id="layout-full" type="button" aria-pressed="false">Full text</button>
+      </div>
+      <span id="summary" class="muted"></span>
+    </div>
+    <p id="notice" class="notice" role="status" hidden></p>
+    <main>
+      <section id="review" aria-label="Proposed changes"></section>
+      <section id="editor" aria-label="Edit the ABC" hidden>
+        <div class="editor-box">
+          <div id="gutter" class="gutter" aria-hidden="true"></div>
+          <textarea id="abc-text" aria-label="Proposed ABC" spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off"></textarea>
+        </div>
+      </section>
+      <ul id="problems" class="problems" aria-label="Problems found" hidden></ul>
+      <ul id="warnings" class="warnings" aria-label="Warnings from the server" hidden></ul>
+    </main>
+    <div class="actions" role="group" aria-label="Decision">
+      <button id="accept-selected" type="button" class="primary" disabled>Accept selected</button>
+      <button id="accept-all" type="button" disabled>Accept all</button>
+      <button id="reject-all" type="button" disabled>Reject all</button>
+      <button id="revise" type="button" disabled>Ask the assistant to revise</button>
+    </div>
+    <p id="outcome" class="outcome" role="status" aria-live="polite" hidden></p>
+    <div id="file" class="file" hidden>
+      <span class="chip">MusicXML file</span>
+      <code id="file-path"></code>
+    </div>
+    <div class="actions"><button id="download" type="button" hidden>Download MusicXML</button></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

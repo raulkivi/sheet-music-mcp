@@ -13,6 +13,9 @@ export const APPS = {
   "score-viewer": {
     targets: [{ server: "render-mcp", pkg: "render_mcp" }],
   },
+  "practice-player": {
+    targets: [{ server: "synth-mcp", pkg: "synth_mcp" }],
+  },
   "diff-viewer": {
     targets: [{ server: "comparer-mcp", pkg: "comparer_mcp" }],
   },
@@ -27,6 +30,9 @@ export const APPS = {
       { server: "pitch-mcp", pkg: "pitch_mcp" },
       { server: "comparer-mcp", pkg: "comparer_mcp" },
     ],
+  },
+  "abc-workbench": {
+    targets: [{ server: "musicxml-abc-mcp", pkg: "musicxml_abc_mcp" }],
   },
   "practice-coach": {
     targets: [{ server: "pitch-mcp", pkg: "pitch_mcp" }],

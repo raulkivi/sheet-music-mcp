@@ -14,10 +14,20 @@ const MAX_PART_CHARS = 40;
 const STATUS_COUNTS = ["on_pitch", "sharp", "flat", "uncertain", "no_signal"] as const;
 const STATUS_WORDS = ["on pitch", "sharp", "flat", "not sure", "no signal"] as const;
 
+// Repeat until stable: one pass over "<<b>b>" would leave a new tag behind.
+const stripTags = (text: string): string => {
+  let previous: string;
+  let current = text;
+  do {
+    previous = current;
+    current = current.replace(/<[^<>]*>/g, "");
+  } while (current !== previous);
+  return current;
+};
+
 const cleanPart = (name: string | undefined): string | undefined => {
   if (name === undefined) return undefined;
-  const cleaned = name
-    .replace(/<[^>]*>/g, "")
+  const cleaned = stripTags(name)
     .replace(/[^\p{L}\p{N} .'-]/gu, "")
     .replace(/ +/g, " ")
     .trim()

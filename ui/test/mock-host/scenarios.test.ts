@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HEALTH_REPORTS, openingCall, PDF_RESULT } from "./scenarios.ts";
-import type { ToolBackend, ToolCall } from "./tool-backends.ts";
+import { placeholderTools, type ToolBackend, type ToolCall } from "./tool-backends.ts";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -32,6 +32,28 @@ describe("openingCall", () => {
     const input = { musicxml: '<score-partwise from="/fixtures/satb-long.musicxml"/>', output_path: "score.pdf" };
     expect(calls).toEqual([{ name: "render_to_pdf", arguments: input }]);
     expect(opening).toEqual({ tool: "render_to_pdf", input, result: { content: [], structuredContent: { pdf_path: "/root/score.pdf" } } });
+  });
+});
+
+describe("ABC scenarios", () => {
+  it("abc-edit opens on the model's abc_to_musicxml call, with the edit as its input", async () => {
+    const opening = await openingCall("abc-edit");
+    expect(opening.tool).toBe("abc_to_musicxml");
+    expect(opening.input).toEqual({ abc: expect.stringContaining("X:1") });
+  });
+
+  it("abc-export opens on a musicxml_to_abc result with an abc_id", async () => {
+    const opening = await openingCall("abc-export");
+    expect(opening.tool).toBe("musicxml_to_abc");
+    expect(opening.result.structuredContent).toMatchObject({ abc_id: expect.any(String) });
+  });
+
+  it("abc-error opens on a failed call", async () => {
+    expect((await openingCall("abc-error")).result.isError).toBe(true);
+  });
+
+  it("does not run an ABC scenario against the real render-mcp", async () => {
+    await expect(openingCall("abc-edit", { callTool: async () => ({ content: [] }) })).rejects.toThrow(/placeholder/);
   });
 });
 
@@ -125,3 +147,32 @@ describe("health scenarios", () => {
   });
 });
 
+const SCORE =
+  '<score-partwise><part-list><score-part id="P1"><part-name>Soprano</part-name></score-part></part-list><part id="P1"><measure number="1"/></part></score-partwise>';
+
+describe("Practice Player scenarios", () => {
+  it("run synthesize on the given backend with a counted-in four-bar track", async () => {
+    vi.stubGlobal("fetch", async () => ({ text: async () => SCORE }));
+    const opening = await openingCall("practice", placeholderTools);
+    expect(opening.tool).toBe("synthesize");
+    expect(opening.input).toMatchObject({ musicxml: SCORE, measures: [1, 4], count_in_bars: 1 });
+    expect(opening.result.structuredContent).toMatchObject({ audio_id: expect.stringMatching(/^audio-/), tempo_factor: 1 });
+  });
+
+  it("practice-empty returns a result without a track", async () => {
+    vi.stubGlobal("fetch", async () => ({ text: async () => SCORE }));
+    expect((await openingCall("practice-empty", placeholderTools)).result.structuredContent).toBeUndefined();
+  });
+
+  it("practice-unknown-audio returns a track whose audio id the server does not know", async () => {
+    vi.stubGlobal("fetch", async () => ({ text: async () => SCORE }));
+    const opening = await openingCall("practice-unknown-audio", placeholderTools);
+    expect(opening.result.structuredContent).toMatchObject({ audio_id: "unknown-audio-id" });
+    const chunk = await placeholderTools.callTool({ name: "read_audio_chunk", arguments: { audio_id: "unknown-audio-id", offset: 0, length: 1 } });
+    expect(chunk.isError).toBe(true);
+  });
+
+  it("need a backend to run synthesize on", async () => {
+    await expect(openingCall("practice")).rejects.toThrow(/needs a tool backend/);
+  });
+});
