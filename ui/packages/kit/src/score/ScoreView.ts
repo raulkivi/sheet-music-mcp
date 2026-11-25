@@ -81,8 +81,15 @@ export class ScoreView implements ScoreRenderer {
     return { svg: this.toolkit.renderToSVG(shown), page: shown, pageCount };
   }
 
+  /** Entries carry `measureOn` where a bar starts, so a playhead can follow bars. */
   timemap(): TimemapEntry[] {
-    return this.toolkit.renderToTimemap();
+    return this.toolkit.renderToTimemap({ includeMeasures: true });
+  }
+
+  /** The page (1-based) that holds the element; 1 for an id the score does not have. */
+  pageOf(elementId: string): number {
+    const page = this.toolkit.getPageWithElement(elementId);
+    return page >= 1 ? page : 1;
   }
 
   private applyLayout(): void {

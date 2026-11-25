@@ -1,5 +1,7 @@
 # synth-mcp Requirements
 
+**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## Purpose
 
 Synthesize audio from a MusicXML score. Enable choir singers to hear their individual voice part (Soprano, Alto, Tenor, Bass) or any combination, at an adjustable tempo.
@@ -237,6 +239,34 @@ vanished: `INVALID_PARAMETER` (AC-S2).
 id: `INVALID_PARAMETER`. `content` is a one-line note, not the document.
 
 Ids and scores live for one hour (`DEFAULT_TTL_SECONDS`), at most 64 at a time, and are lost on restart.
+
+### IR-3d — MCP Apps: the Practice Player page
+
+`ui/apps/practice-player/` builds `practice-player.html`, the page `ui://synth/practice-player`
+serves (`npm run build && npm run copy-assets` in `ui/`). It opens on the `synthesize` result and
+uses only what this server already offers:
+
+- Audio: `read_audio_chunk` paged into a Blob (`loadAudio`, AC-S3); score: `get_score_xml`, drawn in
+  the page with Verovio. Where the host refuses WebAssembly the audio still plays, without a score.
+- Playhead: Verovio's timemap, mapped to track time with the rendered `tempo_factor` and the
+  count-in length read from the score (AC-S5: a track rendered at 0.5 places a point at 2x its
+  score time). With `prefers-reduced-motion` the page marks the bar and jumps by bar.
+- Tempo (25 % to 400 %) and loop change locally: `playbackRate` with `preservesPitch`, no call
+  (decision DA4). The loop covers the track, which is the call's `measures`, without its count-in.
+- Solo, mute, volume per part and the presets (all equal, learning track, karaoke with "My part")
+  render a new track with one `synthesize` call: the arguments of the opening call, plus
+  `part_gains` for every part, the current `tempo_factor`, `count_in_bars` and `timbre`. A volume
+  slider renders when released. The new audio is swapped in at the same place in the music.
+- Count-in toggle (`count_in_bars`), sound selector (`timbre`: score, piano, choir, organ) and a
+  "Starting pitches" button (`starting_pitches`: text and the inline clip).
+- After a change the page tells the model a fixed line over part IDs and numbers
+  (`ui/update-model-context`), never score text.
+
+The page tries a `blob:` URL for the audio and falls back to a `data:` URL, because the spec's
+default CSP allows `media-src data:` and a resource cannot ask for `blob:`.
+
+AC-S1 (a muted part has CC7 0 on its channel) is `tests/test_practice_midi.py`
+`test_muted_part_has_cc7_zero_on_its_channel`.
 
 ### IR-3b — Tool: `starting_pitches`
 

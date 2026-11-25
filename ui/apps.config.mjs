@@ -13,6 +13,9 @@ export const APPS = {
   "score-viewer": {
     targets: [{ server: "render-mcp", pkg: "render_mcp" }],
   },
+  "practice-player": {
+    targets: [{ server: "synth-mcp", pkg: "synth_mcp" }],
+  },
   "diff-viewer": {
     targets: [{ server: "comparer-mcp", pkg: "comparer_mcp" }],
   },
