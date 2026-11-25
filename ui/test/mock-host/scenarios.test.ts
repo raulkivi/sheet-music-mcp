@@ -35,6 +35,31 @@ describe("openingCall", () => {
   });
 });
 
+describe("the Practice Coach scenarios", () => {
+  it("coach opens with start_practice for the Alto of the four-bar score and returns the session view", async () => {
+    stubFixtures();
+    expect((await openingCall("coach")).tool).toBe("start_practice");
+    const opening = await openingCall("coach");
+    expect(opening.input).toEqual({ musicxml: '<score-partwise from="/fixtures/satb-4bars.musicxml"/>', part: "Alto" });
+    expect(opening.result.structuredContent).toEqual({
+      session_id: "mock-session",
+      part_id: "P2",
+      part_name: "Alto",
+      measure_count: 4,
+      duration_seconds: 16,
+      tempo_bpm: 60,
+    });
+    expect((await openingCall("inline-long")).tool).toBe("render_to_pdf");
+  });
+
+  it("coach-empty returns a result without a session, coach-error the server's error envelope", async () => {
+    stubFixtures();
+    expect((await openingCall("coach-empty")).result.structuredContent).toBeUndefined();
+    const failed = (await openingCall("coach-error")).result;
+    expect(failed.isError).toBe(true);
+    expect(JSON.parse((failed.content![0] as { text: string }).text)).toMatchObject({ error_code: "PROCESSING_FAILED" });
+  });
+});
 describe("diff scenarios", () => {
   const DIFF = { changes: [{ operation: "PITCH_CHANGE" }], count: 1, similarity_score: 0.9, diff_id: "d" };
 

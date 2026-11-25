@@ -28,4 +28,7 @@ export const APPS = {
       { server: "comparer-mcp", pkg: "comparer_mcp" },
     ],
   },
+  "practice-coach": {
+    targets: [{ server: "pitch-mcp", pkg: "pitch_mcp" }],
+  },
 };

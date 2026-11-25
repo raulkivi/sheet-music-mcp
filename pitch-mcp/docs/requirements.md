@@ -1,6 +1,6 @@
 # pitch-mcp Requirements
 
-**Last changed:** 2026-11-11 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 ## Purpose
 
@@ -389,6 +389,24 @@ support MCP Apps; `tools/call` still finds it). Input `{session_id}` and nothing
 `additionalProperties: false`); output `{session_id, musicxml}`, the session's score cut to its
 `measures`. Unknown or timed-out session: `SESSION_NOT_FOUND`. `content` is a one-line note, not
 the document.
+
+### IR-5b — The Practice Coach page (`ui/apps/practice-coach/`)
+
+The page (`ui://pitch/practice-coach`, asset `practice-coach.html`) is built by `ui/` and copied in
+with `npm run copy-assets`. It reads only tool results:
+
+- Opening: the session from `start_practice` (`structuredContent`: `session_id`, `part_name`,
+  `measure_count`, `tempo_bpm`); `get_score_for_session` draws the score; `list_sessions` says
+  whether the microphone is already on (`monitoring`) or not (`loaded`, the Start button opens it).
+- Live: `get_current_position` polled at 10 Hz, backing off to 5 Hz while the median round trip
+  exceeds 80 ms, no request while the document is hidden. The cursor sits at (`measure`, `beat`).
+- States shown: `on_pitch`, `sharp`, `flat`, `uncertain` ("Not sure", neutral, no needle, never an
+  error) and `no_signal` ("No sound"). An unknown state shows as "Unknown".
+- Stop: `stop_monitoring` is text-only JSON (no `structuredContent`), so the page parses the JSON
+  text block for `summary` and `timed_out`. A `SESSION_NOT_FOUND` poll (idle timeout) ends the take
+  and fetches the kept summary. The per-bar heat strip is built from the polled history.
+- Microphone: the server microphone only (decision DA7); the browser option is shown disabled until
+  T1.6. "Ask Claude for tips" (T1.5) is not built.
 
 ### IR-6a — Tool: `list_sessions`
 

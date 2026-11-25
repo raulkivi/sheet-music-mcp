@@ -13,9 +13,10 @@ import {
 import { LoggingTransport, MessageLog, type LoggedMessage } from "./message-log.ts";
 import { hostStyleVariables } from "./host-styles.ts";
 import { hostOptions } from "./options.ts";
-import { openingCall } from "./scenarios.ts";
 import { diffTools } from "./diff-backend.ts";
-import { noTools, placeholderTools, relayedTools, type Relay, type ToolBackend } from "./tool-backends.ts";
+import { pitchTools } from "./pitch-backend.ts";
+import { openingCall } from "./scenarios.ts";
+import { composeTools, noTools, placeholderTools, relayedTools, type Relay, type ToolBackend } from "./tool-backends.ts";
 
 declare global {
   interface Window {
@@ -37,11 +38,19 @@ const options = hostOptions(location.search);
 
 function viewTools(): ToolBackend {
   if (options.tools === "none") return noTools;
-  if (options.tools === "placeholder") return options.app === "diff-viewer" ? diffTools : placeholderTools;
+  if (options.tools === "placeholder") {
+    if (options.app === "diff-viewer") return diffTools;
+    // The coach scenarios add pitch-mcp's session tools to the placeholder pages.
+    if (!options.scenario.startsWith("coach")) return placeholderTools;
+    const state = options.scenario === "coach-loaded" ? "loaded" : "monitoring";
+    return composeTools(pitchTools({ xml: scoreXml, take: options.take, state, latencyMs: options.latencyMs }), placeholderTools);
+  }
   if (!window.mcpHostRelay) throw new Error("server=real needs window.mcpHostRelay: use the renderMcp fixture (test/e2e/host-fixture.ts)");
   return relayedTools(window.mcpHostRelay);
 }
 
+// The score the coach's get_score_for_session returns (the scenario's own input for the coach).
+const scoreXml = options.scenario.startsWith("coach") ? await (await fetch("/fixtures/satb-4bars.musicxml")).text() : "";
 const tools = viewTools();
 const opening = await openingCall(options.scenario, options.tools === "real" ? tools : undefined);
 
@@ -50,7 +59,7 @@ const box = document.getElementById("frame-box")!;
 let inlineWidth = options.width;
 box.style.width = `${inlineWidth}px`;
 const frame = document.createElement("iframe");
-frame.title = options.app === "diff-viewer" ? "Diff Viewer" : "Score Viewer";
+frame.title = options.app === "diff-viewer" ? "Diff Viewer" : options.app === "practice-coach" ? "Practice Coach" : "Score Viewer";
 frame.setAttribute("sandbox", options.downloads ? "allow-scripts allow-downloads" : "allow-scripts");
 // A host grants the resource's `clipboardWrite` permission by delegating it to the frame.
 if (options.clipboard) frame.setAttribute("allow", "clipboard-write");

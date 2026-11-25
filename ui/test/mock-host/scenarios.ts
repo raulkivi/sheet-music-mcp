@@ -4,11 +4,13 @@
 
 import type { CallToolResult } from "@modelcontextprotocol/client";
 import type { ScenarioName } from "./options.ts";
+import { SESSION_VIEW } from "./pitch-session.ts";
 import type { ToolBackend } from "./tool-backends.ts";
 
 export const OPENING_TOOL = "render_to_pdf";
 export const DIFF_OPENING_TOOL = "compare_scores";
 export const HEALTH_TOOL = "health_check";
+export const COACH_OPENING_TOOL = "start_practice";
 
 export const PDF_RESULT: CallToolResult = {
   content: [{ type: "text", text: "Rendered 5 page(s) to /tmp/sheet-music-output/score.pdf" }],
@@ -70,14 +72,27 @@ async function fixture(name: string): Promise<string> {
 }
 
 const DIFF_INPUT = { reference_path: "/home/user/scores/v1.musicxml", target_path: "/home/user/scores/v2.musicxml", detail: "full" };
+const COACH_INPUT = async () => ({ musicxml: await fixture("satb-4bars.musicxml"), part: "Alto" });
 
 const INPUTS: Partial<Record<ScenarioName, () => Promise<Record<string, unknown>>>> = {
   diff: async () => DIFF_INPUT,
   "diff-identical": async () => DIFF_INPUT,
   "diff-error": async () => DIFF_INPUT,
+  coach: COACH_INPUT,
+  "coach-loaded": COACH_INPUT,
+  "coach-empty": async () => ({}),
+  "coach-error": COACH_INPUT,
   "inline-long": async () => ({ musicxml: await fixture("satb-long.musicxml") }),
   "inline-satb": async () => ({ musicxml: await fixture("satb-4bars.musicxml") }),
   "path-only": async () => ({ musicxml_path: "/home/user/scores/satb.musicxml" }),
+};
+
+
+const COACH_RESULTS: Partial<Record<ScenarioName, CallToolResult>> = {
+  coach: { content: [{ type: "text", text: JSON.stringify({ ...SESSION_VIEW, status: "started" }, null, 2) }], structuredContent: SESSION_VIEW },
+  "coach-loaded": { content: [{ type: "text", text: JSON.stringify(SESSION_VIEW, null, 2) }], structuredContent: SESSION_VIEW },
+  "coach-empty": { content: [{ type: "text", text: "{}" }] },
+  "coach-error": { isError: true, content: [{ type: "text", text: JSON.stringify({ error: "Could not open the microphone.", error_code: "PROCESSING_FAILED" }) }] },
 };
 
 // Relative, so the server resolves it inside its SHEET_MUSIC_OUTPUT_ROOT (the test's own
@@ -104,6 +119,8 @@ export async function openingCall(name: ScenarioName, model?: ToolBackend): Prom
   const makeInput = INPUTS[name];
   if (!makeInput) throw new Error(`No scenario ${name}`);
   const score = await makeInput();
+  const coach = COACH_RESULTS[name];
+  if (coach) return { tool: COACH_OPENING_TOOL, input: score, result: coach };
   if (name.startsWith("diff")) return { tool: DIFF_OPENING_TOOL, input: score, result: await diffResult(name) };
   if (!model) return { tool: OPENING_TOOL, input: score, result: PDF_RESULT };
   const input = { ...score, output_path: REAL_OUTPUT_PATH };
