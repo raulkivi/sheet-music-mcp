@@ -22,6 +22,17 @@ describe("the registry", () => {
     expect(apps["score-viewer"]?.targets).toEqual([{ server: "render-mcp", pkg: "render_mcp" }]);
   });
 
+  it("holds the Setup Doctor for all six servers, each from its own package", () => {
+    expect(apps["setup-doctor"]?.targets).toEqual([
+      { server: "render-mcp", pkg: "render_mcp" },
+      { server: "synth-mcp", pkg: "synth_mcp" },
+      { server: "omr-mcp", pkg: "omr_mcp" },
+      { server: "musicxml-abc-mcp", pkg: "musicxml_abc_mcp" },
+      { server: "pitch-mcp", pkg: "pitch_mcp" },
+      { server: "comparer-mcp", pkg: "comparer_mcp" },
+    ]);
+  });
+
   it("has an apps/<name>/index.html for every entry", () => {
     for (const name of appNames(APPS) as string[]) {
       expect(existsSync(new URL(`../apps/${name}/index.html`, import.meta.url)), name).toBe(true);

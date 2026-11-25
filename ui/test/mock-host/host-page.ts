@@ -13,7 +13,7 @@ import {
 import { LoggingTransport, MessageLog, type LoggedMessage } from "./message-log.ts";
 import { hostStyleVariables } from "./host-styles.ts";
 import { hostOptions } from "./options.ts";
-import { openingCall, OPENING_TOOL } from "./scenarios.ts";
+import { openingCall } from "./scenarios.ts";
 import { noTools, placeholderTools, relayedTools, type Relay, type ToolBackend } from "./tool-backends.ts";
 
 declare global {
@@ -51,6 +51,8 @@ box.style.width = `${inlineWidth}px`;
 const frame = document.createElement("iframe");
 frame.title = "Score Viewer";
 frame.setAttribute("sandbox", options.downloads ? "allow-scripts allow-downloads" : "allow-scripts");
+// A host grants the resource's `clipboardWrite` permission by delegating it to the frame.
+if (options.clipboard) frame.setAttribute("allow", "clipboard-write");
 
 let displayMode: McpUiDisplayMode = "inline";
 const hostContext: McpUiHostContext = {
@@ -61,18 +63,20 @@ const hostContext: McpUiHostContext = {
   containerDimensions: { width: options.width, maxHeight: MAX_HEIGHT },
   locale: "en-US",
   platform: "web",
-  toolInfo: { tool: { name: OPENING_TOOL, inputSchema: { type: "object" } } },
+  toolInfo: { tool: { name: opening.tool, inputSchema: { type: "object" } } },
 } as McpUiHostContext;
 
 const bridge = new AppBridge(
   null,
   { name: "mock-host", version: "0.0.0" },
-  { serverTools: {}, logging: {}, message: { text: {} }, updateModelContext: { text: {} } },
+  { serverTools: {}, logging: {}, openLinks: {}, message: { text: {} }, updateModelContext: { text: {} } },
   { hostContext },
 );
 
 bridge.oncalltool = (params) => tools.callTool(params);
 bridge.onmessage = async () => ({});
+// The host would open the link in the user's browser; the log records the request.
+bridge.onopenlink = async () => ({});
 bridge.onupdatemodelcontext = async () => ({});
 bridge.onrequestdisplaymode = async ({ mode }) => {
   if (options.modes.includes(mode)) displayMode = mode;

@@ -12,6 +12,7 @@ class MockApp implements AppLike {
   }));
   sendMessage = vi.fn(async (_p: unknown): Promise<{ isError?: boolean }> => ({}));
   updateModelContext = vi.fn(async (_p: unknown) => ({}));
+  openLink = vi.fn(async (_p: { url: string }): Promise<{ isError?: boolean }> => ({}));
   sendSizeChanged = vi.fn(async (_p: unknown) => {});
   requestDisplayMode = vi.fn(async (p: { mode: DisplayMode }) => ({ mode: p.mode }));
 
@@ -88,6 +89,15 @@ describe("ExtAppsBridge", () => {
     const result = await bridge.callTool("get_pdf", { pdf_id: "abc" });
     expect(app.callServerTool).toHaveBeenCalledWith({ name: "get_pdf", arguments: { pdf_id: "abc" } });
     expect(result.structuredContent).toEqual({ page_count: 3 });
+  });
+
+  it("openLink asks the host to open the URL and rejects when the host refuses", async () => {
+    const app = new MockApp();
+    const bridge = new ExtAppsBridge(app);
+    await bridge.openLink("https://example.org/doc");
+    expect(app.openLink).toHaveBeenCalledWith({ url: "https://example.org/doc" });
+    app.openLink.mockResolvedValueOnce({ isError: true });
+    await expect(bridge.openLink("https://example.org/doc")).rejects.toThrow(/refused/);
   });
 
   it("forwards sendMessage as a user text message", async () => {

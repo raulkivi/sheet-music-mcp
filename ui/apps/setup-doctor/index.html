@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Setup Doctor</title>
+  </head>
+  <body>
+    <header class="head">
+      <h1>Setup Doctor</h1>
+      <span id="summary" class="pill" hidden></span>
+    </header>
+    <div class="toolbar" role="toolbar" aria-label="Setup actions">
+      <button id="check-again" type="button" class="primary" aria-disabled="false">Check again</button>
+      <button id="copy-report" type="button" disabled>Copy report</button>
+    </div>
+    <p id="status" role="status" aria-live="polite" class="status"></p>
+    <main>
+      <p id="notice" role="status">Waiting for the health report&hellip;</p>
+      <section id="report" aria-labelledby="headline" hidden>
+        <h2 id="headline"></h2>
+        <ul id="checks" class="checks"></ul>
+        <p id="empty" hidden>No checks were reported.</p>
+      </section>
+      <div id="manual-box" hidden>
+        <label for="manual">Select all and copy</label>
+        <textarea id="manual" readonly rows="8"></textarea>
+      </div>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
