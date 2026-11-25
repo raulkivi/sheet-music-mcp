@@ -1,0 +1,237 @@
+/* Colors and fonts come from theme.ts custom properties (host values or fallbacks). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.head {
+  padding: 12px 16px 0;
+}
+
+h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+h2 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.headline {
+  margin: 2px 0 0;
+  color: var(--color-text-secondary);
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.tabs,
+.actions,
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+button {
+  min-height: 32px;
+  padding: 4px 10px;
+  /* A button's edge is a mark: the secondary text color clears 3:1 on every host set (U3). */
+  border: 1px solid var(--color-text-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button:focus-visible,
+.pane-body:focus-visible,
+.report:focus-visible {
+  outline: 2px solid var(--color-ring-primary);
+  outline-offset: 1px;
+}
+
+button[aria-selected="true"],
+button[aria-pressed="true"] {
+  background: var(--color-background-secondary);
+  border-color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+#notice {
+  margin: 10px 16px 0;
+  color: var(--color-text-secondary);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 16px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chips li {
+  padding: 2px 8px;
+  border: 1px solid var(--color-text-secondary);
+  border-radius: 999px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  gap: 16px;
+  padding: 12px 16px 16px;
+}
+
+.filters {
+  margin-bottom: 8px;
+}
+
+.change-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 440px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.change-list button {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  min-height: 40px;
+  text-align: left;
+  border-color: var(--color-border-primary);
+}
+
+.change-list button[aria-current="true"] {
+  border-color: var(--color-text-primary);
+  background: var(--color-background-secondary);
+  font-weight: 600;
+}
+
+.swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+}
+
+.filters .swatch {
+  align-self: center;
+  margin-right: 4px;
+}
+
+.selection {
+  margin: 0 0 8px;
+  color: var(--color-text-secondary);
+  min-height: 1.4em;
+}
+
+.panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.pane {
+  min-width: 0;
+}
+
+.pane-body {
+  height: 420px;
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+}
+
+.pane-body svg {
+  display: block;
+  margin: 0 auto 8px;
+  fill: currentColor;
+}
+
+/* Verovio sets color="black" here; the CSS property wins over the presentation attribute,
+   while notes carrying their own color attribute (the diff colors) keep it. */
+.pane-body svg.definition-scale {
+  color: var(--color-text-primary);
+}
+
+.measure-highlight {
+  fill: var(--color-ring-primary);
+  fill-opacity: 0.18;
+  stroke: var(--color-ring-primary);
+  stroke-width: 20;
+  pointer-events: none;
+}
+
+.report {
+  margin: 12px 16px 16px;
+  padding: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-md);
+  font-family: inherit;
+}
+
+@media (max-width: 720px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .panes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pane-body {
+    height: 300px;
+  }
+
+  .change-list {
+    max-height: 220px;
+  }
+}

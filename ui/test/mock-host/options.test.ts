@@ -13,6 +13,8 @@ describe("hostOptions", () => {
       tools: "placeholder",
       host: "default",
       app: "score-viewer",
+      take: "steady",
+      latencyMs: 0,
       clipboard: true,
     });
   });
@@ -35,6 +37,8 @@ describe("hostOptions", () => {
       tools: "real",
       host: "default",
       app: "score-viewer",
+      take: "steady",
+      latencyMs: 0,
       clipboard: true,
     });
   });
@@ -56,5 +60,23 @@ describe("hostOptions", () => {
   it("rejects an unknown scenario or server value instead of guessing", () => {
     expect(() => hostOptions("?scenario=nope")).toThrow(/scenario/);
     expect(() => hostOptions("?server=maybe")).toThrow(/server/);
+  });
+
+  describe("the Practice Coach scenarios", () => {
+    it("accepts the coach scenarios", () => {
+      for (const scenario of ["coach", "coach-loaded", "coach-empty", "coach-error"]) {
+        expect(hostOptions(`?scenario=${scenario}`).scenario).toBe(scenario);
+      }
+    });
+
+    it("take= picks the scripted singing and latency= the answer delay of the pitch tools", () => {
+      expect(hostOptions("?scenario=coach&take=closed&latency=150")).toMatchObject({ take: "closed", latencyMs: 150 });
+    });
+
+    it("rejects an unknown take or a bad latency", () => {
+      expect(() => hostOptions("?take=nope")).toThrow(/take/);
+      expect(() => hostOptions("?latency=-5")).toThrow(/latency/);
+      expect(() => hostOptions("?latency=abc")).toThrow(/latency/);
+    });
   });
 });

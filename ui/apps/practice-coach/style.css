@@ -1,0 +1,411 @@
+/* Surfaces and text come from theme.ts custom properties (host values or fallbacks). The status,
+   marker and accent colors are the Kannel brand tokens (docs/design/tokens.css); hosts never send
+   them, so they are declared here for both themes. Keep them equal to tokens.css. */
+
+:root {
+  --kannel-accent: #0072ce;
+  --kannel-accent-pressed: #00508f;
+  --kannel-on-accent: #ffffff;
+  --kannel-tint: #eaf2fb;
+  --kannel-marker: #b7850f;
+  --kannel-success-text: #1e6b3a;
+  --kannel-success-tint: #e4f2e8;
+  --kannel-warning-text: #7a5300;
+  --kannel-warning-tint: #fbf0d2;
+  --kannel-danger-text: #a8322d;
+  --kannel-danger-tint: #f9e3e1;
+  --kannel-flag-white: #ffffff;
+}
+
+:root[data-theme="dark"] {
+  --kannel-tint: #1b2b40;
+  --kannel-marker: #f2c14e;
+  --kannel-success-text: #8fd3a4;
+  --kannel-success-tint: #17301f;
+  --kannel-warning-text: #f2c14e;
+  --kannel-warning-tint: #3a2d0c;
+  --kannel-danger-text: #f09a94;
+  --kannel-danger-tint: #3a1c1a;
+  --kannel-flag-white: #101217;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.tricolor {
+  height: 3px;
+  background: linear-gradient(#0072ce 0 33.33%, #15171c 33.33% 66.66%, var(--kannel-flag-white) 66.66% 100%);
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--color-background-secondary);
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+h1 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+h2,
+h3 {
+  margin: 16px 0 8px;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+h3 {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.muted {
+  color: var(--color-text-secondary);
+}
+
+.small {
+  font-size: 12px;
+}
+
+.pill {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.row .pill {
+  margin-left: 0;
+}
+
+.tone-ok {
+  background: var(--kannel-success-tint);
+  color: var(--kannel-success-text);
+}
+
+.tone-warn {
+  background: var(--kannel-warning-tint);
+  color: var(--kannel-warning-text);
+}
+
+.tone-danger {
+  background: var(--kannel-danger-tint);
+  color: var(--kannel-danger-text);
+}
+
+.tone-neutral {
+  background: var(--kannel-tint);
+  color: var(--color-text-primary);
+}
+
+.tone-muted {
+  background: var(--color-background-secondary);
+  color: var(--color-text-secondary);
+  box-shadow: inset 0 0 0 1px var(--color-border-primary);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+button {
+  min-height: 36px;
+  padding: 4px 14px;
+  /* A button's edge is a mark; the host's border colors are too faint for 3:1 (U3). */
+  border: 1px solid var(--color-text-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+button.primary {
+  border-color: var(--kannel-accent);
+  background: var(--kannel-accent);
+  color: var(--kannel-on-accent);
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--color-ring-primary);
+  outline-offset: 1px;
+}
+
+.mic {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  align-items: center;
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.mic legend {
+  float: left;
+  margin-right: 12px;
+  padding: 0;
+  color: var(--color-text-secondary);
+}
+
+.choice {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+#notice {
+  margin: 12px 16px 0;
+  padding: 8px 12px;
+  border-radius: var(--border-radius-md);
+  background: var(--kannel-warning-tint);
+  color: var(--kannel-warning-text);
+}
+
+.panel {
+  min-width: 0;
+  padding: 12px;
+  background: var(--color-background-secondary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: 10px;
+}
+
+.empty {
+  margin: 16px;
+}
+
+.live {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+  padding: 16px;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .live {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
+    gap: 12px;
+  }
+}
+
+.score-wrap {
+  position: relative;
+  overflow-x: auto;
+}
+
+#score svg {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto;
+  fill: currentColor;
+}
+
+/* Verovio sets color="black"; the CSS property wins over the attribute. */
+#score svg.definition-scale {
+  color: var(--color-text-primary);
+}
+
+.cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2px;
+  height: 0;
+  background: var(--kannel-marker);
+  pointer-events: none;
+  transition: transform 100ms linear;
+}
+
+.where {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.note-line {
+  margin: 8px 0 2px;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.cents {
+  margin: 0 0 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.meter {
+  position: relative;
+  height: 56px;
+  border: 1px solid var(--color-text-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+}
+
+/* The in-tune zone is +-25 cents of the +-50 range. */
+.meter .zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 25%;
+  width: 50%;
+  background: var(--kannel-tint);
+}
+
+.meter .center {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--kannel-marker);
+}
+
+.meter .needle {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 50%;
+  width: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--color-text-primary);
+}
+
+/* The meter takes the status color: border and needle (a mark, so the text-on-tint color, 3:1+). */
+.meter[data-tone="ok"] { border-color: var(--kannel-success-text); }
+.meter[data-tone="ok"] .needle { background: var(--kannel-success-text); }
+.meter[data-tone="warn"] { border-color: var(--kannel-warning-text); }
+.meter[data-tone="warn"] .needle { background: var(--kannel-warning-text); }
+.meter[data-tone="danger"] { border-color: var(--kannel-danger-text); }
+.meter[data-tone="danger"] .needle { background: var(--kannel-danger-text); }
+
+.scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bars,
+.histogram,
+.highlights,
+.heat {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bars li,
+.histogram li,
+.highlights li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.bars .pill,
+.heat .pill {
+  margin-left: 0;
+}
+
+.heat {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.heat li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 64px;
+  padding: 4px 8px;
+  border-radius: var(--border-radius-md);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.histogram .label {
+  min-width: 7em;
+}
+
+.histogram .track {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--color-background-primary);
+  box-shadow: inset 0 0 0 1px var(--color-border-primary);
+  overflow: hidden;
+}
+
+.histogram .fill {
+  display: block;
+  height: 100%;
+  background: var(--color-text-secondary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

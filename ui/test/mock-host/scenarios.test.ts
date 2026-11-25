@@ -57,6 +57,68 @@ describe("ABC scenarios", () => {
   });
 });
 
+describe("the Practice Coach scenarios", () => {
+  it("coach opens with start_practice for the Alto of the four-bar score and returns the session view", async () => {
+    stubFixtures();
+    expect((await openingCall("coach")).tool).toBe("start_practice");
+    const opening = await openingCall("coach");
+    expect(opening.input).toEqual({ musicxml: '<score-partwise from="/fixtures/satb-4bars.musicxml"/>', part: "Alto" });
+    expect(opening.result.structuredContent).toEqual({
+      session_id: "mock-session",
+      part_id: "P2",
+      part_name: "Alto",
+      measure_count: 4,
+      duration_seconds: 16,
+      tempo_bpm: 60,
+    });
+    expect((await openingCall("inline-long")).tool).toBe("render_to_pdf");
+  });
+
+  it("coach-empty returns a result without a session, coach-error the server's error envelope", async () => {
+    stubFixtures();
+    expect((await openingCall("coach-empty")).result.structuredContent).toBeUndefined();
+    const failed = (await openingCall("coach-error")).result;
+    expect(failed.isError).toBe(true);
+    expect(JSON.parse((failed.content![0] as { text: string }).text)).toMatchObject({ error_code: "PROCESSING_FAILED" });
+  });
+});
+describe("diff scenarios", () => {
+  const DIFF = { changes: [{ operation: "PITCH_CHANGE" }], count: 1, similarity_score: 0.9, diff_id: "d" };
+
+  function stubDiffFixture() {
+    vi.stubGlobal("fetch", async () => ({ text: async () => JSON.stringify(DIFF) }));
+  }
+
+  it("opens with compare_scores, the others with render_to_pdf", async () => {
+    stubDiffFixture();
+    expect((await openingCall("diff")).tool).toBe("compare_scores");
+    expect((await openingCall("diff-error")).tool).toBe("compare_scores");
+    expect((await openingCall("inline-satb")).tool).toBe("render_to_pdf");
+  });
+
+  it("diff replays the recorded comparison", async () => {
+    stubDiffFixture();
+    const { input, result } = await openingCall("diff");
+    expect(input).toMatchObject({ detail: "full" });
+    expect(result.structuredContent).toEqual(DIFF);
+  });
+
+  it("diff-identical has no changes and similarity 1", async () => {
+    stubDiffFixture();
+    expect((await openingCall("diff-identical")).result.structuredContent).toMatchObject({
+      similarity_score: 1,
+      changes: [],
+      count: 0,
+    });
+  });
+
+  it("diff-error is an error envelope", async () => {
+    const { result } = await openingCall("diff-error");
+    expect(result.isError).toBe(true);
+    expect(JSON.parse((result.content![0] as { text: string }).text).error_code).toBe("INVALID_INPUT");
+  });
+});
+
 describe("health scenarios", () => {
   it("open with the server's own health_check and a report built like the core's", async () => {
     const mixed = await openingCall("health-mixed");
