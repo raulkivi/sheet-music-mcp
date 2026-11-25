@@ -21,7 +21,7 @@ server tools and apps. Owner decisions are recorded in [§6](#6-owner-decisions)
   resources, but the shared Setup Doctor page is not built.
 - The mockups are clickable, but they hard-code sample data and some behaviour the engines do not
   yet provide. Building them as-is would ship fake issues, fake states and a fake meter.
-- Kannel tokens are in the kit and the Score Viewer uses theme-aware chrome. Its planned tricolour
+- Kannel tokens are in the kit and the Score Viewer uses theme-aware chrome. Its planned tricolor
   bar, 40 px touch targets, PDF download, and part filter/highlight are still missing.
 - The interactive design boards still contain sample data and have not been rendered and checked in
   a browser. The Score Viewer app itself has automated browser coverage.
@@ -38,7 +38,7 @@ comparison and setup pages (Phase 3).
 
 | App | Server | Server side | Mockup (#192) | Page in `ui/apps/` | Blocking gaps |
 |---|---|---|---|---|---|
-| Score Viewer | render-mcp | `render_page_svg` app-only; `render_to_pdf` / `render_to_image` linked | Yes | **Shipped** | Theme-aware Kannel tokens, focus ring, paging, fullscreen and SVG download/fallback exist. Still missing the tricolour bar, 40 px controls, PDF download, and part filter/highlight |
+| Score Viewer | render-mcp | `render_page_svg` app-only; `render_to_pdf` / `render_to_image` linked | Yes | **Shipped** | Theme-aware Kannel tokens, focus ring, paging, fullscreen and SVG download/fallback exist. Still missing the tricolor bar, 40 px controls, PDF download, and part filter/highlight |
 | Practice Coach | pitch-mcp | `get_score_for_session`, pushed-audio mode and `push_audio_chunk`, `list_sessions`, `start_practice`; grading fixes and `uncertain` / `no_signal` states | Yes | No | Page, adaptive polling, report/tips flow, and browser AudioWorklet capture are not built |
 | Practice Player | synth-mcp | `read_audio_chunk`, `get_score_xml`, `part_gains`, `starting_pitches` | Yes | No | Page and browser chunk-to-Blob loader are not built; server-side audio reads exist |
 | Recognition Review | omr-mcp | `structuredContent`, `warnings[]`, `staff_systems_estimate`, `get_recognized_score`, `get_source_preview` | Yes | No | Page is not built; mock issues remain sample data; staff estimate still needs real-sample integration evidence |
@@ -71,7 +71,7 @@ behaviour the server or the design system does not support.
 | G14 | Setup Doctor | One board for render, synth, omr | All six servers register their own `ui://<server>/setup-doctor` resource | Shared page not built; implement one component with per-server data (DA5) |
 | G15 | Score Viewer | "Download SVG" | Owner decision DA2: offer both SVG and PDF | SVG download/fallback exists; add PDF delivery |
 | G16 | All | Two mockup sets: `docs/design/mockups/` (static) and `interactive/` | Duplicated, will drift | One source of truth (DA1) |
-| G17 | All | Kannel tokens, tricolour, focus ring | Tokens are in the kit; Score Viewer has theme-aware styling and a focus ring | T0.1 is done; finish the Score Viewer tricolour bar and 40 px targets, then adopt the kit in new pages |
+| G17 | All | Kannel tokens, tricolor, focus ring | Tokens are in the kit; Score Viewer has theme-aware styling and a focus ring | T0.1 is done; finish the Score Viewer tricolor bar and 40 px targets, then adopt the kit in new pages |
 | G18 | All | Sample data inline | Must come from tool results or `structuredContent` | Remove sample data before shipping |
 | G19 | All | Icons: cornflower, waveform "reserved, not drawn" | Design system §6 | Draw or drop before release |
 | G20 | All | No reduced-motion behaviour in mocks | Design system §5 requires it | Add in each page (X1) |
@@ -106,7 +106,7 @@ judgement. Local runs are marked "local candidate"; they are verified outside th
 |---|---|---|---|---|---|---|
 | T1.1 | Fix the three open grading defects (octave slip, vibrato on held final note, long voiced tail). Remove the xfail markers when fixed. | H | Opus | No | `pitch-mcp` engine and grading tests | Existing xfail tests pass; no regression in 482 unit tests |
 | T1.2 | Expose a grading state `uncertain` / `no_signal` in `get_current_position` and `structuredContent` (G3). | M | Sonnet | Candidate | `pitch-mcp` engine, presenter, tests | Test: low-confidence frame returns `uncertain`, never `slip` |
-| T1.3 | Practice Coach page: score cursor from `get_score_for_session`, meter, Start / Stop, Report mode from `stop_monitoring` summary. Mic source selector (server mic, A). | H | Sonnet | No | `ui/apps/practice-coach/*` | Vitest: cents → needle, status map, history. Playwright on mock host: AC-P5 (cursor visits bars in order; meter colour per status); axe clean; 360 px; keyboard |
+| T1.3 | Practice Coach page: score cursor from `get_score_for_session`, meter, Start / Stop, Report mode from `stop_monitoring` summary. Mic source selector (server mic, A). | H | Sonnet | No | `ui/apps/practice-coach/*` | Vitest: cents → needle, status map, history. Playwright on mock host: AC-P5 (cursor visits bars in order; meter color per status); axe clean; 360 px; keyboard |
 | T1.4 | Adaptive polling 5–10 Hz (D7); animate between samples; pause on hidden tab. | M | Sonnet | No | page polling module | Unit: back-off when median RTT > 80 ms; no request while hidden |
 | T1.5 | "Ask Claude for tips" via `ui/message`; `update-model-context` on stop (G6). | S | Haiku | Candidate | page + 1 helper | Mock host records one `ui/message` with fixed template text (no MusicXML free text) |
 | T1.6 | Browser mic (B): `AudioSource` protocol, `PushedChunkSource`, AudioWorklet capture. Phase 3 of the proposal; behind feature detection. | H | Opus | No | `pitch-mcp` engine, page | AC-P4 (220 Hz push → `on_pitch`); permission denied → falls back to A |
@@ -160,7 +160,7 @@ judgement. Local runs are marked "local candidate"; they are verified outside th
 
 | ID | Task | Cx | Model | Local | Files | Acceptance |
 |---|---|---|---|---|---|---|
-| T4.1 | Score Viewer chrome to Kannel: tricolour bar, focus ring, 40 px touch targets, theme tokens (after T0.1). | M | Sonnet | Candidate | `ui/apps/score-viewer/*` | Existing e2e green; new check for the tricolour and ring (design §9) |
+| T4.1 | Score Viewer chrome to Kannel: tricolor bar, focus ring, 40 px touch targets, theme tokens (after T0.1). | M | Sonnet | Candidate | `ui/apps/score-viewer/*` | Existing e2e green; new check for the tricolor and ring (design §9) |
 | T4.2 | Download: SVG (mock) or PDF via `get_pdf` (DA2). | M | Sonnet | No | render-mcp server, page | PDF bytes start with `%PDF`; blob download fallback posts `ui/message` (D6) |
 | T4.3 | Part filter and highlight (render `parts`, C6b) in the viewer. | M | Sonnet | No | render-mcp engine, page | AC-R3 paging; highlight dims other parts |
 | X1 | Reduced motion, `aria-live` on cents and status, keyboard for every control. Added to each page task's spec, not a separate phase. | S | Haiku | Yes | page CSS, specs | Playwright with `reducedMotion: 'reduce'` |
@@ -222,7 +222,7 @@ gantt
 
     section Phase 3 Comparison and setup
     T3.1 compare_scores                 :t31, after t04, 2d
-    T3.2 Verovio colour spike           :active, t32, 2026-10-28, 1d
+    T3.2 Verovio color spike           :active, t32, 2026-10-28, 1d
     T3.3 Diff Viewer page               :t33, after t31 t32, 4d
     T3.4 Open in Score Viewer           :t34, after t33, 1d
     T3.5 Standard health structure      :done, t35, 2026-11-11, 1d
@@ -266,12 +266,12 @@ Dates are YYYY-MM-DD. Update this table with the Gantt chart after every step.
 | T2.6 | Hunk model | Done | 2026-11-11 | 2026-11-11 | PR #197, CI 24/24 pass, 283 unit tests |
 | T2.7 | ABC Workbench page | Not started | | | |
 | T3.1 | compare_scores | Not started | | | |
-| T3.2 | Verovio colour spike | Active | 2026-10-28 | | Render test and phase-0 findings confirm note colors; proposal §5.4 still says “To verify” and needs syncing |
+| T3.2 | Verovio color spike | Active | 2026-10-28 | | Render test and phase-0 findings confirm note colors; proposal §5.4 still says “To verify” and needs syncing |
 | T3.3 | Diff Viewer page | Not started | | | DA8: use `ui/message` to hand off to the Score Viewer |
 | T3.4 | Open in Score Viewer | Not started | | | |
 | T3.5 | Standard health structure | Done | 2026-11-11 | 2026-11-11 | Already on main via PR #178 (merged). Verified: core `health.py`, six servers return it with `output_schema`. No new PR |
 | T3.6 | Setup Doctor page | Not started | | | DA5: one page per server's own checks; shared page not built |
-| T4.1 | Score Viewer Kannel chrome | Active | 2026-11-11 | | Theme tokens and focus ring exist; tricolour bar and 40 px targets remain |
+| T4.1 | Score Viewer Kannel chrome | Active | 2026-11-11 | | Theme tokens and focus ring exist; tricolor bar and 40 px targets remain |
 | T4.2 | Download SVG or PDF | Active | 2026-10-28 | | SVG and fallback exist; PDF download remains (DA2: offer both) |
 | T4.3 | Part filter and highlight | Not started | | | |
 
