@@ -52,17 +52,25 @@ def _tools():
     return {tool.name: tool for tool in asyncio.run(list_tools())}
 
 
-def _page_image(tmp_path, name="page.png", size=(2400, 1800), staves=0):
-    """A real image; ``staves`` > 0 draws that many five-line staves."""
+def _page_image(tmp_path, name="page.png", size=(2400, 1800), staves=0, systems=1):
+    """A real image; ``staves`` > 0 draws ``systems`` systems of that many five-line staves.
+
+    The staves of a system share a system line at their left end, as in an engraved SATB score.
+    """
     from PIL import ImageDraw
 
     path = tmp_path / name
     image = Image.new("RGB", size, "white")
     draw = ImageDraw.Draw(image)
-    for s in range(staves):
-        for line in range(5):
-            y = 100 + s * 300 + line * 12
-            draw.rectangle([50, y, size[0] - 50, y], fill="black")
+    step = (size[1] - 100) // (staves * systems) if staves else 0
+    for system in range(systems if staves else 0):
+        first = 50 + system * staves * step
+        for s in range(staves):
+            for line in range(5):
+                y = first + s * step + line * 12
+                draw.rectangle([50, y, size[0] - 50, y], fill="black")
+        if staves > 1:
+            draw.rectangle([50, first, 50, first + (staves - 1) * step + 48], fill="black")
     image.save(path)
     return path
 

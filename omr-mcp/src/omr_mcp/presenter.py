@@ -44,7 +44,7 @@ RECOGNITION_OUTPUT_SCHEMA = {
                 "staff_systems_estimate": {
                     "type": "integer",
                     "minimum": 0,
-                    "description": "Staves counted on the busiest page image, for clients that show the app; more than staves_detected hints at a flattened choir score",
+                    "description": "Staves in the largest system on the busiest page image, for clients that show the app; more than staves_detected hints at a flattened choir score",
                 },
             },
         },

@@ -86,7 +86,7 @@ Success results of `recognize_sheet`, `recognize_sheets` and `recognize_sheet_to
 
 | Code | Emitted when |
 |------|--------------|
-| `PARTS_FEWER_THAN_STAVES` | Recognised part count (`metadata.staves_detected`) is below the staves counted on the busiest page image (`staff_estimate`); every client, not only app clients |
+| `PARTS_FEWER_THAN_STAVES` | Recognized part count (`metadata.staves_detected`) is below the staves per system on the busiest page image (`staff_estimate`); severity `info`; every client, not only app clients |
 | `EMPTY_MEASURE` | A `<measure>` in a part has no `<note>` (rests are notes); `measure` is the printed number, `part` the part ID |
 | `LOW_RESOLUTION` | The engine's low-resolution note (FR-6a), kept as an item |
 
@@ -292,8 +292,9 @@ the resource is not listed. `recognize_sheet_to_file` stays text-only.
   - Every client: `{metadata, pages: [{index, staves_detected, measures}]}`. `pages[].index` is
     1-based; `staves_detected` and `measures` are null when the engine gave no per-page detail.
   - Clients that advertise MCP Apps (`client_supports_ui(ctx)`) also get `job_id`,
-    `pages[].has_preview` and `metadata.staff_systems_estimate` (staves counted on the busiest input
-    page image, `estimate_staves()`; absent when no image was readable). It counts staves, not
+    `pages[].has_preview` and `metadata.staff_systems_estimate` (staves in the largest system on the
+    busiest input page image, `estimate_staves()`; absent when no image was readable). An SATB page
+    counts 4 however many systems it holds; a melody page counts 1. It counts staves, not
     parts, so it hints at a flattened SATB score without proving it. A direct call without a
     context counts as a client without apps.
   - Only these clients cause work: preview JPEGs, the staff count and a job table entry are
