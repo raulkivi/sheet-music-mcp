@@ -1,9 +1,58 @@
+<!--
+**Last changed:** 2026-11-25
+**Source:** https://github.com/raulkivi/sheet-music-mcp
+-->
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>Setup Doctor</title>
 <script src="./support.js"></script>
+<script type="application/json" id="fixture">
+{
+  "status": "ready",
+  "servers": [
+    "render-mcp",
+    "synth-mcp",
+    "omr-mcp"
+  ],
+  "checked_label": "just now",
+  "checks": [
+    {
+      "name": "Verovio (music engraving)",
+      "status": "ok",
+      "version": "built in"
+    },
+    {
+      "name": "FluidSynth (audio)",
+      "status": "ok",
+      "version": "2.3"
+    },
+    {
+      "name": "Soundfont",
+      "status": "ok",
+      "version": "/usr/share/sounds/sf2/TimGM6mb.sf2"
+    },
+    {
+      "name": "PortAudio (microphone)",
+      "status": "ok",
+      "version": "USB microphone"
+    },
+    {
+      "name": "Audiveris (keeps SATB parts)",
+      "status": "warn",
+      "hint": "Not found. Without it, OMR uses oemer, which loses the SATB voice structure of choir scores.",
+      "doc_url": "https://github.com/Audiveris/audiveris",
+      "fix_snippet": "Download the Audiveris release for your system from its project page.\nUnpack it and note the folder.\nSet its path in the server settings, then press Check again."
+    },
+    {
+      "name": "Model cache (oemer)",
+      "status": "warn",
+      "hint": "Last used 40 days ago. First run downloads again if the cache was cleared."
+    }
+  ]
+}
+</script>
 </head>
 <body>
 <x-dc>
@@ -18,7 +67,7 @@ button{font:inherit;cursor:pointer}
   <header style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 16px;background:{{t.panel}};border-bottom:1px solid {{t.border}}">
     <svg viewBox="0 0 24 24" aria-hidden="true" style="width:24px;height:24px;fill:none;stroke:{{t.accentText}};stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><path d="M3 12 C7 8 12 9 15 11 L21 6 L19 12 L21 18 L15 13 C12 15 7 16 3 12 Z"/></svg>
     <strong style="font-size:16px">Setup Doctor</strong>
-    <span style="font-size:12px;color:{{t.muted}}">Checked just now · render-mcp, synth-mcp, omr-mcp</span>
+    <span style="font-size:12px;color:{{t.muted}}">{{checkedLabel}}</span>
     <span style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:999px;background:{{summaryBg}};color:{{summaryText}}">{{summary}}</span>
     <button type="button" aria-pressed="{{ dark }}" onClick="{{ toggleDark }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">{{darkLabel}}</button>
   </header>
@@ -53,15 +102,15 @@ button{font:inherit;cursor:pointer}
         <div style="padding:10px;border:1px solid {{t.border}};border-radius:6px;margin-bottom:12px">
           <h3 style="margin:0 0 6px;font-size:14px">Install Audiveris</h3>
           <ol style="margin:0;padding-left:18px;font-size:14px;color:{{t.text}}">
-            <li>Download the Audiveris release for your system from its project page.</li>
-            <li>Unpack it and note the folder.</li>
-            <li>Set its path in the server settings, then press Check again.</li>
+            <sc-for list="{{steps}}" as="st">
+              <li>{{st}}</li>
+            </sc-for>
           </ol>
         </div>
       </sc-if>
-      <sc-if value="{{ allReady }}" hint-placeholder-val="{{ false }}">
+      <sc-if value="{{ everythingReady }}" hint-placeholder-val="{{ false }}">
         <div style="display:grid;gap:8px">
-          <p style="margin:0;font-size:14px;font-weight:600;color:{{t.okText}}">Everything is ready. Start practising.</p>
+          <p style="margin:0;font-size:14px;font-weight:600;color:{{t.okText}}">Everything is ready. Start practicing.</p>
           <svg width="100%" height="12" aria-hidden="true" style="display:block"><defs><pattern id="kannel-ornament" width="24" height="12" patternUnits="userSpaceOnUse"><path d="M12 1 L23 6 L12 11 L1 6 Z" fill="none" stroke="{{t.accentText}}" stroke-width="1.25"/></pattern></defs><rect width="100%" height="12" fill="url(#kannel-ornament)"/></svg>
         </div>
       </sc-if>
@@ -71,12 +120,18 @@ button{font:inherit;cursor:pointer}
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+const FIX = JSON.parse(document.getElementById('fixture').textContent);
+// Check statuses from sheet-music-mcp-core health.CHECK_STATUSES: ok, warn, fail.
+const BADGE = { ok: 'Ready', warn: 'Check', fail: 'Must fix' };
+const AUDIVERIS = 'Audiveris (keeps SATB parts)';
+const MODEL_CACHE = 'Model cache (oemer)';
 class Component extends DCLogic {
   renderVals() {
     const s = this.state || {};
     const dark = !!s.dark;
+    const byName = Object.fromEntries(FIX.checks.map((c) => [c.name, c]));
     const installed = !!s.installed;
-    const usingOemer = !!s.usingOemer;
+    const usingOemer = s.usingOemer !== undefined ? !!s.usingOemer : byName[AUDIVERIS].status !== 'ok';
     const cacheChecked = !!s.cacheChecked;
     const showSteps = !!s.showSteps;
     const checking = !!s.checking;
@@ -84,54 +139,55 @@ class Component extends DCLogic {
     const LIGHT = { bg: '#ffffff', panel: '#f4f6fa', text: '#15171c', muted: '#4b5563', border: '#d5dce6', accent: '#0072ce', accentText: '#005fae', flagWhite: '#ffffff', okTint: '#e4f2e8', okText: '#1e6b3a', warnTint: '#fbf0d2', warnText: '#7a5300', badTint: '#f9e3e1', badText: '#a8322d', infoTint: '#eaf2fb' };
     const DARK = { bg: '#101217', panel: '#1a1e27', text: '#eef2f7', muted: '#b4bdcb', border: '#2e3645', accent: '#0072ce', accentText: '#7fbcf5', flagWhite: '#101217', okTint: '#17301f', okText: '#8fd3a4', warnTint: '#3a2d0c', warnText: '#f2c14e', badTint: '#3a1c1a', badText: '#f09a94', infoTint: '#1b2b40' };
     const t = dark ? DARK : LIGHT;
-    const pill = (tint, text) => ({ bg: tint, text });
-    const ready = pill(t.okTint, t.okText);
-    const warn = pill(t.warnTint, t.warnText);
-    const bad = pill(t.badTint, t.badText);
-    const audStatus = installed ? 'ready' : usingOemer ? 'warn' : 'bad';
-    const audBadge = { ready: 'Ready', warn: 'Using oemer', bad: 'Must fix' }[audStatus];
-    const audPill = { ready, warn, bad }[audStatus];
-    const audDetail = installed
-      ? 'Found. OMR can keep the SATB voice structure.'
-      : usingOemer
-        ? 'Using oemer for now. It loses the SATB voice structure of choir scores.'
-        : 'Not found. Without it, OMR uses oemer, which loses the SATB voice structure of choir scores.';
-    const cacheStatus = cacheChecked ? 'ready' : 'warn';
-    const cachePill = cacheStatus === 'ready' ? ready : warn;
-    const rows = [
-      { name: 'Verovio (music engraving)', badge: 'Ready', detail: 'Built in. Nothing to do.', bg: ready.bg, text: ready.text, hasAction: false },
-      { name: 'FluidSynth (audio)', badge: 'Ready', detail: 'Version 2.3 found.', bg: ready.bg, text: ready.text, hasAction: false },
-      { name: 'Soundfont', badge: 'Ready', detail: '/usr/share/sounds/sf2/TimGM6mb.sf2', bg: ready.bg, text: ready.text, hasAction: false },
-      { name: 'PortAudio (microphone)', badge: 'Ready', detail: 'Input device found: USB microphone.', bg: ready.bg, text: ready.text, hasAction: false },
-      {
-        name: 'Audiveris (keeps SATB parts)',
-        badge: audBadge,
-        detail: audDetail,
-        bg: audPill.bg,
-        text: audPill.text,
-        hasAction: !installed,
-        primaryLabel: showSteps ? 'I have installed it' : 'Show install steps',
-        primary: () => (showSteps ? this.setState({ installed: true, showSteps: false, usingOemer: false }) : this.setState({ showSteps: true })),
-        secondaryLabel: usingOemer ? 'Use Audiveris when installed' : 'Use oemer for now',
-        secondary: () => this.setState({ usingOemer: !usingOemer }),
-      },
-      {
-        name: 'Model cache (oemer)',
-        badge: cacheStatus === 'ready' ? 'Ready' : 'Check',
-        detail: cacheChecked ? 'Cache checked just now.' : 'Last used 40 days ago. First run downloads again if the cache was cleared.',
-        bg: cachePill.bg,
-        text: cachePill.text,
-        hasAction: !cacheChecked,
-        primaryLabel: 'Mark cache as checked',
-        primary: () => this.setState({ cacheChecked: true }),
-        secondaryLabel: 'Later',
-        secondary: () => {},
-      },
-    ];
+    const pill = { ready: { bg: t.okTint, text: t.okText }, warn: { bg: t.warnTint, text: t.warnText }, bad: { bg: t.badTint, text: t.badText } };
+    const rowFor = (check) => {
+      const status = check.status === 'ok' ? 'ready' : check.status === 'warn' ? 'warn' : 'bad';
+      return { badge: BADGE[check.status], bg: pill[status].bg, text: pill[status].text, status };
+    };
+    const rows = FIX.checks.map((check) => {
+      const base = rowFor(check);
+      const detail = check.hint || ('Found: ' + check.version);
+      if (check.name === AUDIVERIS) {
+        const ready = installed;
+        const status = ready ? 'ready' : usingOemer ? 'warn' : 'bad';
+        return {
+          name: check.name,
+          badge: ready ? 'Ready' : usingOemer ? 'Using oemer' : 'Must fix',
+          bg: pill[status].bg,
+          text: pill[status].text,
+          detail: ready ? 'Found. OMR can keep the SATB voice structure.' : check.hint,
+          hasAction: !ready,
+          primaryLabel: showSteps ? 'I have installed it' : 'Show install steps',
+          primary: () => (showSteps ? this.setState({ installed: true, showSteps: false, usingOemer: false }) : this.setState({ showSteps: true })),
+          secondaryLabel: usingOemer ? 'Use Audiveris when installed' : 'Use oemer for now',
+          secondary: () => this.setState({ usingOemer: !usingOemer }),
+        };
+      }
+      if (check.name === MODEL_CACHE) {
+        const status = cacheChecked ? 'ready' : 'warn';
+        return {
+          name: check.name,
+          badge: cacheChecked ? 'Ready' : 'Check',
+          bg: pill[status].bg,
+          text: pill[status].text,
+          detail: cacheChecked ? 'Cache checked just now.' : check.hint,
+          hasAction: !cacheChecked,
+          primaryLabel: 'Mark cache as checked',
+          primary: () => this.setState({ cacheChecked: true }),
+          secondaryLabel: 'Later',
+          secondary: () => {},
+        };
+      }
+      return { name: check.name, badge: base.badge, bg: base.bg, text: base.text, detail, hasAction: false };
+    });
     const bads = rows.filter((r) => r.badge === 'Must fix').length;
     const checks = rows.filter((r) => r.badge === 'Check' || r.badge === 'Using oemer').length;
     const readyCount = rows.length - bads - checks;
-    const allReady = bads === 0 && checks === 0;
+    const everythingReady = bads === 0 && checks === 0;
+    const steps = byName[AUDIVERIS].fix_snippet ? byName[AUDIVERIS].fix_snippet.split('\n') : [];
+    const red = { bg: pill.bad.bg, text: pill.bad.text };
+    const amber = { bg: pill.warn.bg, text: pill.warn.text };
+    const green = { bg: pill.ready.bg, text: pill.ready.text };
     return {
       t,
       flagWhite: t.flagWhite,
@@ -139,9 +195,11 @@ class Component extends DCLogic {
       dark,
       darkLabel: dark ? 'Light theme' : 'Dark theme',
       toggleDark: () => this.setState({ dark: !dark }),
+      checkedLabel: 'Checked ' + FIX.checked_label + ' · ' + FIX.servers.join(', '),
       rows,
+      steps,
       showSteps,
-      allReady,
+      everythingReady,
       checking,
       checkLabel: checking ? 'Checking…' : 'Check again',
       checkAgain: () => {
@@ -150,11 +208,11 @@ class Component extends DCLogic {
       },
       copyLabel: copied ? 'Report copied' : 'Copy report for support',
       copyReport: () => this.setState({ copied: true }),
-      summary: allReady ? 'All ready' : bads + ' to fix · ' + (checks + readyCount) + ' ready',
-      summaryBg: allReady ? ready.bg : bads ? bad.bg : warn.bg,
-      summaryText: allReady ? ready.text : bads ? bad.text : warn.text,
-      headline: allReady ? 'All set' : 'Before you start',
-      subline: allReady ? 'Every check is ready.' : (bads ? bads + ' thing' + (bads > 1 ? 's' : '') + ' need fixing. ' : '') + (checks ? checks + ' to check. ' : '') + 'Use the buttons on each row.',
+      summary: everythingReady ? 'All ready' : bads + ' to fix · ' + (checks + readyCount) + ' ready',
+      summaryBg: everythingReady ? green.bg : bads ? red.bg : amber.bg,
+      summaryText: everythingReady ? green.text : bads ? red.text : amber.text,
+      headline: everythingReady ? 'All set' : 'Before you start',
+      subline: everythingReady ? 'Every check is ready.' : (bads ? bads + ' thing' + (bads > 1 ? 's' : '') + ' need fixing. ' : '') + (checks ? checks + ' to check. ' : '') + 'Use the buttons on each row.',
     };
   }
 }

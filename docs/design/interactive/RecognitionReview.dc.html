@@ -1,9 +1,72 @@
+<!--
+**Last changed:** 2026-11-25
+**Source:** https://github.com/raulkivi/sheet-music-mcp
+-->
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>Recognition Review</title>
 <script src="./support.js"></script>
+<script type="application/json" id="fixture">
+{
+  "job_id": "demo-job",
+  "metadata": {
+    "engine": "oemer",
+    "staves_detected": 2,
+    "measures": 12,
+    "processing_time_ms": 41250,
+    "page_count": 3,
+    "staff_systems_estimate": 4
+  },
+  "current_page": 2,
+  "staves_by_engine": {
+    "oemer": 2,
+    "audiveris": 4
+  },
+  "pages": [
+    {
+      "index": 1,
+      "staves_detected": 4,
+      "measures": 12,
+      "has_preview": true
+    },
+    {
+      "index": 2,
+      "staves_detected": 2,
+      "measures": 12,
+      "has_preview": true
+    },
+    {
+      "index": 3,
+      "staves_detected": 4,
+      "measures": 10,
+      "has_preview": true
+    }
+  ],
+  "warnings": [
+    {
+      "code": "note_count_mismatch",
+      "severity": "error",
+      "message": "Bar 12, alto: three notes read; the photo shows two quavers and a rest.",
+      "measure": 12,
+      "part": "P2"
+    },
+    {
+      "code": "clef_mismatch",
+      "severity": "warning",
+      "message": "Bar 5, tenor: clef read as treble; the photo shows a tenor clef.",
+      "measure": 5,
+      "part": "P3"
+    },
+    {
+      "code": "staves_disagree",
+      "severity": "info",
+      "message": "Staves: oemer found 2 on this page; Audiveris found 4 (S, A, T, B)."
+    }
+  ]
+}
+</script>
 </head>
 <body>
 <x-dc>
@@ -17,7 +80,7 @@ button{font:inherit;cursor:pointer}
   <div style="height:3px;background:linear-gradient(#0072ce 0 33.33%,#15171c 33.33% 66.66%,{{t.flagWhite}} 66.66% 100%)"></div>
   <header style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 16px;background:{{t.panel}};border-bottom:1px solid {{t.border}}">
     <strong style="font-size:16px">Recognition Review</strong>
-    <span style="font-size:12px;color:{{t.muted}}">Page 2 of 3 · sample scan</span>
+    <span style="font-size:12px;color:{{t.muted}}">Page {{page}} of {{pageCount}}</span>
     <span style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:999px;background:{{statusBg}};color:{{statusText}}">{{statusLabel}}</span>
     <button type="button" aria-pressed="{{ dark }}" onClick="{{ toggleDark }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">{{darkLabel}}</button>
   </header>
@@ -34,11 +97,11 @@ button{font:inherit;cursor:pointer}
   <main style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 340px;gap:16px;padding:16px;align-items:start">
     <section aria-label="Photo of the page" style="min-width:0;padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
       <h2 style="margin:0 0 8px;font-size:14px">Photo</h2>
-      <div style="aspect-ratio:3/4;display:grid;place-items:center;border:1px dashed {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.muted}};font-size:12px">Scanned page (sample image)</div>
+      <div style="aspect-ratio:3/4;display:grid;place-items:center;border:1px dashed {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.muted}};font-size:12px">Scanned page</div>
     </section>
-    <section aria-label="Recognised score" style="min-width:0;padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
-      <h2 style="margin:0 0 8px;font-size:14px">Recognised score · {{staves}} staves</h2>
-      <svg viewBox="0 0 600 180" role="img" aria-label="Recognised page, four voices" style="display:block;width:100%;height:auto;color:{{t.text}}">
+    <section aria-label="Recognized score" style="min-width:0;padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
+      <h2 style="margin:0 0 8px;font-size:14px">Recognized score · {{staves}} staves</h2>
+      <svg viewBox="0 0 600 180" role="img" aria-label="Recognized page, four voices" style="display:block;width:100%;height:auto;color:{{t.text}}">
         <path d="M20 30H580M20 40H580M20 50H580M20 60H580M20 70H580M20 110H580M20 120H580M20 130H580M20 140H580M20 150H580" stroke="currentColor" stroke-width="1" fill="none"/>
         <path d="M96 70V40M150 60V30M206 55V25M262 50V20M96 160V130M150 150V120M206 140V110M262 130V100" stroke="currentColor" stroke-width="1.2" fill="none"/>
         <g fill="currentColor">
@@ -68,48 +131,52 @@ button{font:inherit;cursor:pointer}
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+const FIX = JSON.parse(document.getElementById('fixture').textContent);
+// Warnings the Audiveris rerun resolves; the engine behavior is the board's, the list is the server's codes.
+const FIXED_BY_AUDIVERIS = ['note_count_mismatch'];
 class Component extends DCLogic {
   renderVals() {
     const s = this.state || {};
     const dark = !!s.dark;
-    const engine = s.engine || 'oemer';
+    const engine = s.engine || FIX.metadata.engine;
     const resolved = s.resolved || {};
     const running = !!s.running;
     const accepted = !!s.accepted;
     const LIGHT = { bg: '#ffffff', panel: '#f4f6fa', text: '#15171c', muted: '#4b5563', border: '#d5dce6', accent: '#0072ce', flagWhite: '#ffffff', warnText: '#7a5300', tint: '#eaf2fb', accentText: '#005fae' };
     const DARK = { bg: '#101217', panel: '#1a1e27', text: '#eef2f7', muted: '#b4bdcb', border: '#2e3645', accent: '#0072ce', flagWhite: '#101217', warnText: '#f2c14e', tint: '#1b2b40', accentText: '#7fbcf5' };
     const t = dark ? DARK : LIGHT;
-    const base = [
-      { id: 'bar12', tag: 'Must fix', text: 'Bar 12, alto: three notes read; the photo shows two quavers and a rest.', severity: 'bad', fixedBy: 'audiveris' },
-      { id: 'bar5', tag: 'Check', text: 'Bar 5, tenor: clef read as treble; the photo shows a tenor clef.', severity: 'warn' },
-      { id: 'staves', tag: 'Note', text: 'Staves: oemer found 2 on this page; Audiveris found 4 (S, A, T, B).', severity: 'info' },
-    ];
     const tagStyle = {
-      bad: { tagBg: t.tint === '#eaf2fb' ? '#f9e3e1' : '#3a1c1a', tagText: dark ? '#f09a94' : '#a8322d' },
-      warn: { tagBg: dark ? '#3a2d0c' : '#fbf0d2', tagText: dark ? '#f2c14e' : '#7a5300' },
-      info: { tagBg: t.tint, tagText: t.accentText },
+      error: { label: 'Must fix', tagBg: dark ? '#3a1c1a' : '#f9e3e1', tagText: dark ? '#f09a94' : '#a8322d' },
+      warning: { label: 'Check', tagBg: dark ? '#3a2d0c' : '#fbf0d2', tagText: dark ? '#f2c14e' : '#7a5300' },
+      info: { label: 'Note', tagBg: t.tint, tagText: t.accentText },
     };
-    const issues = base.map((it) => {
-      const fixedByEngine = it.fixedBy && engine === 'audiveris' && running === false && accepted === false && s.rerunDone;
-      const done = !!resolved[it.id] || !!fixedByEngine;
+    const issues = FIX.warnings.map((w, i) => {
+      const id = 'w' + i;
+      const fixedByEngine = FIXED_BY_AUDIVERIS.includes(w.code) && engine === 'audiveris' && running === false && accepted === false && s.rerunDone;
+      const done = !!resolved[id] || !!fixedByEngine;
+      const style = tagStyle[w.severity];
       return {
-        tag: it.tag,
-        text: done ? it.text + ' Resolved.' : it.text,
+        tag: style.label,
+        text: done ? w.message + ' Resolved.' : w.message,
         textStyle: done ? 'text-decoration:line-through;color:' + t.muted : '',
-        tagBg: tagStyle[it.severity].tagBg,
-        tagText: tagStyle[it.severity].tagText,
+        tagBg: style.tagBg,
+        tagText: style.tagText,
         actionLabel: done ? 'Mark as open' : 'Mark resolved',
-        toggle: () => this.setState({ resolved: { ...resolved, [it.id]: !done } }),
+        toggle: () => this.setState({ resolved: { ...resolved, [id]: !done } }),
       };
     });
     const openCount = issues.filter((it) => it.actionLabel === 'Mark resolved').length;
-    const bar12Done = !!resolved.bar12 || (engine === 'audiveris' && !!s.rerunDone);
+    const first = FIX.warnings[0];
+    const firstDone = !!resolved.w0 || (engine === 'audiveris' && !!s.rerunDone);
+    const statusOk = accepted;
     return {
       t,
       flagWhite: t.flagWhite,
       dark,
       darkLabel: dark ? 'Light theme' : 'Dark theme',
       toggleDark: () => this.setState({ dark: !dark }),
+      page: FIX.current_page,
+      pageCount: FIX.pages.length,
       isOemer: engine === 'oemer',
       isAudiveris: engine === 'audiveris',
       oemerBg: engine === 'oemer' ? t.tint : 'transparent',
@@ -122,10 +189,10 @@ class Component extends DCLogic {
         this.setState({ running: true });
         setTimeout(() => this.setState({ running: false, rerunDone: true }), 1200);
       },
-      staves: engine === 'audiveris' ? 4 : 2,
-      frameDash: bar12Done ? '0' : '5 4',
-      frameOpacity: bar12Done ? 0.35 : 1,
-      frameNote: bar12Done ? 'Bar 12 is resolved for this engine.' : 'Dashed frame: bar 12, the alto has three notes where the photo shows two.',
+      staves: FIX.staves_by_engine[engine],
+      frameDash: firstDone ? '0' : '5 4',
+      frameOpacity: firstDone ? 0.35 : 1,
+      frameNote: firstDone ? 'Frame resolved for this engine.' : 'Dashed frame: ' + first.message,
       issues,
       openCount,
       accepted,
@@ -133,8 +200,8 @@ class Component extends DCLogic {
       accept: () => this.setState({ accepted: true }),
       saveXml: () => this.setState({ saved: true }),
       statusLabel: accepted ? 'Accepted' : openCount + ' to check',
-      statusBg: accepted ? (dark ? '#17301f' : '#e4f2e8') : (dark ? '#3a2d0c' : '#fbf0d2'),
-      statusText: accepted ? (dark ? '#8fd3a4' : '#1e6b3a') : (dark ? '#f2c14e' : '#7a5300'),
+      statusBg: statusOk ? (dark ? '#17301f' : '#e4f2e8') : (dark ? '#3a2d0c' : '#fbf0d2'),
+      statusText: statusOk ? (dark ? '#8fd3a4' : '#1e6b3a') : (dark ? '#f2c14e' : '#7a5300'),
     };
   }
 }

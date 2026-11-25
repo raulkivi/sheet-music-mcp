@@ -1,9 +1,53 @@
+<!--
+**Last changed:** 2026-11-25
+**Source:** https://github.com/raulkivi/sheet-music-mcp
+-->
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>Practice Player</title>
 <script src="./support.js"></script>
+<script type="application/json" id="fixture">
+{
+  "title": "Ave verum",
+  "duration_seconds": 30,
+  "tempo_bpm": 84,
+  "tempo_factor": 1.0,
+  "measures": [
+    17,
+    24
+  ],
+  "loop": true,
+  "count_in": true,
+  "parts": [
+    {
+      "id": "P1",
+      "name": "Soprano",
+      "included": true,
+      "gain": 1.0
+    },
+    {
+      "id": "P2",
+      "name": "Alto",
+      "included": true,
+      "gain": 1.0
+    },
+    {
+      "id": "P3",
+      "name": "Tenor",
+      "included": false,
+      "gain": 0.0
+    },
+    {
+      "id": "P4",
+      "name": "Bass",
+      "included": false,
+      "gain": 0.0
+    }
+  ]
+}
+</script>
 </head>
 <body>
 <x-dc>
@@ -18,7 +62,7 @@ button{cursor:pointer}
   <div style="height:3px;background:linear-gradient(#0072ce 0 33.33%,#15171c 33.33% 66.66%,{{t.flagWhite}} 66.66% 100%)"></div>
   <header style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 16px;background:{{t.panel}};border-bottom:1px solid {{t.border}}">
     <strong style="font-size:16px">Practice Player</strong>
-    <span style="font-size:12px;color:{{t.muted}}">Ave verum · bars 17 to 24</span>
+    <span style="font-size:12px;color:{{t.muted}}">{{titleLabel}}</span>
     <button type="button" aria-pressed="{{ dark }}" onClick="{{ toggleDark }}" style="margin-left:auto;min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{t.bg}};color:{{t.text}}">{{darkLabel}}</button>
     <span style="font-size:12px;padding:2px 8px;border-radius:999px;background:{{t.okTint}};color:{{t.okText}}">Ready</span>
   </header>
@@ -29,12 +73,12 @@ button{cursor:pointer}
     <span style="font-size:12px;color:{{t.muted}}">Speed</span>
     <input type="range" min="50" max="120" value="{{tempo}}" aria-label="Tempo in BPM" onInput="{{ setTempo }}" style="width:180px;min-height:40px;accent-color:{{t.accent}}">
     <span style="font-variant-numeric:tabular-nums;min-width:80px">{{tempo}} BPM</span>
-    <button type="button" aria-pressed="{{ countIn }}" onClick="{{ toggleCountIn }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{countInBg}};color:{{t.text}}">Count-in {{countInLabel}}</button>
-    <button type="button" aria-pressed="{{ loop }}" onClick="{{ toggleLoop }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{loopBg}};color:{{t.text}}">Loop bars 17 to 24 {{loopLabel}}</button>
+    <button type="button" aria-pressed="{{ countInOn }}" onClick="{{ toggleCountIn }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{countInOnBg}};color:{{t.text}}">Count-in {{countInOnLabel}}</button>
+    <button type="button" aria-pressed="{{ loop }}" onClick="{{ toggleLoop }}" style="min-height:40px;padding:6px 14px;border:1px solid {{t.muted}};border-radius:6px;background:{{loopBg}};color:{{t.text}}">Loop {{loopRangeLabel}} {{loopLabel}}</button>
   </div>
   <main style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:16px;align-items:start">
     <section aria-label="Score with playhead" style="min-width:0;padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
-      <svg viewBox="0 0 600 190" role="img" aria-label="Bars 17 to 20, playhead at {{barLabel}}" style="display:block;width:100%;height:auto;color:{{t.text}}">
+      <svg viewBox="0 0 600 190" role="img" aria-label="Score excerpt, playhead at {{barLabel}}" style="display:block;width:100%;height:auto;color:{{t.text}}">
         <path d="M20 30H580M20 40H580M20 50H580M20 60H580M20 70H580M20 110H580M20 120H580M20 130H580M20 140H580M20 150H580" stroke="currentColor" stroke-width="1" fill="none"/>
         <path d="M20 30V70M20 110V150M300 30V70M300 110V150" stroke="currentColor" stroke-width="2" fill="none"/>
         <g fill="currentColor">
@@ -48,7 +92,7 @@ button{cursor:pointer}
         <span style="position:absolute;left:0;top:0;bottom:0;width:{{progress}}%;background:{{t.accent}};border-radius:3px"></span>
         <i style="position:absolute;left:{{progress}}%;top:-6px;bottom:-6px;width:2px;margin-left:-1px;background:{{t.marker}};border-radius:2px"></i>
       </div>
-      <p style="margin:8px 0 0;font-size:12px;color:{{t.muted}};font-variant-numeric:tabular-nums">{{barLabel}} · {{clock}} of 0:30 · {{tempo}} BPM</p>
+      <p style="margin:8px 0 0;font-size:12px;color:{{t.muted}};font-variant-numeric:tabular-nums">{{barLabel}} · {{clock}} of {{durationLabel}} · {{tempo}} BPM</p>
     </section>
     <aside aria-label="Parts and tempo" style="padding:12px;background:{{t.panel}};border:1px solid {{t.border}};border-radius:10px">
       <h2 style="margin:0 0 8px;font-size:14px">Parts</h2>
@@ -66,16 +110,18 @@ button{cursor:pointer}
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+const FIX = JSON.parse(document.getElementById('fixture').textContent);
 class Component extends DCLogic {
   componentDidMount() {
     this.timer = setInterval(() => {
       const s = this.state || {};
       if (!s.playing) return;
-      const tempo = s.tempo || 84;
-      const step = 0.5 * (tempo / 84);
+      const tempo = s.tempo || FIX.tempo_bpm;
+      const dur = FIX.duration_seconds;
+      const step = 0.5 * (tempo / FIX.tempo_bpm);
       let pos = (s.pos || 0) + step;
-      if (pos >= 30) pos = s.loop ? 0 : 30;
-      this.setState({ pos, playing: s.loop || pos < 30 ? s.playing : false });
+      if (pos >= dur) pos = s.loop !== false ? 0 : dur;
+      this.setState({ pos, playing: s.loop !== false || pos < dur ? s.playing : false });
     }, 500);
   }
   componentWillUnmount() {
@@ -84,57 +130,62 @@ class Component extends DCLogic {
   renderVals() {
     const s = this.state || {};
     const playing = !!s.playing;
-    const tempo = s.tempo || 84;
+    const tempo = s.tempo || FIX.tempo_bpm;
+    const dur = FIX.duration_seconds;
     const pos = s.pos || 0;
-    const loop = s.loop !== false;
-    const countIn = s.countIn !== false;
+    const loop = s.loop !== undefined ? !!s.loop : FIX.loop;
+    const countInOn = s.countInOn !== undefined ? !!s.countInOn : FIX.count_in;
     const LIGHT = { bg: '#ffffff', panel: '#f4f6fa', text: '#15171c', muted: '#4b5563', border: '#d5dce6', accent: '#0072ce', marker: '#b7850f', okTint: '#e4f2e8', okText: '#1e6b3a', tint: '#eaf2fb', flagWhite: '#ffffff' };
     const DARK = { bg: '#101217', panel: '#1a1e27', text: '#eef2f7', muted: '#b4bdcb', border: '#2e3645', accent: '#0072ce', marker: '#f2c14e', okTint: '#17301f', okText: '#8fd3a4', tint: '#1b2b40', flagWhite: '#101217' };
     const dark = !!s.dark;
     const t = dark ? DARK : LIGHT;
-    const onParts = s.onParts || { S: true, A: true, T: false, B: false };
-    const names = [['S', 'Soprano'], ['A', 'Alto'], ['T', 'Tenor'], ['B', 'Bass']];
-    const parts = names.map(([letter, name]) => {
-      const on = !!onParts[letter];
+    const onParts = s.onParts || Object.fromEntries(FIX.parts.map((p) => [p.id, p.included]));
+    const parts = FIX.parts.map((p) => {
+      const on = !!onParts[p.id];
       return {
-        letter,
-        name,
+        letter: p.name.charAt(0),
+        name: p.name,
         on,
-        bg: on ? '#1b2b40' : 'transparent',
-        toggle: () => this.setState({ onParts: { ...onParts, [letter]: !on } }),
+        bg: on ? t.tint : 'transparent',
+        toggle: () => this.setState({ onParts: { ...onParts, [p.id]: !on } }),
       };
     });
     const onCount = parts.filter((p) => p.on).length;
-    const x = 20 + (pos / 30) * 560;
-    const barNumber = 17 + Math.floor((pos / 30) * 8);
+    const [m0, m1] = FIX.measures;
+    const x = 20 + (pos / dur) * 560;
+    const barNumber = m0 + Math.floor((pos / dur) * (m1 - m0));
     const clockSec = Math.round(pos * 1000) / 1000;
     const mm = Math.floor(clockSec / 60);
     const ss = Math.floor(clockSec % 60);
+    const durSec = Math.round(dur);
     return {
       t: t,
       dark,
       darkLabel: dark ? 'Light theme' : 'Dark theme',
       toggleDark: () => this.setState({ dark: !dark }),
+      titleLabel: FIX.title + ' · bars ' + m0 + ' to ' + m1,
+      loopRangeLabel: 'bars ' + m0 + ' to ' + m1,
       playLabel: playing ? 'Pause' : 'Play',
       parts,
-      partsNote: onCount + ' of 4 parts in the track. Solo a part by turning the others off.',
+      partsNote: onCount + ' of ' + parts.length + ' parts in the track. Solo a part by turning the others off.',
       tempo,
-      tempoPct: Math.round((tempo / 84) * 100),
+      tempoPct: Math.round((tempo / FIX.tempo_bpm) * 100),
       setTempo: (e) => this.setState({ tempo: Number(e.target.value) }),
       togglePlay: () => this.setState({ playing: !playing }),
       restart: () => this.setState({ pos: 0 }),
-      countIn,
-      countInLabel: countIn ? 'on' : 'off',
-      countInBg: countIn ? '#1b2b40' : 'transparent',
-      toggleCountIn: () => this.setState({ countIn: !countIn }),
+      countInOn,
+      countInOnLabel: countInOn ? 'on' : 'off',
+      countInOnBg: countInOn ? t.tint : 'transparent',
+      toggleCountIn: () => this.setState({ countInOn: !countInOn }),
       loop,
       loopLabel: loop ? 'on' : 'off',
-      loopBg: loop ? '#1b2b40' : 'transparent',
+      loopBg: loop ? t.tint : 'transparent',
       toggleLoop: () => this.setState({ loop: !loop }),
       playPath: 'M' + x + ' 22V168',
-      progress: Math.round((pos / 30) * 100),
+      progress: Math.round((pos / dur) * 100),
       barLabel: 'bar ' + barNumber,
       clock: mm + ':' + (ss < 10 ? '0' + ss : ss),
+      durationLabel: Math.floor(durSec / 60) + ':' + String(durSec % 60).padStart(2, '0'),
     };
   }
 }

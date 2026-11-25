@@ -1,0 +1,32 @@
+{
+  "session": {
+    "session_id": "demo-session",
+    "part_id": "P2",
+    "part_name": "Alto",
+    "measure_count": 4,
+    "duration_seconds": 12.0,
+    "tempo_bpm": 84
+  },
+  "parts": [
+    {"id": "P1", "name": "Soprano"},
+    {"id": "P2", "name": "Alto"},
+    {"id": "P3", "name": "Tenor"},
+    {"id": "P4", "name": "Bass"}
+  ],
+  "measures": [9, 12],
+  "frames": [
+    {"measure": 9, "beat": 1, "expected_note": "E♭4", "sung_pitch_hz": 311.1, "accuracy_cents": 6, "status": "on_pitch"},
+    {"measure": 9, "beat": 2, "expected_note": "E♭4", "sung_pitch_hz": 310.3, "accuracy_cents": -4, "status": "on_pitch"},
+    {"measure": 9, "beat": 3, "expected_note": "E♭4", "sung_pitch_hz": 314.5, "accuracy_cents": 12, "status": "sharp"},
+    {"measure": 10, "beat": 1, "expected_note": "E♭4", "sung_pitch_hz": 306.1, "accuracy_cents": -18, "status": "flat"},
+    {"measure": 10, "beat": 2, "expected_note": "E♭4", "sung_pitch_hz": 311.6, "accuracy_cents": 2, "status": "on_pitch"},
+    {"measure": 10, "beat": 3, "expected_note": "E♭4", "sung_pitch_hz": null, "accuracy_cents": null, "status": "uncertain"},
+    {"measure": 11, "beat": 1, "expected_note": "E♭4", "sung_pitch_hz": null, "accuracy_cents": null, "status": "no_signal"},
+    {"measure": 11, "beat": 3, "expected_note": "E♭4", "sung_pitch_hz": 622.2, "accuracy_cents": 1200, "status": "sharp"}
+  ],
+  "history": [
+    {"measure": 9, "beat": 2, "status": "on_pitch"},
+    {"measure": 10, "beat": 3, "status": "uncertain"},
+    {"measure": 11, "beat": 3, "status": "sharp"}
+  ]
+}

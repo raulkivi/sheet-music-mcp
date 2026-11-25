@@ -1,0 +1,23 @@
+{
+  "job_id": "demo-job",
+  "metadata": {
+    "engine": "oemer",
+    "staves_detected": 2,
+    "measures": 12,
+    "processing_time_ms": 41250,
+    "page_count": 3,
+    "staff_systems_estimate": 4
+  },
+  "current_page": 2,
+  "staves_by_engine": {"oemer": 2, "audiveris": 4},
+  "pages": [
+    {"index": 1, "staves_detected": 4, "measures": 12, "has_preview": true},
+    {"index": 2, "staves_detected": 2, "measures": 12, "has_preview": true},
+    {"index": 3, "staves_detected": 4, "measures": 10, "has_preview": true}
+  ],
+  "warnings": [
+    {"code": "note_count_mismatch", "severity": "error", "message": "Bar 12, alto: three notes read; the photo shows two quavers and a rest.", "measure": 12, "part": "P2"},
+    {"code": "clef_mismatch", "severity": "warning", "message": "Bar 5, tenor: clef read as treble; the photo shows a tenor clef.", "measure": 5, "part": "P3"},
+    {"code": "staves_disagree", "severity": "info", "message": "Staves: oemer found 2 on this page; Audiveris found 4 (S, A, T, B)."}
+  ]
+}

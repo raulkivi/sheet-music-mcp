@@ -1,7 +1,8 @@
 // The mock host's query parameters, parsed once. Pure, so it is unit-tested in Node.
 //
-//   scenario  inline-long | inline-satb | path-only        (default inline-long); the Diff Viewer's:
-//             diff | diff-identical | diff-error (a compare_scores result with changes, none, or an error)
+//   scenario  inline-long | inline-satb | path-only        (default inline-long); these open with render_to_pdf
+//             health-mixed | health-ready | health-empty | health-error   open with health_check (Setup Doctor)
+//             diff | diff-identical | diff-error   open with compare_scores (Diff Viewer)
 //   theme     light | dark                                 (default light)
 //   csp       spec | spec-wasm                             (default spec-wasm; see server.mjs)
 //   downloads 1 | 0   adds allow-downloads to the sandbox  (default 1)
@@ -13,6 +14,8 @@
 //             (test/e2e/host-fixture.ts). With real, render_to_pdf runs there too.
 //   app       a registered app name (apps.config.mjs)   (default score-viewer); the frame loads
 //             /app.html?app=<name>, which server.mjs resolves to dist/<name>.html or answers 404
+//   clipboard 1 | 0   delegates clipboard-write to the frame, as a host honoring the
+//             resource's clipboardWrite permission does (default 1)
 //   host      default | claude   style variables the host sends (default default): a partial
 //             set, or the recording of Claude Desktop (host-styles.ts); theme picks light or dark
 
@@ -25,6 +28,10 @@ export const SCENARIOS = [
   "diff",
   "diff-identical",
   "diff-error",
+  "health-mixed",
+  "health-ready",
+  "health-empty",
+  "health-error",
 ] as const;
 export type ScenarioName = (typeof SCENARIOS)[number];
 export type ToolsMode = "placeholder" | "none" | "real";
@@ -40,6 +47,7 @@ export interface HostOptions {
   tools: ToolsMode;
   host: HostName;
   app: string;
+  clipboard: boolean;
 }
 
 // Only the shape is checked here (this module is bundled for the browser); server.mjs checks the registry.
@@ -69,5 +77,6 @@ export function hostOptions(search: string): HostOptions {
     tools,
     host: host as HostName,
     app,
+    clipboard: params.get("clipboard") !== "0",
   };
 }

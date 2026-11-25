@@ -8,6 +8,7 @@ import type { ToolBackend } from "./tool-backends.ts";
 
 export const OPENING_TOOL = "render_to_pdf";
 export const DIFF_OPENING_TOOL = "compare_scores";
+export const HEALTH_TOOL = "health_check";
 
 export const PDF_RESULT: CallToolResult = {
   content: [{ type: "text", text: "Rendered 5 page(s) to /tmp/sheet-music-output/score.pdf" }],
@@ -15,8 +16,52 @@ export const PDF_RESULT: CallToolResult = {
 };
 
 export interface OpeningCall {
+  /** The tool the host pretends the model called to open the view. */
+  tool: string;
   input: Record<string, unknown>;
   result: CallToolResult;
+}
+
+// Health reports in the core's standard shape (sheet_music_mcp_core.health.health_report):
+// optional fields are left out, never null.
+export const HEALTH_REPORTS = {
+  mixed: {
+    status: "not_ready",
+    checks: [
+      { name: "Verovio", status: "ok", version: "4.3.1" },
+      {
+        name: "Soundfont",
+        status: "fail",
+        hint: "No General MIDI soundfont was found, so audio cannot be made.",
+        fix_snippet: "sudo apt install fluid-soundfont-gm\nexport SYNTH_SOUNDFONT_PATH=/usr/share/sounds/sf2/FluidR3_GM.sf2",
+        doc_url: "https://example.org/setup#soundfont",
+      },
+      { name: "PortAudio", status: "warn", hint: "No input device was found; only the microphone features need one." },
+      { name: "FluidSynth", status: "ok", version: "2.3.4" },
+    ],
+  },
+  ready: {
+    status: "ready",
+    checks: [
+      { name: "Verovio", status: "ok", version: "4.3.1" },
+      { name: "FluidSynth", status: "ok", version: "2.3.4" },
+    ],
+  },
+  empty: { status: "ready", checks: [] },
+} as const;
+
+const HEALTH_SCENARIOS: Partial<Record<ScenarioName, CallToolResult>> = {
+  "health-mixed": healthResult(HEALTH_REPORTS.mixed),
+  "health-ready": healthResult(HEALTH_REPORTS.ready),
+  "health-empty": healthResult(HEALTH_REPORTS.empty),
+  "health-error": {
+    isError: true,
+    content: [{ type: "text", text: JSON.stringify({ error: "The health probe crashed.", error_code: "PROCESSING_ERROR" }) }],
+  },
+};
+
+function healthResult(report: object): CallToolResult {
+  return { content: [{ type: "text", text: "Health report" }], structuredContent: report as Record<string, unknown> };
 }
 
 async function fixture(name: string): Promise<string> {
@@ -26,7 +71,7 @@ async function fixture(name: string): Promise<string> {
 
 const DIFF_INPUT = { reference_path: "/home/user/scores/v1.musicxml", target_path: "/home/user/scores/v2.musicxml", detail: "full" };
 
-const INPUTS: Record<ScenarioName, () => Promise<Record<string, unknown>>> = {
+const INPUTS: Partial<Record<ScenarioName, () => Promise<Record<string, unknown>>>> = {
   diff: async () => DIFF_INPUT,
   "diff-identical": async () => DIFF_INPUT,
   "diff-error": async () => DIFF_INPUT,
@@ -38,11 +83,6 @@ const INPUTS: Record<ScenarioName, () => Promise<Record<string, unknown>>> = {
 // Relative, so the server resolves it inside its SHEET_MUSIC_OUTPUT_ROOT (the test's own
 // folder); without it render-mcp would write to its shared temp folder.
 const REAL_OUTPUT_PATH = "score.pdf";
-
-/** The tool whose call opens the scenario's view. */
-export function openingToolName(name: ScenarioName): string {
-  return name.startsWith("diff") ? DIFF_OPENING_TOOL : OPENING_TOOL;
-}
 
 const DIFF_ERROR: CallToolResult = {
   isError: true,
@@ -58,9 +98,14 @@ async function diffResult(name: ScenarioName): Promise<CallToolResult> {
 
 /** `model` runs the opening tool for real; without it the canned result stands in. */
 export async function openingCall(name: ScenarioName, model?: ToolBackend): Promise<OpeningCall> {
-  const score = await INPUTS[name]();
-  if (name.startsWith("diff")) return { input: score, result: await diffResult(name) };
-  if (!model) return { input: score, result: PDF_RESULT };
+  // Health scenarios are fixed: the Setup Doctor needs no score and the real render-mcp is not asked.
+  const health = HEALTH_SCENARIOS[name];
+  if (health) return { tool: HEALTH_TOOL, input: {}, result: health };
+  const makeInput = INPUTS[name];
+  if (!makeInput) throw new Error(`No scenario ${name}`);
+  const score = await makeInput();
+  if (name.startsWith("diff")) return { tool: DIFF_OPENING_TOOL, input: score, result: await diffResult(name) };
+  if (!model) return { tool: OPENING_TOOL, input: score, result: PDF_RESULT };
   const input = { ...score, output_path: REAL_OUTPUT_PATH };
-  return { input, result: await model.callTool({ name: OPENING_TOOL, arguments: input }) };
+  return { tool: OPENING_TOOL, input, result: await model.callTool({ name: OPENING_TOOL, arguments: input }) };
 }
