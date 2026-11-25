@@ -1,0 +1,138 @@
+{
+  "detail": "full",
+  "similarity_score": 0.9954427083333333,
+  "summary": {
+    "total_parts_reference": 4,
+    "total_parts_target": 4,
+    "parts_matched": 4,
+    "parts_missing": [],
+    "parts_extra": [],
+    "total_measures": 96,
+    "measures_missing": 0,
+    "measures_extra": 0,
+    "total_notes_compared": 384,
+    "notes_identical": 380,
+    "notes_pitch_changed": 3,
+    "notes_duration_changed": 0,
+    "notes_substituted": 0,
+    "notes_missing": 1,
+    "notes_extra": 0,
+    "key_signature_diffs": 0,
+    "time_signature_diffs": 0
+  },
+  "changes": [
+    {
+      "measure_number": 19,
+      "beat": 1.0,
+      "voice": 1,
+      "operation": "PITCH_CHANGE",
+      "reference": {
+        "pitch": "A5",
+        "midi": 81,
+        "duration": 1.0,
+        "duration_type": "quarter",
+        "is_rest": false,
+        "is_chord": false,
+        "tie": null,
+        "lyrics": null,
+        "articulations": []
+      },
+      "target": {
+        "pitch": "B5",
+        "midi": 83,
+        "duration": 1.0,
+        "duration_type": "quarter",
+        "is_rest": false,
+        "is_chord": false,
+        "tie": null,
+        "lyrics": null,
+        "articulations": []
+      },
+      "interval_error": 2,
+      "part_name": "Soprano"
+    },
+    {
+      "measure_number": 7,
+      "beat": 1.0,
+      "voice": 1,
+      "operation": "PITCH_CHANGE",
+      "reference": {
+        "pitch": "C5",
+        "midi": 72,
+        "duration": 1.0,
+        "duration_type": "quarter",
+        "is_rest": false,
+        "is_chord": false,
+        "tie": null,
+        "lyrics": null,
+        "articulations": []
+      },
+      "target": {
+        "pitch": "G5",
+        "midi": 79,
+        "duration": 1.0,
+        "duration_type": "quarter",
+        "is_rest": false,
+        "is_chord": false,
+        "tie": null,
+        "lyrics": null,
+        "articulations": []
+      },
+      "interval_error": 7,
+      "part_name": "Alto"
+    },
+    {
+      "measure_number": 19,
+      "beat": 2.0,
+      "voice": 1,
+      "operation": "PITCH_CHANGE",
+      "reference": {
+        "pitch": "G4",
+        "midi": 67,
+        "duration": 1.0,
+        "duration_type": "quarter",
+        "is_rest": false,
+        "is_chord": false,
+        "tie": null,
+        "lyrics": null,
+        "articulations": []
+      },
+      "target": {
+        "pitch": "G5",
+        "midi": 79,
+        "duration": 1.0,
+        "duration_type": "quarter",
+        "is_rest": false,
+        "is_chord": false,
+        "tie": null,
+        "lyrics": null,
+        "articulations": []
+      },
+      "interval_error": 12,
+      "part_name": "Tenor"
+    },
+    {
+      "measure_number": 12,
+      "beat": 4.0,
+      "voice": 1,
+      "operation": "DELETION",
+      "reference": {
+        "pitch": "G3",
+        "midi": 55,
+        "duration": 1.0,
+        "duration_type": "quarter",
+        "is_rest": false,
+        "is_chord": false,
+        "tie": null,
+        "lyrics": null,
+        "articulations": []
+      },
+      "target": null,
+      "interval_error": null,
+      "part_name": "Bass"
+    }
+  ],
+  "count": 4,
+  "report": "Overall similarity: 100% (nearly identical)\n\nSoprano:\n  - transposed by 2 semitones in measure 19\n\nAlto:\n  - transposed by 7 semitones in measure 7\n\nTenor:\n  - transposed by 12 semitones in measure 19\n\nBass:\n  - 1 note removed in measure 12",
+  "diff_id": "fixture-diff-1"
+}

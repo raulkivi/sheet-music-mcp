@@ -1,6 +1,7 @@
 // The mock host's query parameters, parsed once. Pure, so it is unit-tested in Node.
 //
-//   scenario  inline-long | inline-satb | path-only        (default inline-long)
+//   scenario  inline-long | inline-satb | path-only        (default inline-long); the Diff Viewer's:
+//             diff | diff-identical | diff-error (a compare_scores result with changes, none, or an error)
 //   theme     light | dark                                 (default light)
 //   csp       spec | spec-wasm                             (default spec-wasm; see server.mjs)
 //   downloads 1 | 0   adds allow-downloads to the sandbox  (default 1)
@@ -17,7 +18,14 @@
 
 import { HOSTS, type HostName } from "./host-styles.ts";
 
-export const SCENARIOS = ["inline-long", "inline-satb", "path-only"] as const;
+export const SCENARIOS = [
+  "inline-long",
+  "inline-satb",
+  "path-only",
+  "diff",
+  "diff-identical",
+  "diff-error",
+] as const;
 export type ScenarioName = (typeof SCENARIOS)[number];
 export type ToolsMode = "placeholder" | "none" | "real";
 export type DisplayMode = "inline" | "fullscreen" | "pip";
