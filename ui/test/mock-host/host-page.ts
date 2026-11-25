@@ -13,6 +13,7 @@ import {
 import { LoggingTransport, MessageLog, type LoggedMessage } from "./message-log.ts";
 import { hostStyleVariables } from "./host-styles.ts";
 import { hostOptions } from "./options.ts";
+import { isAbcScenario, abcTools } from "./abc-tools.ts";
 import { diffTools } from "./diff-backend.ts";
 import { pitchTools } from "./pitch-backend.ts";
 import { openingCall } from "./scenarios.ts";
@@ -39,6 +40,7 @@ const options = hostOptions(location.search);
 function viewTools(): ToolBackend {
   if (options.tools === "none") return noTools;
   if (options.tools === "placeholder") {
+    if (isAbcScenario(options.scenario)) return abcTools(options.scenario);
     if (options.app === "diff-viewer") return diffTools;
     // The coach scenarios add pitch-mcp's session tools to the placeholder pages.
     if (!options.scenario.startsWith("coach")) return placeholderTools;
@@ -59,7 +61,7 @@ const box = document.getElementById("frame-box")!;
 let inlineWidth = options.width;
 box.style.width = `${inlineWidth}px`;
 const frame = document.createElement("iframe");
-frame.title = options.app === "diff-viewer" ? "Diff Viewer" : options.app === "practice-coach" ? "Practice Coach" : "Score Viewer";
+frame.title = options.app === "diff-viewer" ? "Diff Viewer" : options.app === "practice-coach" ? "Practice Coach" : options.app === "abc-workbench" ? "ABC Workbench" : "Score Viewer";
 frame.setAttribute("sandbox", options.downloads ? "allow-scripts allow-downloads" : "allow-scripts");
 // A host grants the resource's `clipboardWrite` permission by delegating it to the frame.
 if (options.clipboard) frame.setAttribute("allow", "clipboard-write");

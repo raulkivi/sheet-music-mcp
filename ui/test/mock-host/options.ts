@@ -2,6 +2,7 @@
 //
 //   scenario  inline-long | inline-satb | path-only        (default inline-long); these open with render_to_pdf
 //             health-mixed | health-ready | health-empty | health-error   open with health_check (Setup Doctor)
+//             abc-edit | abc-edit-file | abc-export | abc-no-original | abc-error   open the ABC Workbench (abc-tools.ts)
 //             diff | diff-identical | diff-error   open with compare_scores (Diff Viewer)
 //   theme     light | dark                                 (default light)
 //   csp       spec | spec-wasm                             (default spec-wasm; see server.mjs)
@@ -23,6 +24,7 @@
 //   host      default | claude   style variables the host sends (default default): a partial
 //             set, or the recording of Claude Desktop (host-styles.ts); theme picks light or dark
 
+import { ABC_SCENARIOS } from "./abc-tools.ts";
 import { HOSTS, type HostName } from "./host-styles.ts";
 
 export const SCENARIOS = [
@@ -36,6 +38,7 @@ export const SCENARIOS = [
   "health-ready",
   "health-empty",
   "health-error",
+  ...ABC_SCENARIOS,
   "coach",
   "coach-loaded",
   "coach-empty",
