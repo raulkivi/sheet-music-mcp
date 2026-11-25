@@ -44,6 +44,9 @@ _JOIN_MARGIN_SPACINGS = 2
 _MAX_SKEW = 3.0
 _COARSE_STEP = 0.25
 _FINE_STEP = 0.025
+# Longer pages are counted on a copy scaled down to this many pixels on the long side: staff
+# geometry survives, and time and memory stay bounded for very large scans.
+_MAX_WORKING_SIDE = 2500
 
 
 @dataclass(frozen=True)
@@ -62,9 +65,14 @@ def estimate_staves(image_path: str | os.PathLike) -> int | None:
     except (OSError, ValueError, Image.DecompressionBombError) as e:
         logger.warning("Cannot count staves in %s: %s", image_path, e)
         return None
-    dark = _deskewed(_ink(gray))
-    staves, spacing = _staves(dark)
-    return _largest_system(dark, staves, spacing)
+    try:
+        dark = _deskewed(_ink(gray))
+        staves, spacing = _staves(dark)
+        return _largest_system(dark, staves, spacing)
+    except Exception:
+        # A hint must never fail the recognition it accompanies: unknown instead.
+        logger.exception("Staff count failed for %s", image_path)
+        return None
 
 
 def _to_gray(image: Image.Image) -> np.ndarray:
@@ -73,7 +81,13 @@ def _to_gray(image: Image.Image) -> np.ndarray:
         rgba = image.convert("RGBA")
         paper = Image.new("RGBA", rgba.size, "white")
         image = Image.alpha_composite(paper, rgba)
-    return np.asarray(image.convert("L"))
+    gray = image.convert("L")
+    longest = max(gray.size)
+    if longest > _MAX_WORKING_SIDE:
+        scale = _MAX_WORKING_SIDE / longest
+        size = (max(1, round(gray.width * scale)), max(1, round(gray.height * scale)))
+        gray = gray.resize(size, Image.Resampling.LANCZOS)
+    return np.asarray(gray)
 
 
 def _ink(gray: np.ndarray) -> np.ndarray:
@@ -185,6 +199,8 @@ def _staff(dark: np.ndarray, lines: list[np.ndarray], spacing: float) -> _Staff 
     # longest such run: a frame or scan shadow in the margin is dark on every row too, but apart.
     inked = sum(line.astype(int) for line in inked_lines)
     columns = np.flatnonzero(inked * 2 >= len(lines))
+    if columns.size == 0:
+        return None
     runs = np.split(columns, np.flatnonzero(np.diff(columns) > max(spacing, 1)) + 1)
     run = max(runs, key=lambda r: r[-1] - r[0])
     left, right = int(run[0]), int(run[-1])

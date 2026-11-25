@@ -199,6 +199,46 @@ def test_a_long_beam_between_two_staff_lines_does_not_hide_the_staff(tmp_path):
     assert estimate_staves(path) == 3
 
 
+def test_evenly_spaced_rows_that_never_share_a_column_are_not_a_staff(tmp_path):
+    # Five rows, each inked over 36 % of the width, but no column has three of them inked.
+    path = tmp_path / "patchwork.png"
+    width = 1000
+    image = Image.new("L", (width, 400), 255)
+    draw = ImageDraw.Draw(image)
+    rows = [[(0, 360)], [(360, 720)], [(640, 1000)], [(0, 360)], [(720, 1000), (560, 640)]]
+    for line, segments in enumerate(rows):
+        y = 100 + line * 10
+        for start, end in segments:
+            draw.rectangle([start, y, end - 1, y], fill=0)
+    image.save(path)
+
+    assert estimate_staves(path) == 0
+
+
+def test_an_unexpected_failure_in_the_analysis_gives_none(tmp_path, monkeypatch):
+    # A hint must never fail the recognition it accompanies.
+    import omr_mcp.staff_estimate as staff_estimate
+
+    def broken(dark):
+        raise IndexError("odd image")
+
+    monkeypatch.setattr(staff_estimate, "_staves", broken)
+
+    assert estimate_staves(_page(tmp_path, [4])) is None
+
+
+def test_very_large_pages_are_counted_on_a_smaller_copy(tmp_path, monkeypatch):
+    import omr_mcp.staff_estimate as staff_estimate
+
+    seen = []
+    original = staff_estimate._ink
+    monkeypatch.setattr(staff_estimate, "_ink", lambda gray: seen.append(gray.shape) or original(gray))
+
+    assert estimate_staves(_page(tmp_path, [4, 4], width=5000, spacing=40, thickness=4,
+                                 staff_gap=200, system_gap=400)) == 4
+    assert max(seen[0]) <= staff_estimate._MAX_WORKING_SIDE
+
+
 def test_a_staff_with_one_faint_line_still_counts(tmp_path):
     path = _page(tmp_path, [2])
     image = Image.open(path)

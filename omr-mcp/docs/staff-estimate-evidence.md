@@ -89,4 +89,5 @@ That cannot raise the warning against a recognized part.
 - Phone photos with perspective or a curved page are not covered; only rotation is corrected.
 - The estimate counts staves, not parts: a piano part has 2 staves, and a short score puts 2
   voices on one staff. That is why the warning is `info`.
-- Each page takes about 50 ms (1240 × 1755 px).
+- Each page takes about 50 ms (1240 × 1755 px). Pages longer than 2500 px are counted on a copy
+  scaled to 2500 px; the musicxml.com pages (4500 px wide) match at that size.

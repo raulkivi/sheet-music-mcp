@@ -367,7 +367,9 @@ out a path, and the score is not re-sent in results.
 
 ### Staff estimate
 
-`estimate_staves()` feeds `metadata.staff_systems_estimate` and the `PARTS_FEWER_THAN_STAVES` check:
+`estimate_staves()` feeds `metadata.staff_systems_estimate` and the `PARTS_FEWER_THAN_STAVES` check.
+Pages longer than 2500 px are counted on a copy scaled down to 2500 px, which bounds time and memory.
+Any failure in the analysis gives None (unknown), never a failed recognition. The steps:
 
 1. Ink: pixels darker than the page's median (paper) by a quarter of the paper-to-ink contrast, so
    one-pixel lines smoothed to gray by scaling or rotation still count, and gray paper does not.
