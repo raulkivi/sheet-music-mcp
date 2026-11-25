@@ -16,6 +16,9 @@ export const APPS = {
   "practice-player": {
     targets: [{ server: "synth-mcp", pkg: "synth_mcp" }],
   },
+  "diff-viewer": {
+    targets: [{ server: "comparer-mcp", pkg: "comparer_mcp" }],
+  },
   // One page, six copies: each server serves it from its own package and shows only its own
   // health_check report (decision DA5), so nothing here knows another server exists.
   "setup-doctor": {
@@ -27,5 +30,11 @@ export const APPS = {
       { server: "pitch-mcp", pkg: "pitch_mcp" },
       { server: "comparer-mcp", pkg: "comparer_mcp" },
     ],
+  },
+  "abc-workbench": {
+    targets: [{ server: "musicxml-abc-mcp", pkg: "musicxml_abc_mcp" }],
+  },
+  "practice-coach": {
+    targets: [{ server: "pitch-mcp", pkg: "pitch_mcp" }],
   },
 };

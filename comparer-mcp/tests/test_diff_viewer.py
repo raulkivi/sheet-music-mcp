@@ -52,15 +52,19 @@ class TestToolLinking:
 
     async def test_other_tools_are_not_linked(self, packaged_ui):
         # health_check links the Setup Doctor, not the viewer (tests/test_health_mapping.py).
-        others = [t for n, t in (await _tools()).items() if n not in LINKED and n != "health_check"]
+        others = [
+            t
+            for n, t in (await _tools()).items()
+            if n not in LINKED and n not in ("health_check", "get_diff_scores", "export_diff_scores")
+        ]
 
         assert others
         assert all(t.meta is None for t in others)
 
-    async def test_there_are_no_app_only_tools(self, packaged_ui):
-        # list_changes and export_annotated_musicxml are model-facing and app-callable (default
-        # visibility), so the viewer needs no helper tool.
-        assert not any(is_app_only(t) for t in (await _tools()).values())
+    async def test_the_app_only_tools_are_the_viewers_two_helpers(self, packaged_ui):
+        # Scores reach the page by diff_id (tests/test_diff_viewer_tools.py); the model never sees them.
+        names = {name for name, tool in (await _tools()).items() if is_app_only(tool)}
+        assert names == {"get_diff_scores", "export_diff_scores"}
 
     async def test_linked_tools_declare_output_schemas(self):
         tools = await _tools()

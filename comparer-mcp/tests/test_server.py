@@ -25,6 +25,8 @@ _TOOL_NAMES = {
     "list_changes",
     "generate_comparison_report",
     "export_annotated_musicxml",
+    "get_diff_scores",
+    "export_diff_scores",
     "list_capabilities",
     "health_check",
     "describe_score",

@@ -9,11 +9,11 @@ version/arrangement comparison, OMR quality evaluation, round-trip fidelity test
 **Status:** Phase 4 (Advanced features) complete — all originally-scoped phases done. UX Wave 2
 (score references) complete. UX Wave 3: `options.measure_range` renamed to `options.measures`
 (and `list_changes`'s `measure_range` to `measures`), old names kept as deprecated aliases.
-MCP Apps Diff Viewer server side done (`ui://comparer/diff-viewer`, `structuredContent`, output schemas); the page is not built yet.
+MCP Apps Diff Viewer done (`ui://comparer/diff-viewer`, `structuredContent`, output schemas, `diff_id` and two app-only tools; page in `ui/apps/diff-viewer/`).
 `compare_scores` (C24) consolidates the five compare tools (`detail`: summary, changes, report, full);
 the old names are deprecated aliases for one minor release.
-387 unit tests pass (+7 integration, which need the omr-mcp `.mxl` samples). `server.py` exposes
-all 10 tools; engine.py/models.py/part_matcher.py/note_aligner.py/measure_comparator.py/report.py/
+413 unit tests pass (+7 integration, which need the omr-mcp `.mxl` samples). `server.py` exposes
+all 12 tools (two app-only); engine.py/models.py/part_matcher.py/note_aligner.py/measure_comparator.py/report.py/
 annotator.py/utils.py are all implemented and independently usable.
 
 ---
@@ -40,6 +40,7 @@ Install dependencies: `uv sync --extra dev` (pytest is in the `dev` extra; plain
 | `src/comparer_mcp/models.py` | Dataclasses: ComparisonResult, NoteDiff, etc. |
 | `src/comparer_mcp/comparison_view.py` | `compare_scores`: detail levels, `view_of()`, filter folding, output schema (no MCP) |
 | `src/comparer_mcp/presenter.py` | `content` (unchanged JSON text) + `structuredContent` and output schemas for the Diff Viewer |
+| `src/comparer_mcp/diff_book.py` | `DiffBook`: the scores of each `compare_scores` result under an opaque `diff_id` (no MCP) |
 | `src/comparer_mcp/result_schema.py` | JSON Schema generated from the `models.py` dataclasses |
 | `src/comparer_mcp/part_matcher.py` | Part matching logic (name, instrument, range) |
 | `src/comparer_mcp/note_aligner.py` | Edit-distance note alignment |
@@ -65,6 +66,8 @@ Install dependencies: `uv sync --extra dev` (pytest is in the `dev` extra; plain
 | `list_changes` | Deprecated alias (`detail="changes"`): Filtered note-level diffs (`part`, `measures`) |
 | `generate_comparison_report` | Deprecated alias (`detail="report"`): Human-readable version comparison report |
 | `export_annotated_musicxml` | Colored MusicXML diff export; paths for large results (`return`), feed them to render-mcp's `musicxml_path` |
+| `get_diff_scores` | App-only (Diff Viewer): both scores of a `diff_id` with the differences colored |
+| `export_diff_scores` | App-only (Diff Viewer): writes the annotated pair of a `diff_id`, returns paths |
 | `describe_score` | Shared core tool: parts (IDs), key, time, range, measures — cheap, no music21 |
 | `health_check` | Server status and music21 version |
 | `list_capabilities` | Server metadata per conventions |
@@ -74,9 +77,9 @@ MCP Apps Diff Viewer (`ui://comparer/diff-viewer`, `server.DIFF_VIEWER`): `compa
 `comparer_mcp/ui/assets/diff-viewer.html` is packaged (hatch `artifacts`; gitignored build output).
 They return `structuredContent` (the full `ComparisonResult`, or `{report, similarity_score}`) and
 declare an `output_schema`; `content` stays byte-identical (`tests/test_content_golden.py`).
-Errors set `isError` and carry no `structuredContent`. No app-only tools: the viewer calls the
-model-facing `list_changes` and `export_annotated_musicxml` (`return: "inline"`, since an iframe
-cannot open paths).
+Errors set `isError` and carry no `structuredContent`. When the HTML is packaged `compare_scores`
+adds a `diff_id` (the pair is kept in `DiffBook`); the app-only `get_diff_scores` and
+`export_diff_scores` take it, never a path.
 
 Score references (UX Wave 2): every tool that took `reference_xml` / `target_xml` also takes
 `reference_path` / `target_path`, exactly one of each pair (`score_inputs.py`, built on

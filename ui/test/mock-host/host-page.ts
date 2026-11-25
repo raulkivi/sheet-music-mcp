@@ -13,8 +13,11 @@ import {
 import { LoggingTransport, MessageLog, type LoggedMessage } from "./message-log.ts";
 import { hostStyleVariables } from "./host-styles.ts";
 import { hostOptions } from "./options.ts";
+import { isAbcScenario, abcTools } from "./abc-tools.ts";
+import { diffTools } from "./diff-backend.ts";
+import { pitchTools } from "./pitch-backend.ts";
 import { openingCall } from "./scenarios.ts";
-import { noTools, placeholderTools, relayedTools, type Relay, type ToolBackend } from "./tool-backends.ts";
+import { composeTools, noTools, placeholderTools, relayedTools, type Relay, type ToolBackend } from "./tool-backends.ts";
 
 declare global {
   interface Window {
@@ -36,11 +39,20 @@ const options = hostOptions(location.search);
 
 function viewTools(): ToolBackend {
   if (options.tools === "none") return noTools;
-  if (options.tools === "placeholder") return placeholderTools;
+  if (options.tools === "placeholder") {
+    if (isAbcScenario(options.scenario)) return abcTools(options.scenario);
+    if (options.app === "diff-viewer") return diffTools;
+    // The coach scenarios add pitch-mcp's session tools to the placeholder pages.
+    if (!options.scenario.startsWith("coach")) return placeholderTools;
+    const state = options.scenario === "coach-loaded" ? "loaded" : "monitoring";
+    return composeTools(pitchTools({ xml: scoreXml, take: options.take, state, latencyMs: options.latencyMs }), placeholderTools);
+  }
   if (!window.mcpHostRelay) throw new Error("server=real needs window.mcpHostRelay: use the renderMcp fixture (test/e2e/host-fixture.ts)");
   return relayedTools(window.mcpHostRelay);
 }
 
+// The score the coach's get_score_for_session returns (the scenario's own input for the coach).
+const scoreXml = options.scenario.startsWith("coach") ? await (await fetch("/fixtures/satb-4bars.musicxml")).text() : "";
 const tools = viewTools();
 // The Practice Player scenarios have the host run synthesize, so they always get a backend.
 const runsOnBackend = options.tools === "real" || options.scenario.startsWith("practice");

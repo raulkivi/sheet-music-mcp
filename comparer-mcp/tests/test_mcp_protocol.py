@@ -6,6 +6,8 @@ import asyncio
 
 from mcp import Client
 
+from sheet_music_mcp_core.ui import is_app_only
+
 from comparer_mcp.server import app, list_tools
 
 
@@ -18,7 +20,8 @@ def _with_client(call):
 
 
 def test_lists_the_same_tools_as_list_tools():
-    expected = {tool.name for tool in asyncio.run(list_tools())}
+    # A client without MCP Apps support is not shown the app-only tools.
+    expected = {tool.name for tool in asyncio.run(list_tools()) if not is_app_only(tool)}
 
     result = _with_client(lambda client: client.list_tools())
 

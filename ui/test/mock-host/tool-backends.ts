@@ -18,7 +18,7 @@ export interface ToolBackend {
 export type Relay = (method: string, params: unknown) => Promise<unknown>;
 
 /** A JSON-RPC error the bridge sends back as such (code -32602, as the old mock did). */
-class NoSuchTool extends Error {
+export class NoSuchTool extends Error {
   readonly code = -32602;
   constructor(name: string) {
     super(`mock host has no fixture for tool ${name}`);
@@ -29,7 +29,7 @@ class NoSuchTool extends Error {
 // answered in the server's contract (structuredContent {svg, page, page_count}, error envelope).
 const PLACEHOLDER_PAGES = 5;
 
-function toolError(error: string, code: string, hint?: string): CallToolResult {
+export function toolError(error: string, code: string, hint?: string): CallToolResult {
   const envelope = hint ? { error, error_code: code, hint } : { error, error_code: code };
   return { isError: true, content: [{ type: "text", text: JSON.stringify(envelope) }] };
 }
@@ -74,6 +74,22 @@ export const noTools: ToolBackend = {
     throw new NoSuchTool(call.name);
   },
 };
+
+/** Asks each backend in turn; the first that has the tool answers. */
+export function composeTools(...backends: ToolBackend[]): ToolBackend {
+  return {
+    async callTool(call) {
+      for (const backend of backends) {
+        try {
+          return await backend.callTool(call);
+        } catch (error) {
+          if (!(error instanceof NoSuchTool)) throw error;
+        }
+      }
+      throw new NoSuchTool(call.name);
+    },
+  };
+}
 
 export function relayedTools(relay: Relay): ToolBackend {
   return {
