@@ -118,6 +118,14 @@ Wiring: build `[HealthCheck(...)]` with MCP-free code (engine or presenter), ret
 `setup_doctor_resource("<uri name>")` in the server's `UiRegistry` and link the tool with
 `meta=ui_registry.meta_for(SETUP_DOCTOR)`. Unset fields are omitted, never `null`.
 
+**Where the page is served from.** One page, `ui/apps/setup-doctor/`, built to `setup-doctor.html` and copied by
+`npm run copy-assets` into each server's own package (`<server>/src/<pkg>/ui/assets/`, listed in `ui/apps.config.mjs`).
+Each server serves it through its `PackageAssetSource`, not from core: core stays free of built artifacts and of any
+knowledge of the other servers, a server wheel is self-contained, and each page shows only its own server's report
+(it reads the `health_check` result the host delivers and calls the same server's `health_check` on *Check again*;
+it never names or calls another server). Without the built file the registry hides the resource and the tool link, and
+`health_check` stays a text and `structuredContent` tool.
+
 Mapping rules:
 
 - **One check per thing a user installs or configures**: a package, a system library, a file or

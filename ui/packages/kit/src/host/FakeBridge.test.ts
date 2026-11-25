@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { FakeBridge } from "./FakeBridge.ts";
 
 describe("FakeBridge", () => {
+  it("records openLink as ui/open-link", async () => {
+    const bridge = new FakeBridge({});
+    await bridge.openLink("https://example.org/doc");
+    expect(bridge.calls).toEqual([{ method: "ui/open-link", params: { url: "https://example.org/doc" } }]);
+  });
+
   it("resolves connect with the scripted host context", async () => {
     const bridge = new FakeBridge({ context: { theme: "dark" } });
     await expect(bridge.connect()).resolves.toEqual({ theme: "dark" });

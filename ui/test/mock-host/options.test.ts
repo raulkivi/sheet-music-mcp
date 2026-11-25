@@ -13,6 +13,7 @@ describe("hostOptions", () => {
       tools: "placeholder",
       host: "default",
       app: "score-viewer",
+      clipboard: true,
     });
   });
 
@@ -34,7 +35,12 @@ describe("hostOptions", () => {
       tools: "real",
       host: "default",
       app: "score-viewer",
+      clipboard: true,
     });
+  });
+
+  it("scenario=health-mixed and clipboard=0 are read", () => {
+    expect(hostOptions("?scenario=health-mixed&clipboard=0")).toMatchObject({ scenario: "health-mixed", clipboard: false });
   });
 
   it("app= picks which registered page the frame loads", () => {
