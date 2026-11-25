@@ -73,9 +73,18 @@ export interface Poller {
 
 export type PollerFactory = (request: () => Promise<void>) => Poller;
 
-/** Seam for T1.5 ("Ask Claude for tips"): a handler sends the fixed-template message. */
+/** What the page knows at the moment the take ended: the part, and what each bar looked like. */
+export interface TipsContext {
+  partName?: string;
+  bars: BarSummary[];
+}
+
+/** Seam for T1.5 ("Ask Claude for tips"): a handler sends the fixed-template messages. */
 export interface TipsHandler {
-  ask(report: SummaryReport): Promise<void>;
+  /** Sends the tips request to the chat. */
+  ask(report: SummaryReport, context: TipsContext): Promise<void>;
+  /** Tells the model what the take ended with; no chat message. Optional. */
+  stopped?(report: SummaryReport, context: TipsContext): Promise<void>;
 }
 
 export interface CoachOptions {
@@ -95,6 +104,8 @@ export class PracticeCoach {
   private lostNoticeShown = false;
   private stopping = false;
   private lastReport: SummaryReport | undefined;
+  private lastContext: TipsContext | undefined;
+  private tipsInFlight = false;
   private work: Promise<void> = Promise.resolve();
 
   constructor(
@@ -149,15 +160,23 @@ export class PracticeCoach {
     try {
       const summary = readSummary(await this.call("stop_monitoring", { session_id: session.sessionId }));
       if (summary.kind === "summary") {
+        // The part name comes from the session, which is dropped as soon as the take is over.
+        const context: TipsContext = { partName: session.partName, bars: this.history.byMeasure() };
         this.session = undefined;
         this.ui.showReport({
           report: summary.report,
-          bars: this.history.byMeasure(),
+          bars: context.bars,
           canPracticeAgain: practiceAgainArgs(this.input) !== undefined,
           canAskForTips: this.options.tips !== undefined,
         });
         this.lastReport = summary.report;
+        this.lastContext = context;
         this.ui.showMode("report");
+        try {
+          await this.options.tips?.stopped?.(summary.report, context);
+        } catch {
+          // The report is what the singer came for; a silent handler failure never takes it away.
+        }
       } else {
         this.ui.showNotice(NOTICES.stopFailed(summary.kind === "error" ? summary.code : "UNREADABLE"));
         this.ui.showMode("empty");
@@ -175,8 +194,17 @@ export class PracticeCoach {
   }
 
   async askForTips(): Promise<void> {
-    if (!this.options.tips || !this.lastReport) return;
-    await this.options.tips.ask(this.lastReport);
+    const tips = this.options.tips;
+    if (!tips || !this.lastReport || this.tipsInFlight) return;
+    this.tipsInFlight = true;
+    try {
+      await tips.ask(this.lastReport, this.lastContext ?? { bars: [] });
+      this.ui.showNotice(NOTICES.tipsSent);
+    } catch {
+      this.ui.showNotice(NOTICES.tipsFailed);
+    } finally {
+      this.tipsInFlight = false;
+    }
   }
 
   private onToolInput(input: ToolInput): void {
@@ -200,6 +228,7 @@ export class PracticeCoach {
     this.failures = 0;
     this.lostNoticeShown = false;
     this.lastReport = undefined;
+    this.lastContext = undefined;
     this.session = read.session;
     this.ui.showNotice(undefined);
     this.ui.showSession(read.session);

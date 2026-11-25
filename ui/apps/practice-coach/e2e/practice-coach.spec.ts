@@ -68,9 +68,34 @@ test.describe("call log", () => {
     for (const poll of calls.filter((c) => c.name === "get_current_position")) {
       expect(poll.arguments).toEqual({ session_id: "mock-session" });
     }
-    // The tips message is T1.5; nothing is sent to the model yet.
+    // While listening nothing is sent to the model; the context update comes on Stop.
     expect(await messages(page, "ui/message")).toEqual([]);
     expect(await messages(page, "ui/update-model-context")).toEqual([]);
+  });
+});
+
+test.describe("T1.5: Ask Claude for tips", () => {
+  test("Stop sends one fixed context update; the tips button sends one fixed message, once", async ({ page }) => {
+    const coach = await CoachFrame.open(page);
+    await coach.ready();
+    await expect.poll(() => coach.callCount("get_current_position")).toBeGreaterThan(8);
+    await coach.button("Stop and see summary").click();
+    await expect(coach.report()).toBeVisible();
+    expect(await messages(page, "ui/message")).toEqual([]);
+    const updates = await messages(page, "ui/update-model-context");
+    expect(updates).toHaveLength(1);
+    expect(JSON.stringify(updates[0])).toMatch(/Practice Coach: the singer stopped listening/);
+    const tips = coach.button("Ask Claude for tips");
+    await tips.focus();
+    await page.keyboard.press("Enter");
+    await expect(coach.notice()).toContainText("Asked Claude for tips");
+    const sent = await messages(page, "ui/message");
+    expect(sent).toHaveLength(1);
+    const text = JSON.stringify(sent[0]);
+    expect(text).toContain("My Practice Coach summary");
+    expect(text).toContain("Please give me short tips");
+    expect(text).not.toMatch(/<|musicxml/i);
+    expect(await messages(page, "ui/update-model-context")).toHaveLength(1);
   });
 });
 
@@ -156,8 +181,7 @@ test.describe("Stop and the report", () => {
     await expect(coach.content.locator("#histogram li", { hasText: "Not sure (not graded)" })).toBeVisible();
     await expect(coach.content.locator("#highlights li").first()).not.toBeEmpty();
     await expect(coach.button("Practice again")).toBeVisible();
-    // Tips are T1.5: no button yet, and nothing sent to the model.
-    await expect(coach.button("Ask Claude for tips")).toBeHidden();
+    await expect(coach.button("Ask Claude for tips")).toBeVisible();
     expect(await coach.callCount("stop_monitoring")).toBe(1);
     const polls = await coach.callCount("get_current_position");
     await page.waitForTimeout(500);

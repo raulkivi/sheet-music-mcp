@@ -38,6 +38,8 @@ export const NOTICES = {
   startFailed: (code: string) => `Listening could not start (${code}).`,
   scoreFailed: "The score could not be shown. Pitch feedback still works.",
   scoreEngine: "The notation engine could not start in this host. Pitch feedback still works.",
+  tipsSent: "Asked Claude for tips. Its answer will appear in the chat.",
+  tipsFailed: "The tips request could not be sent. Try again.",
 };
 
 /** The data of a tool result: structuredContent, else the JSON in the first text block. */
