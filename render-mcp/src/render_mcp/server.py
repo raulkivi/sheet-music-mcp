@@ -1,15 +1,17 @@
 import asyncio
 import json
 import logging
+from pathlib import Path
 
 import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations
 from sheet_music_mcp_core.annotations import READ_ONLY, WRITES_FILE
+from sheet_music_mcp_core.artifacts import MAX_CHUNK_BYTES, FileArtifactStore, chunk_payload
 from sheet_music_mcp_core.content import error_content, processing_error_content
 from sheet_music_mcp_core.health import HEALTH_OUTPUT_SCHEMA, setup_doctor_resource
 from sheet_music_mcp_core.measures import MEASURES_PROPERTY
-from sheet_music_mcp_core.paths import max_score_bytes
+from sheet_music_mcp_core.paths import max_score_bytes, new_output_path
 from sheet_music_mcp_core.references import (
     DESCRIBE_SCORE_TOOL,
     describe_score_tool,
@@ -36,10 +38,14 @@ from .engine import (
 from .presenter import (
     IMAGE_OUTPUT_SCHEMA,
     PAGE_SVG_OUTPUT_SCHEMA,
+    PDF_CHUNK_OUTPUT_SCHEMA,
+    PDF_HANDLE_OUTPUT_SCHEMA,
     PDF_OUTPUT_SCHEMA,
     present_image,
     present_page_svg,
     present_pdf,
+    present_pdf_chunk,
+    present_pdf_handle,
 )
 from .utils import (
     DPI_DEFAULT,
@@ -84,6 +90,9 @@ ui_registry = DEFAULT_UI_REGISTRY
 # worker thread and one Verovio toolkit is not thread-safe, so calls take turns.
 page_renderer = SvgPageRenderer()
 _page_renderer_lock = asyncio.Lock()
+
+# PDFs the Score Viewer downloads: written inside the output root, read back by id in chunks.
+pdf_store = FileArtifactStore()
 
 
 def _score_properties() -> dict:
@@ -224,6 +233,51 @@ async def list_tools():
             output_schema=PAGE_SVG_OUTPUT_SCHEMA,
             meta=ui_registry.meta_for(SCORE_VIEWER, app_only=True),
         ),
+        Tool(
+            name="get_pdf",
+            title="Render score PDF for download",
+            annotations=ToolAnnotations(**WRITES_FILE),
+            description=(
+                "For the Score Viewer only: renders the inline MusicXML score to a PDF and returns "
+                "an opaque pdf_id to read with read_pdf_chunk. Takes no path and returns none."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "musicxml": {"type": "string", "description": "MusicXML document as a string"},
+                },
+                "required": ["musicxml"],
+                "additionalProperties": False,
+            },
+            output_schema=PDF_HANDLE_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(SCORE_VIEWER, app_only=True),
+        ),
+        Tool(
+            name="read_pdf_chunk",
+            title="Read PDF chunk",
+            annotations=ToolAnnotations(**READ_ONLY),
+            description=(
+                "For the Score Viewer only: a base64 slice of a PDF, by the pdf_id get_pdf "
+                "returned. Takes an id, never a path."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "pdf_id": {"type": "string", "description": "pdf_id from get_pdf"},
+                    "offset": {"type": "integer", "minimum": 0, "description": "First byte to read"},
+                    "length": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": MAX_CHUNK_BYTES,
+                        "description": "Bytes to read (at most 1 MiB)",
+                    },
+                },
+                "required": ["pdf_id", "offset", "length"],
+                "additionalProperties": False,
+            },
+            output_schema=PDF_CHUNK_OUTPUT_SCHEMA,
+            meta=ui_registry.meta_for(SCORE_VIEWER, app_only=True),
+        ),
     ]
 
 
@@ -328,6 +382,54 @@ async def _render_page_svg(arguments: dict, ctx) -> CallToolResult:
     return CallToolResult(content=content, structured_content=structured)
 
 
+def _inline_score_error(musicxml: str) -> CallToolResult | None:
+    """The error for an inline score an app-only tool must not process, else ``None``."""
+    limit = max_score_bytes()
+    if len(musicxml.encode("utf-8")) > limit:
+        return _error(
+            processing_error_content(
+                ProcessingError(
+                    f"The score is larger than {limit} bytes.",
+                    "INVALID_PARAMETER",
+                    hint="Raise SHEET_MUSIC_MAX_SCORE_BYTES or render a measure range.",
+                )
+            )
+        )
+    ok, err = validate_musicxml(musicxml)
+    return None if ok else _error(error_content(err, "INVALID_INPUT"))
+
+
+async def _get_pdf(arguments: dict, ctx) -> CallToolResult:
+    musicxml = arguments["musicxml"]
+    failure = _inline_score_error(musicxml)
+    if failure:
+        return failure
+    try:
+        path = new_output_path("score", ".pdf", subdir="pdf")
+        pdf_path, page_count = await asyncio.to_thread(render_to_pdf, musicxml, str(path))
+        pdf_id = pdf_store.put(Path(pdf_path), "application/pdf")
+        byte_length = pdf_store.info(pdf_id).byte_length
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("get_pdf unexpected error: %s", e)
+        return _error(error_content(f"Rendering failed: {e}", "PROCESSING_FAILED"))
+    content, structured = present_pdf_handle(pdf_id, byte_length, page_count, detect_backend())
+    return CallToolResult(content=content, structured_content=structured)
+
+
+async def _read_pdf_chunk(arguments: dict, ctx) -> CallToolResult:
+    try:
+        chunk = chunk_payload(pdf_store, arguments.get("pdf_id"), arguments.get("offset"), arguments.get("length"))
+    except ProcessingError as e:
+        return _error(processing_error_content(e))
+    except Exception as e:
+        logger.error("read_pdf_chunk unexpected error: %s", e)
+        return _error(error_content(f"Unexpected error: {e}", "PROCESSING_FAILED"))
+    content, structured = present_pdf_chunk(chunk)
+    return CallToolResult(content=content, structured_content=structured)
+
+
 async def _health_check(arguments: dict, ctx) -> CallToolResult:
     # The text lines are the historical output; the report goes to structured_content.
     status = get_health_status()
@@ -353,6 +455,8 @@ _RESULT_TOOLS = {
     "render_to_pdf": _render_pdf,
     "render_to_image": _render_image,
     "render_page_svg": _render_page_svg,
+    "get_pdf": _get_pdf,
+    "read_pdf_chunk": _read_pdf_chunk,
     "health_check": _health_check,
 }
 

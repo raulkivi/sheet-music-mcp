@@ -387,3 +387,13 @@ Per-sample results (60 sample pages, all correct) are in
 
 `recognize_images()` adds an internal `_pages` list (per-page `staves_detected` and `measures`); the
 server moves it into `structuredContent.pages` and drops it from the text, so `content` is unchanged.
+
+### The page
+
+`ui/apps/recognition-review/` is the `ui://omr/recognition-review` page (built to
+`recognition-review.html`, copied to `omr_mcp/ui/assets/`). It shows the source photo
+(`get_source_preview`, read in chunks into a data URL), the recognized score drawn with Verovio
+(`get_recognized_score`), the issue list from `warnings[]`, advice from the staff estimate, the engine
+switch and Accept. Pure modules: `issues.ts` (warnings to issues), `advice.ts` (estimate to advice),
+`messages.ts` (fixed texts), `review.ts` (result reading), `preview.ts`; behavior in `reviewer.ts`
+over the host bridge. See `ui/README.md`.

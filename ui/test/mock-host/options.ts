@@ -2,8 +2,11 @@
 //
 //   scenario  inline-long | inline-satb | path-only        (default inline-long); these open with render_to_pdf
 //             health-mixed | health-ready | health-empty | health-error   open with health_check (Setup Doctor)
+//             practice | practice-empty | practice-unknown-audio   open with synthesize (Practice Player); the host
+//             plays the model and runs it on the placeholder synth server
 //             abc-edit | abc-edit-file | abc-export | abc-no-original | abc-error   open the ABC Workbench (abc-tools.ts)
 //             diff | diff-identical | diff-error   open with compare_scores (Diff Viewer)
+//             review | review-clean | review-error   open with recognize_sheet (Recognition Review; omr-tools.ts)
 //   theme     light | dark                                 (default light)
 //   csp       spec | spec-wasm                             (default spec-wasm; see server.mjs)
 //   downloads 1 | 0   adds allow-downloads to the sandbox  (default 1)
@@ -25,6 +28,7 @@
 //             set, or the recording of Claude Desktop (host-styles.ts); theme picks light or dark
 
 import { ABC_SCENARIOS } from "./abc-tools.ts";
+import { OMR_SCENARIOS } from "./omr-tools.ts";
 import { HOSTS, type HostName } from "./host-styles.ts";
 
 export const SCENARIOS = [
@@ -38,7 +42,11 @@ export const SCENARIOS = [
   "health-ready",
   "health-empty",
   "health-error",
+  "practice",
+  "practice-empty",
+  "practice-unknown-audio",
   ...ABC_SCENARIOS,
+  ...OMR_SCENARIOS,
   "coach",
   "coach-loaded",
   "coach-empty",

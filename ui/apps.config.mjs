@@ -13,6 +13,9 @@ export const APPS = {
   "score-viewer": {
     targets: [{ server: "render-mcp", pkg: "render_mcp" }],
   },
+  "practice-player": {
+    targets: [{ server: "synth-mcp", pkg: "synth_mcp" }],
+  },
   "diff-viewer": {
     targets: [{ server: "comparer-mcp", pkg: "comparer_mcp" }],
   },
@@ -33,5 +36,8 @@ export const APPS = {
   },
   "practice-coach": {
     targets: [{ server: "pitch-mcp", pkg: "pitch_mcp" }],
+  },
+  "recognition-review": {
+    targets: [{ server: "omr-mcp", pkg: "omr_mcp" }],
   },
 };

@@ -1,5 +1,5 @@
 // Composition root: real host bridge, both score renderers, the DOM and the adaptive poller wired
-// into the PracticeCoach. T1.5 plugs its tips handler into `options.tips` here.
+// into the PracticeCoach, with the bridge-backed tips handler so "Ask Claude for tips" reaches the chat.
 
 import { createExtAppsBridge } from "@sheet-music-mcp/ui-kit/host/ExtAppsBridge";
 import { ScoreView } from "@sheet-music-mcp/ui-kit/score/ScoreView";
@@ -9,6 +9,7 @@ import { DomUi } from "./dom.ts";
 import { PollScheduler } from "./polling.ts";
 import { ScoreDom } from "./scoreDom.ts";
 import { ScoreStage } from "./scoreStage.ts";
+import { BridgeTips } from "./tips.ts";
 import "./style.css";
 
 const bridge = createExtAppsBridge({ name: "sheet-music-practice-coach", version: "0.1.0", displayModes: ["inline"] });
@@ -26,6 +27,7 @@ const coach = new PracticeCoach(bridge, ui, stage, (request) =>
     },
     isHidden: () => document.hidden,
   }),
+  { tips: new BridgeTips(bridge) },
 );
 ui.bind(coach);
 scoreDom.onResize((width) => void stage.resize(width));

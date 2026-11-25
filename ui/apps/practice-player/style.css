@@ -1,0 +1,300 @@
+/* Colors and fonts come from theme.ts custom properties (host values or fallbacks). The gold
+   marker is a Kannel brand token (docs/design/tokens.css): playhead and current note only. */
+
+:root {
+  --kannel-marker: #b7850f;
+  --kannel-accent: #0072ce;
+  --kannel-on-accent: #ffffff;
+  --kannel-tint: #eaf2fb;
+}
+
+:root[data-theme="dark"] {
+  --kannel-marker: #f2c14e;
+  --kannel-tint: #1b2b40;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+
+h1,
+h2 {
+  margin: 0;
+}
+
+h1 {
+  font-size: 16px;
+}
+
+h2 {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.muted {
+  color: var(--color-text-secondary);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 16px;
+  background: var(--color-background-secondary);
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.icon {
+  flex: none;
+  color: var(--color-text-primary);
+}
+
+.pill {
+  margin-left: auto;
+  padding: 2px 10px;
+  border: 1px solid var(--color-text-secondary);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.sep {
+  align-self: stretch;
+  width: 1px;
+  background: var(--color-border-primary);
+}
+
+label {
+  color: var(--color-text-secondary);
+}
+
+button,
+select {
+  min-height: 36px;
+  padding: 4px 12px;
+  /* A host's border colors can be as faint as 1.5:1; a control's edge is a mark, so it takes
+     the secondary text color, which clears 3:1 on every host set (see score-viewer, U3). */
+  border: 1px solid var(--color-text-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button.primary {
+  min-width: 88px;
+  border-color: var(--kannel-accent);
+  background: var(--kannel-accent);
+  color: var(--kannel-on-accent);
+  font-weight: 600;
+}
+
+button[aria-pressed="true"] {
+  background: var(--kannel-tint);
+  border-color: var(--kannel-accent);
+}
+
+button:disabled,
+select:disabled,
+input:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--color-ring-primary);
+  outline-offset: 2px;
+}
+
+input[type="range"] {
+  min-width: 0;
+  min-height: 32px;
+  accent-color: var(--kannel-accent);
+}
+
+#tempo {
+  width: 160px;
+}
+
+#tempo-label {
+  min-width: 4em;
+  font-variant-numeric: tabular-nums;
+}
+
+#notice {
+  margin: 12px 16px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--color-text-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-secondary);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  padding: 16px;
+  align-items: start;
+}
+
+.panel {
+  min-width: 0;
+  padding: 12px;
+  background: var(--color-background-secondary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: 10px;
+}
+
+#score {
+  overflow-x: auto;
+  min-height: 48px;
+}
+
+#score svg {
+  display: block;
+  margin: 0 auto;
+  fill: currentColor;
+}
+
+#score svg.definition-scale {
+  color: var(--color-text-primary);
+}
+
+/* The playhead: gold, the one saturated mark on the page; it moves without easing. */
+#score .note.playing {
+  color: var(--kannel-marker);
+}
+
+#score .bar-marker {
+  fill: var(--kannel-marker);
+  fill-opacity: 0.18;
+  stroke: none;
+  pointer-events: none;
+}
+
+.seek {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.seek input {
+  flex: 1;
+}
+
+#position {
+  margin: 4px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.presets {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.parts {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.part {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.part .name {
+  font-weight: 600;
+}
+
+.part .volume {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 8px;
+}
+
+.part .volume input {
+  flex: 1;
+}
+
+.part .volume output {
+  min-width: 3.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+#pitches-text {
+  margin: 12px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
+  }
+
+  #tempo {
+    width: 120px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}

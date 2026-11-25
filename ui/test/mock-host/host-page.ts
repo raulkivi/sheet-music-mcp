@@ -15,6 +15,7 @@ import { hostStyleVariables } from "./host-styles.ts";
 import { hostOptions } from "./options.ts";
 import { isAbcScenario, abcTools } from "./abc-tools.ts";
 import { diffTools } from "./diff-backend.ts";
+import { isOmrScenario, omrTools } from "./omr-tools.ts";
 import { pitchTools } from "./pitch-backend.ts";
 import { openingCall } from "./scenarios.ts";
 import { composeTools, noTools, placeholderTools, relayedTools, type Relay, type ToolBackend } from "./tool-backends.ts";
@@ -42,6 +43,7 @@ function viewTools(): ToolBackend {
   if (options.tools === "placeholder") {
     if (isAbcScenario(options.scenario)) return abcTools(options.scenario);
     if (options.app === "diff-viewer") return diffTools;
+    if (isOmrScenario(options.scenario)) return omrTools;
     // The coach scenarios add pitch-mcp's session tools to the placeholder pages.
     if (!options.scenario.startsWith("coach")) return placeholderTools;
     const state = options.scenario === "coach-loaded" ? "loaded" : "monitoring";
@@ -54,14 +56,16 @@ function viewTools(): ToolBackend {
 // The score the coach's get_score_for_session returns (the scenario's own input for the coach).
 const scoreXml = options.scenario.startsWith("coach") ? await (await fetch("/fixtures/satb-4bars.musicxml")).text() : "";
 const tools = viewTools();
-const opening = await openingCall(options.scenario, options.tools === "real" ? tools : undefined);
+// The Practice Player scenarios have the host run synthesize, so they always get a backend.
+const runsOnBackend = options.tools === "real" || options.scenario.startsWith("practice");
+const opening = await openingCall(options.scenario, runsOnBackend ? tools : undefined);
 
 const log = new MessageLog();
 const box = document.getElementById("frame-box")!;
 let inlineWidth = options.width;
 box.style.width = `${inlineWidth}px`;
 const frame = document.createElement("iframe");
-frame.title = options.app === "diff-viewer" ? "Diff Viewer" : options.app === "practice-coach" ? "Practice Coach" : options.app === "abc-workbench" ? "ABC Workbench" : "Score Viewer";
+frame.title = options.app;
 frame.setAttribute("sandbox", options.downloads ? "allow-scripts allow-downloads" : "allow-scripts");
 // A host grants the resource's `clipboardWrite` permission by delegating it to the frame.
 if (options.clipboard) frame.setAttribute("allow", "clipboard-write");

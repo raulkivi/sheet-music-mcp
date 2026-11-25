@@ -49,6 +49,44 @@ PAGE_SVG_OUTPUT_SCHEMA = {
     "required": ["svg", "page", "page_count"],
 }
 
+PDF_HANDLE_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "pdf_id": {"type": "string", "description": "Opaque handle; read the PDF with read_pdf_chunk"},
+        "byte_length": {"type": "integer", "minimum": 0},
+        "page_count": {"type": "integer", "minimum": 0},
+        "backend": {"type": ["string", "null"], "description": "'verovio' or 'musescore'"},
+    },
+    "required": ["pdf_id", "byte_length", "page_count", "backend"],
+}
+
+PDF_CHUNK_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "artifact_id": {"type": "string"},
+        "offset": {"type": "integer", "minimum": 0},
+        "length": {"type": "integer", "minimum": 0, "description": "Bytes returned in this chunk"},
+        "byte_length": {"type": "integer", "minimum": 0, "description": "Size of the whole PDF"},
+        "eof": {"type": "boolean"},
+        "data_b64": {"type": "string", "description": "This chunk, base64-encoded"},
+    },
+    "required": ["artifact_id", "offset", "length", "byte_length", "eof", "data_b64"],
+}
+
+
+def present_pdf_handle(pdf_id: str, byte_length: int, page_count: int, backend: str | None) -> tuple[list, dict]:
+    """``(content, structured_content)`` for ``get_pdf``; no path, only the handle and sizes."""
+    text = f"PDF of {page_count} page(s), {max(1, round(byte_length / 1024))} kB, ready for the Score Viewer."
+    data = {"pdf_id": pdf_id, "byte_length": byte_length, "page_count": page_count, "backend": backend}
+    return [TextContent(type="text", text=text)], data
+
+
+def present_pdf_chunk(chunk: dict) -> tuple[list, dict]:
+    """``(content, structured_content)`` for the app-only PDF chunk read."""
+    end = chunk["offset"] + chunk["length"]
+    text = f"PDF bytes {chunk['offset']}-{end} of {chunk['byte_length']} sent to the Score Viewer."
+    return [TextContent(type="text", text=text)], dict(chunk)
+
 
 def present_pdf(pdf_path: str, page_count: int, backend: str | None) -> tuple[list, dict]:
     """``(content, structured_content)`` for a rendered PDF."""

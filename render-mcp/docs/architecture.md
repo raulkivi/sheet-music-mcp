@@ -1,5 +1,7 @@
 # render-mcp — Technical Architecture
 
+**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## Overview
 
 render-mcp is a stateless MCP server that renders MusicXML scores to PDF or PNG/SVG images. It uses Verovio for music engraving (MusicXML → SVG) and a cairosvg + pypdf pipeline for PDF and PNG output. All rendering runs in-process; no external tools are required.
@@ -269,6 +271,20 @@ when the HTML is packaged, without it otherwise). The core's `make_handlers` dro
 model in Claude Code CLI or Cursor never sees it; `tools/call` still validates and runs it. It
 takes inline MusicXML only (`additionalProperties: false`), never a path.
 
+**Part filter and highlight.** Both live in the page (`ui/packages/kit/src/score/parts.ts`, pure
+functions, Vitest). The filter removes the other parts' `<score-part>` and `<part>` blocks from the
+MusicXML and re-loads the result into the active renderer, so the WASM path and `render_page_svg`
+page the same filtered score with the same layout; the server stays unaware of it (and of part IDs).
+Highlight adds a `dimmed` class to the staff groups (and system labels) of the other parts: Verovio
+draws one `g.staff` per staff in every measure, in score order, so the dimmed indexes come from
+each part's staff count. The model hears the highlighted part's ID with the page, never its name.
+
+**PDF download.** The viewer's "Download PDF" calls the app-only `get_pdf` with the inline score. The
+server renders it (in a worker thread) to `<output root>/pdf/score-<timestamp>.pdf`, stores the file in
+a `FileArtifactStore` and returns only an opaque `pdf_id`; the page then pages `read_pdf_chunk`
+(core `chunk_payload`, 512 KiB per call) into a Blob and saves it as `score.pdf`. If the sandbox blocks
+downloads the page posts the D6 `ui/message`, as for SVG.
+
 **Text font limitation.** Tempo-mark notes (♩ = 90) are glyphs from Verovio's SMuFL text font.
 No `smuflTextFont` mode renders them under the default CSP: `embedded` (the default) is a
 `data:` font, blocked because the policy has no `font-src`; `linked` imports a stylesheet from
@@ -381,6 +397,8 @@ MuseScore names output files as `render.png` (single page) or `render-N.png` for
 | MuseScore subprocess failure | `PROCESSING_FAILED` |
 | `render_page_svg` page past the end of the layout | `INVALID_PARAMETER` with `hint` (page range) |
 | `render_page_svg` with a path or unknown argument | `INVALID_PARAMETER` (schema) |
+| `get_pdf` non-score / oversize score | `INVALID_INPUT` / `INVALID_PARAMETER` |
+| `read_pdf_chunk` unknown, expired or path-like id; chunk over 1 MiB | `INVALID_PARAMETER` |
 | `resources/read` of the viewer without a UI build | JSON-RPC `-32603`, `data.error_code` `UI_ASSET_MISSING` |
 | `resources/read` of an unknown URI | JSON-RPC `-32602`, `data.error_code` `RESOURCE_NOT_FOUND` |
 
@@ -440,6 +458,7 @@ render-mcp/
     ├── test_score_viewer.py       ← _meta.ui, resources, structuredContent
     ├── test_page_svg.py           ← page_layout parity, SvgPageRenderer cache (real Verovio)
     ├── test_render_page_svg.py    ← app-only tool: visibility, contract, errors
+    ├── test_get_pdf.py            ← app-only get_pdf / read_pdf_chunk: handle, chunks, errors
     ├── test_packaging.py          ← integration: wheel ships the viewer, AC-R1
     └── fixtures/
 ```

@@ -78,6 +78,23 @@ describe("ScoreView", () => {
     expect(map.some((e) => (e.on ?? []).length > 0)).toBe(true);
   });
 
+  it("marks where each bar starts in the timemap, for a playhead that follows bars", () => {
+    view.load(SATB);
+    const bars = view.timemap().filter((entry) => typeof entry.measureOn === "string");
+    expect(bars.length).toBeGreaterThanOrEqual(4);
+    expect(new Set(bars.map((entry) => entry.measureOn)).size).toBe(bars.length);
+  });
+
+  it("finds the page that holds a note, so a playhead can turn pages", () => {
+    view.load(SATB);
+    view.layout(1000);
+    const first = view.timemap().find((entry) => (entry.on ?? []).length > 0)?.on?.[0] ?? "";
+    const last = [...view.timemap()].reverse().find((entry) => (entry.on ?? []).length > 0)?.on?.[0] ?? "";
+    expect(view.pageOf(first)).toBe(1);
+    expect(view.pageOf(last)).toBe(view.pageCount);
+    expect(view.pageOf("no-such-id")).toBe(1);
+  });
+
   it("keeps MusicXML note colours in the SVG (comparer's annotated export)", () => {
     view.load(ANNOTATED);
     view.layout(1000);

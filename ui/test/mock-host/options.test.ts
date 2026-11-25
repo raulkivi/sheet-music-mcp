@@ -43,6 +43,18 @@ describe("hostOptions", () => {
     });
   });
 
+  it("knows the Practice Player scenarios", () => {
+    for (const scenario of ["practice", "practice-empty", "practice-unknown-audio"]) {
+      expect(hostOptions(`?scenario=${scenario}`).scenario).toBe(scenario);
+    }
+  });
+
+  it("knows the Recognition Review scenarios", () => {
+    for (const scenario of ["review", "review-clean", "review-error"]) {
+      expect(hostOptions(`?scenario=${scenario}&app=recognition-review`).scenario).toBe(scenario);
+    }
+  });
+
   it("scenario=health-mixed and clipboard=0 are read", () => {
     expect(hostOptions("?scenario=health-mixed&clipboard=0")).toMatchObject({ scenario: "health-mixed", clipboard: false });
   });
@@ -55,6 +67,12 @@ describe("hostOptions", () => {
   it("maps server=0 to no tools and server=1 to placeholder pages", () => {
     expect(hostOptions("?server=0").tools).toBe("none");
     expect(hostOptions("?server=1").tools).toBe("placeholder");
+  });
+
+  it("knows the Practice Player scenarios", () => {
+    for (const scenario of ["practice", "practice-empty", "practice-unknown-audio"]) {
+      expect(hostOptions(`?scenario=${scenario}`).scenario).toBe(scenario);
+    }
   });
 
   it("rejects an unknown scenario or server value instead of guessing", () => {

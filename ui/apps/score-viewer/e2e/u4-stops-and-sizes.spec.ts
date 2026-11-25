@@ -22,7 +22,7 @@ interface Stop {
   tabOrder: Control[];
 }
 
-const PAGE_CONTROLS: Control[] = ["Next page", "Zoom out", "Zoom in", "Download SVG"];
+const PAGE_CONTROLS: Control[] = ["Next page", "Zoom out", "Zoom in", "Show parts", "Highlight part", "Download SVG", "Download PDF"];
 
 const STOPS: Stop[] = [
   {

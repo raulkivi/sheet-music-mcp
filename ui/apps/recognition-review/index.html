@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Recognition Review</title>
+  </head>
+  <body>
+    <header class="head">
+      <h1>Recognition review</h1>
+      <p id="headline" class="headline">Waiting for a recognition…</p>
+    </header>
+    <p id="advice" class="advice" hidden></p>
+    <div id="notices" class="notices" role="status" hidden></div>
+    <div class="bar">
+      <p class="engine">Engine: <strong id="engine">not known yet</strong></p>
+      <div class="actions">
+        <button id="rerun" type="button" disabled>Recognize again</button>
+        <button id="accept" type="button" disabled>Accept score</button>
+      </div>
+    </div>
+    <p id="status" class="status" role="status" aria-live="polite" tabindex="-1"></p>
+    <div class="layout">
+      <section class="issues" aria-labelledby="issues-title">
+        <h2 id="issues-title">Check these <span id="issue-count">(0)</span></h2>
+        <p id="no-issues" class="empty">The server reported no issues.</p>
+        <ul id="issues" class="issue-list" aria-label="Issues" hidden></ul>
+        <p id="selection" class="selection" role="status" aria-live="polite"></p>
+      </section>
+      <div class="panes">
+        <section class="pane" aria-labelledby="photo-title">
+          <h2 id="photo-title">Photo</h2>
+          <div id="photo" class="pane-body" role="region" aria-label="Photo of the page" tabindex="0">
+            <img id="photo-img" alt="Photo of the scanned sheet music page" hidden />
+            <p id="photo-empty" class="empty">No photo to show.</p>
+          </div>
+        </section>
+        <section class="pane" aria-labelledby="score-title">
+          <h2 id="score-title">Recognized score</h2>
+          <div id="score" class="pane-body" role="region" aria-label="Recognized score" tabindex="0"></div>
+        </section>
+      </div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

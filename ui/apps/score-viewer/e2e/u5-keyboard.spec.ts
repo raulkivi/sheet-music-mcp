@@ -18,7 +18,7 @@ test("U5 Tab reaches Prev, Next, zoom, Download and Fullscreen in order, each wi
   const view = await openOnPage2(page);
 
   const stops = await view.tabThrough();
-  expect(stops.map((stop) => stop.name)).toEqual(["Previous page", "Next page", "Zoom out", "Zoom in", "Download SVG", "Fullscreen"]);
+  expect(stops.map((stop) => stop.name)).toEqual(["Previous page", "Next page", "Zoom out", "Zoom in", "Show parts", "Highlight part", "Download SVG", "Download PDF", "Fullscreen"]);
   for (const stop of stops) expect(stop, `focus ring on ${stop.name}`).toMatchObject({ ringVisible: true });
 });
 

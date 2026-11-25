@@ -6,7 +6,7 @@ Renders MusicXML scores to PDF (for printing) or PNG (for display in web/mobile 
 Uses Verovio (in-process) + cairosvg + pypdf. No MuseScore CLI required.
 
 **Status:** Phase 1 + UX Waves 1–3 complete; MCP Apps spike phase 0c (Score Viewer resource,
-`structuredContent`, app-only `render_page_svg`). 259 unit tests (default run) + 12 integration.
+`structuredContent`, app-only `render_page_svg`). 284 unit tests (default run) + 13 integration.
 
 ---
 
@@ -14,7 +14,7 @@ Uses Verovio (in-process) + cairosvg + pypdf. No MuseScore CLI required.
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v             # 259 unit tests (integration deselected)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v             # 284 unit tests (integration deselected)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration  # Verovio runs in-process, always fast
 ```
 
@@ -51,6 +51,7 @@ Install dependencies: `uv sync`
 | `health_check` | Runtime dependency check |
 | `describe_score` | Shared (core) tool: parts with IDs, key, time, tempo, measures, duration — no rendering |
 | `render_page_svg` | App-only (`_meta.ui.visibility: ["app"]`): one page of inline MusicXML as SVG for the Score Viewer when the host blocks WebAssembly; listed only for MCP Apps clients |
+| `get_pdf` / `read_pdf_chunk` | App-only: the Score Viewer's PDF download. `get_pdf(musicxml)` writes a PDF under the output root and returns an opaque `pdf_id`; `read_pdf_chunk(pdf_id, offset, length)` returns base64 chunks (core `artifacts`). No paths in or out |
 
 `render_to_pdf` and `render_to_image` link `ui://render/score-viewer` (`_meta.ui.resourceUri`)
 when the HTML is packaged, declare an `output_schema` and return `structuredContent`; their
