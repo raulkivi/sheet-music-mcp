@@ -35,6 +35,28 @@ describe("openingCall", () => {
   });
 });
 
+describe("ABC scenarios", () => {
+  it("abc-edit opens on the model's abc_to_musicxml call, with the edit as its input", async () => {
+    const opening = await openingCall("abc-edit");
+    expect(opening.tool).toBe("abc_to_musicxml");
+    expect(opening.input).toEqual({ abc: expect.stringContaining("X:1") });
+  });
+
+  it("abc-export opens on a musicxml_to_abc result with an abc_id", async () => {
+    const opening = await openingCall("abc-export");
+    expect(opening.tool).toBe("musicxml_to_abc");
+    expect(opening.result.structuredContent).toMatchObject({ abc_id: expect.any(String) });
+  });
+
+  it("abc-error opens on a failed call", async () => {
+    expect((await openingCall("abc-error")).result.isError).toBe(true);
+  });
+
+  it("does not run an ABC scenario against the real render-mcp", async () => {
+    await expect(openingCall("abc-edit", { callTool: async () => ({ content: [] }) })).rejects.toThrow(/placeholder/);
+  });
+});
+
 describe("health scenarios", () => {
   it("open with the server's own health_check and a report built like the core's", async () => {
     const mixed = await openingCall("health-mixed");

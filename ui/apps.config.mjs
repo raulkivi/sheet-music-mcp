@@ -25,4 +25,7 @@ export const APPS = {
       { server: "comparer-mcp", pkg: "comparer_mcp" },
     ],
   },
+  "abc-workbench": {
+    targets: [{ server: "musicxml-abc-mcp", pkg: "musicxml_abc_mcp" }],
+  },
 };

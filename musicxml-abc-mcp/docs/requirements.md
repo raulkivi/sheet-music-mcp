@@ -1,6 +1,6 @@
 # musicxml-abc-mcp Requirements
 
-**Last changed:** 2026-11-11 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 ## Purpose
 
@@ -287,6 +287,20 @@ validate_abc (VALIDATION_OUTPUT_SCHEMA): the result `content` already carries
 `musicxml_to_abc` and `abc_to_musicxml` link `ui://abc/workbench` (`_meta.ui.resourceUri`) only while
 `src/musicxml_abc_mcp/ui/assets/abc-workbench.html` is packaged; otherwise they carry no `_meta.ui`
 and the resource is not listed. `validate_abc` stays model-visible and is the call the app debounces.
+
+**The page** is `ui/apps/abc-workbench/` (built to `abc-workbench.html`, registered in
+`ui/apps.config.mjs`). It opens on the model's `abc_to_musicxml` call (the tool input `abc` is the
+proposal; the original comes from `get_abc` without an id, the latest export) or on a
+`musicxml_to_abc` result (the export, no proposal yet; the user edits in Edit mode). It shows the
+changes as hunks (kit `abc/hunks.ts`), lets the user keep or drop each, and calls `validate_abc`
+300 ms after the last change to the text that would be written, showing the server's own answer
+and an error marker on the line the message names (AC-A3). Accept selected / Accept all call
+`abc_to_musicxml` with `return: "auto"` and show a file chip (path delivery) or a download
+(inline delivery), then `ui/update-model-context`; Reject all sends only `ui/update-model-context`;
+"Ask the assistant to revise" sends a fixed `ui/message` naming the rejected changes by number and
+original line (never ABC text). The page does not call `apply_abc_edit`: it has no score path or
+part, so a bar edit of one part stays a model-driven call. Not built: the notation preview and the
+fullscreen display mode.
 
 **`get_abc`** (app-only, `_meta.ui.visibility: ["app"]`, listed only to clients that support MCP
 Apps; `tools/call` still finds it). Input `{abc_id?}` and nothing else (no paths,

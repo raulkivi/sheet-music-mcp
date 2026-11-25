@@ -3,6 +3,7 @@
 // host plays the model and runs render_to_pdf there, so the view gets the server's own result.
 
 import type { CallToolResult } from "@modelcontextprotocol/client";
+import { ABC_PROPOSED, isAbcScenario, STORED_ABC, type AbcScenario } from "./abc-tools.ts";
 import type { ScenarioName } from "./options.ts";
 import type { ToolBackend } from "./tool-backends.ts";
 
@@ -68,6 +69,25 @@ async function fixture(name: string): Promise<string> {
   return res.text();
 }
 
+const CONVERTED: CallToolResult = {
+  content: [{ type: "text", text: JSON.stringify({ musicxml: "<score-partwise/>", warnings: [] }) }],
+  structuredContent: { warnings: [], delivery: "inline", musicxml_bytes: 18 },
+};
+
+// The ABC Workbench opens on the model's abc_to_musicxml call (the edit is its input), or on a
+// musicxml_to_abc export (no edit yet). abc-tools.ts answers the view's own calls.
+const ABC_OPENING: Record<AbcScenario, OpeningCall> = {
+  "abc-edit": { tool: "abc_to_musicxml", input: { abc: ABC_PROPOSED }, result: CONVERTED },
+  "abc-edit-file": { tool: "abc_to_musicxml", input: { abc: ABC_PROPOSED }, result: CONVERTED },
+  "abc-no-original": { tool: "abc_to_musicxml", input: { abc: ABC_PROPOSED }, result: CONVERTED },
+  "abc-export": { tool: "musicxml_to_abc", input: { musicxml_path: "/home/user/scores/satb.musicxml" }, result: STORED_ABC },
+  "abc-error": {
+    tool: "abc_to_musicxml",
+    input: { abc: "not abc" },
+    result: { isError: true, content: [{ type: "text", text: JSON.stringify({ error: "ABC has no X: header", error_code: "INVALID_INPUT" }) }] },
+  },
+};
+
 const INPUTS: Partial<Record<ScenarioName, () => Promise<Record<string, unknown>>>> = {
   "inline-long": async () => ({ musicxml: await fixture("satb-long.musicxml") }),
   "inline-satb": async () => ({ musicxml: await fixture("satb-4bars.musicxml") }),
@@ -80,6 +100,10 @@ const REAL_OUTPUT_PATH = "score.pdf";
 
 /** `model` runs the opening tool for real; without it the canned result stands in. */
 export async function openingCall(name: ScenarioName, model?: ToolBackend): Promise<OpeningCall> {
+  if (isAbcScenario(name)) {
+    if (model) throw new Error("server=real runs render-mcp; the ABC scenarios use the placeholder tools");
+    return ABC_OPENING[name];
+  }
   // Health scenarios are fixed: the Setup Doctor needs no score and the real render-mcp is not asked.
   const health = HEALTH_SCENARIOS[name];
   if (health) return { tool: HEALTH_TOOL, input: {}, result: health };
