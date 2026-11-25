@@ -40,6 +40,10 @@ export function helpMessage(path: string): string {
   );
 }
 
-export function pageContext(page: number, pageCount: number): string {
-  return `Score Viewer: the user is looking at page ${page} of ${pageCount}.`;
+const PART_ID = /^[A-Za-z0-9_.-]{1,32}$/;
+
+/** The part ID only: the part's name is score text and stays out of anything sent to the model. */
+export function pageContext(page: number, pageCount: number, highlight: string | null = null): string {
+  const base = `Score Viewer: the user is looking at page ${page} of ${pageCount}.`;
+  return highlight !== null && PART_ID.test(highlight) ? `${base} Highlighted part ID: ${highlight}.` : base;
 }

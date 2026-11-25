@@ -271,6 +271,14 @@ when the HTML is packaged, without it otherwise). The core's `make_handlers` dro
 model in Claude Code CLI or Cursor never sees it; `tools/call` still validates and runs it. It
 takes inline MusicXML only (`additionalProperties: false`), never a path.
 
+**Part filter and highlight.** Both live in the page (`ui/packages/kit/src/score/parts.ts`, pure
+functions, Vitest). The filter removes the other parts' `<score-part>` and `<part>` blocks from the
+MusicXML and re-loads the result into the active renderer, so the WASM path and `render_page_svg`
+page the same filtered score with the same layout; the server stays unaware of it (and of part IDs).
+Highlight adds a `dimmed` class to the staff groups (and system labels) of the other parts: Verovio
+draws one `g.staff` per staff in every measure, in score order, so the dimmed indexes come from
+each part's staff count. The model hears the highlighted part's ID with the page, never its name.
+
 **PDF download.** The viewer's "Download PDF" calls the app-only `get_pdf` with the inline score. The
 server renders it (in a worker thread) to `<output root>/pdf/score-<timestamp>.pdf`, stores the file in
 a `FileArtifactStore` and returns only an opaque `pdf_id`; the page then pages `read_pdf_chunk`

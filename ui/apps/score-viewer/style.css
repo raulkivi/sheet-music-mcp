@@ -53,7 +53,8 @@ body {
   margin-left: auto;
 }
 
-button {
+button,
+select {
   /* 40 px on every control (design system §5), so a thumb hits it on a phone host. */
   min-width: 40px;
   min-height: 40px;
@@ -68,18 +69,29 @@ button {
   cursor: pointer;
 }
 
+select {
+  min-width: 7em;
+  max-width: 100%;
+}
+
+#parts {
+  flex-wrap: wrap;
+}
+
 button:disabled {
   opacity: 0.45;
   cursor: default;
 }
 
-button:focus-visible {
+button:focus-visible,
+select:focus-visible {
   outline: 2px solid var(--color-ring-primary);
   outline-offset: 1px;
 }
 
 #page-label,
-#zoom-label {
+#zoom-label,
+.group label {
   min-width: 4.5em;
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -99,6 +111,19 @@ button:focus-visible {
 
 /* Verovio sets color="black" here; the CSS property wins over the presentation attribute,
    while notes carrying their own colour attribute (comparer diffs) keep it. */
+/* The other parts while one is highlighted. Opacity keeps notes and staff lines in the theme's
+   colors; the fade is skipped for people who ask for less motion. */
+#score svg .dimmed {
+  opacity: 0.25;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #score svg g.staff,
+  #score svg g.label {
+    transition: opacity 120ms;
+  }
+}
+
 #score svg.definition-scale {
   color: var(--color-text-primary);
 }
@@ -129,6 +154,7 @@ button:focus-visible {
   color: var(--color-text-secondary);
 }
 
+#parts[hidden],
 #engine[hidden],
 #fallback[hidden],
 #notice[hidden],

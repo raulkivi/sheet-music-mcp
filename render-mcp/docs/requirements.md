@@ -84,6 +84,15 @@ tool `render_page_svg` (IR-7), which renders one page as SVG with the same layou
 It MUST be hidden from `tools/list` for clients that do not advertise MCP Apps, and MUST NOT
 accept a file path.
 
+### FR-7 — Part filter, highlight and PDF download in the viewer
+
+The viewer offers a part filter ("Show": all parts or one) and a highlight (dims the other parts'
+staves), and a "Download PDF" beside "Download SVG". The filter is applied in the page: the
+viewer cuts the MusicXML to the chosen part and hands that score to whichever render path runs, so
+no server change is needed and `render_page_svg`, `get_pdf` and Verovio WASM all see the same
+filtered score and page alike (AC-R3). Highlight is CSS on Verovio's staff groups and needs no
+re-render. The PDF download uses `get_pdf` and `read_pdf_chunk` (IR-8).
+
 ---
 
 ## Non-Functional Requirements

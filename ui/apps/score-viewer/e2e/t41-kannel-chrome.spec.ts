@@ -63,7 +63,7 @@ test("every control is at least 40 x 40 px at 360 px, fallback buttons included"
   await view.click("Download SVG");
   await expect(view.downloadFallback()).toBeVisible();
 
-  const sizes = await view.content.locator("button:visible").evaluateAll((buttons) =>
+  const sizes = await view.content.locator("button:visible, select:visible").evaluateAll((buttons) =>
     buttons.map((button) => {
       const { width, height } = button.getBoundingClientRect();
       return { name: button.getAttribute("aria-label") ?? button.textContent?.trim() ?? "", width, height };
