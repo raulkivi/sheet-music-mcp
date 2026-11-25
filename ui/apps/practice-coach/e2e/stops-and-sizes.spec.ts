@@ -54,7 +54,7 @@ const STOPS: Stop[] = [
       await coach.button("Stop and see summary").click();
       await expect(coach.report()).toBeVisible();
     },
-    tabOrder: ["Server microphone", "Practice again"],
+    tabOrder: ["Server microphone", "Practice again", "Ask Claude for tips"],
   },
   {
     name: "empty",

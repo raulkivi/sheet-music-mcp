@@ -67,7 +67,18 @@ export class DomUi implements CoachUi {
     on("start", () => controls.startListening());
     on("stop", () => controls.stop());
     on("again", () => controls.practiceAgain());
-    on("tips", () => controls.askForTips());
+    // aria-disabled while the message is sent (a real `disabled` would drop the keyboard focus),
+    // so a double click cannot send it twice.
+    on("tips", async () => {
+      const button = this.el.tips!;
+      if (button.getAttribute("aria-disabled") === "true") return;
+      button.setAttribute("aria-disabled", "true");
+      try {
+        await controls.askForTips();
+      } finally {
+        button.removeAttribute("aria-disabled");
+      }
+    });
     this.doc.addEventListener("visibilitychange", () => controls.onVisibilityChange());
   }
 
