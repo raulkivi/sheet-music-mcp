@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { FakeBridge, type FakeScript } from "@sheet-music-mcp/ui-kit/host/FakeBridge";
 import type { ToolResult } from "@sheet-music-mcp/ui-kit/host/HostBridge";
-import { PracticeCoach, type CoachScore, type CoachUi, type Mode, type Poller, type Reading, type ReportView, type TipsHandler } from "./coach.ts";
+import {
+  PracticeCoach,
+  type CoachScore,
+  type CoachUi,
+  type Mode,
+  type Poller,
+  type Reading,
+  type ReportView,
+  type TipsContext,
+  type TipsHandler,
+} from "./coach.ts";
 import type { BarSummary } from "./history.ts";
-import type { SessionInfo } from "./messages.ts";
+import { NOTICES, type SessionInfo, type SummaryReport } from "./messages.ts";
 
 const json = (data: unknown): ToolResult => ({ content: [{ type: "text", text: JSON.stringify(data) }] });
 const failure = (code: string): ToolResult => ({ isError: true, content: [{ type: "text", text: JSON.stringify({ error: "x", error_code: code }) }] });
@@ -284,6 +294,131 @@ describe("the tips seam (T1.5)", () => {
     await h.coach.stop();
     await h.coach.askForTips();
     expect(h.bridge.calls.some((c) => c.method === "ui/message")).toBe(false);
+  });
+});
+
+describe("asking Claude for tips (T1.5)", () => {
+  it("tells the handler once when the singer stops, with the part name and the per-bar history", async () => {
+    const seen: { report: SummaryReport; context: TipsContext }[] = [];
+    const tips: TipsHandler = {
+      ask: async () => {},
+      stopped: async (report, context) => void seen.push({ report, context }),
+    };
+    const h = await open({ ...practiceScript(), tips });
+    await h.poller().request();
+    await h.coach.stop();
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.report).toMatchObject({ measuresCovered: 2, avgCents: 12 });
+    expect(seen[0]!.context.partName).toBe("Alto");
+    expect(seen[0]!.context.bars.map((b) => b.measure)).toEqual([1]);
+  });
+
+  it("carries no part name when the session had none", async () => {
+    const seen: TipsContext[] = [];
+    const tips: TipsHandler = { ask: async () => {}, stopped: async (_r, context) => void seen.push(context) };
+    const h = await open({
+      ...practiceScript(),
+      toolResult: { structuredContent: { session_id: "s1", measure_count: 4 } },
+      tips,
+    });
+    await h.coach.stop();
+    expect(seen[0]?.partName).toBeUndefined();
+  });
+
+  it("does not tell the handler about a stop that produced no summary", async () => {
+    let stopped = 0;
+    const tips: TipsHandler = { ask: async () => {}, stopped: async () => void stopped++ };
+    const h = await open({ ...practiceScript({ stop_monitoring: failure("SESSION_NOT_FOUND") }), tips });
+    await h.coach.stop();
+    expect(stopped).toBe(0);
+  });
+
+  it("asks once per press, with the report and the stop-time context", async () => {
+    const asked: [number | null, string | undefined][] = [];
+    const tips: TipsHandler = { ask: async (report, context) => void asked.push([report.avgCents, context.partName]) };
+    const h = await open({ ...practiceScript(), tips });
+    await h.coach.stop();
+    await h.coach.askForTips();
+    await h.coach.askForTips();
+    expect(asked).toEqual([[12, "Alto"], [12, "Alto"]]);
+  });
+
+  it("sends nothing while an ask is still in flight, and lets a later press through", async () => {
+    let releaseGate = () => {};
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = () => resolve();
+    });
+    let asked = 0;
+    const tips: TipsHandler = {
+      ask: async () => {
+        asked++;
+        await gate;
+      },
+    };
+    const h = await open({ ...practiceScript(), tips });
+    await h.coach.stop();
+    const inFlight = h.coach.askForTips();
+    await h.coach.askForTips();
+    expect(asked).toBe(1);
+    releaseGate();
+    await inFlight;
+    expect(asked).toBe(1);
+    await h.coach.askForTips();
+    expect(asked).toBe(2);
+  });
+
+  it("says the tips were asked once the send succeeded", async () => {
+    const h = await open({ ...practiceScript(), tips: { ask: async () => {} } });
+    await h.coach.stop();
+    await h.coach.askForTips();
+    expect(h.ui.notice).toBe(NOTICES.tipsSent);
+  });
+
+  it("says the ask failed when the send throws, and lets a later press try again", async () => {
+    let asked = 0;
+    const tips: TipsHandler = {
+      ask: async () => {
+        asked++;
+        throw new Error("the host refused the message");
+      },
+    };
+    const h = await open({ ...practiceScript(), tips });
+    await h.coach.stop();
+    await h.coach.askForTips();
+    expect(h.ui.notice).toBe(NOTICES.tipsFailed);
+    await h.coach.askForTips();
+    expect(asked).toBe(2);
+  });
+
+  it("does not ask when the take was re-opened, so a stale report cannot be sent", async () => {
+    const asked: string[] = [];
+    const tips: TipsHandler = { ask: async (report) => void asked.push(String(report.measuresCovered)) };
+    const h = await open({ ...practiceScript(), tips });
+    await h.coach.stop();
+    await h.coach.practiceAgain();
+    await h.coach.askForTips();
+    expect(asked).toEqual([]);
+  });
+
+  it("shows the report when the handler's stopped() throws", async () => {
+    const tips: TipsHandler = {
+      ask: async () => {},
+      stopped: () => {
+        throw new Error("boom");
+      },
+    };
+    const h = await open({ ...practiceScript(), tips });
+    await h.coach.stop();
+    expect(h.ui.reports).toHaveLength(1);
+    expect(h.ui.mode).toBe("report");
+  });
+
+  it("shows the report when the handler's stopped() rejects", async () => {
+    const tips: TipsHandler = { ask: async () => {}, stopped: async () => Promise.reject(new Error("host gone")) };
+    const h = await open({ ...practiceScript(), tips });
+    await h.coach.stop();
+    expect(h.ui.reports).toHaveLength(1);
+    expect(h.ui.mode).toBe("report");
   });
 });
 
