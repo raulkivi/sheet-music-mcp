@@ -46,6 +46,16 @@ describe("listParts", () => {
   });
 });
 
+describe("scanning cost", () => {
+  it("stays linear on a hostile score full of unclosed tags", () => {
+    const hostile = `<score-partwise>${"<score-part ".repeat(60_000)}${"<part-name>".repeat(60_000)}${"<part ".repeat(60_000)}`;
+    const started = performance.now();
+    expect(listParts(hostile)).toEqual([]);
+    expect(filterParts(hostile, ["P1"])).toBe(hostile);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+});
+
 describe("filterParts", () => {
   it("keeps only the chosen parts, in both the part list and the music", () => {
     const filtered = filterParts(SATB, ["P2", "P4"]);
