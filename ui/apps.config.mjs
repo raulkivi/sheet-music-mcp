@@ -13,4 +13,7 @@ export const APPS = {
   "score-viewer": {
     targets: [{ server: "render-mcp", pkg: "render_mcp" }],
   },
+  "practice-coach": {
+    targets: [{ server: "pitch-mcp", pkg: "pitch_mcp" }],
+  },
 };

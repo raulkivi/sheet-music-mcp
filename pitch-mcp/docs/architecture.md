@@ -1,5 +1,12 @@
 # pitch-mcp — Technical Architecture
 
+**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
+> The Practice Coach page lives in `ui/apps/practice-coach/` (not in this package): `coach.ts`
+> (behavior over ports), `polling.ts` (adaptive scheduler), `status.ts` / `meter.ts` / `history.ts`
+> (pure), `scoreStage.ts` + `scoreMap.ts` (score and cursor), `dom.ts` / `scoreDom.ts` (markup).
+> See requirements IR-5b.
+
 ## Overview
 
 pitch-mcp is the most complex server in the sheet-music-mcp pipeline. It has two modes of operation:

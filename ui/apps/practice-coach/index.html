@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Practice Coach</title>
+  </head>
+  <body>
+    <div class="tricolor" aria-hidden="true"></div>
+    <header class="top">
+      <h1>Practice Coach</h1>
+      <span id="session-label" class="muted"></span>
+      <span id="listen-badge" class="pill tone-neutral">Not listening</span>
+    </header>
+    <div class="toolbar" role="toolbar" aria-label="Session controls">
+      <button id="start" type="button" class="primary" disabled>Start listening</button>
+      <button id="stop" type="button" disabled>Stop and see summary</button>
+      <fieldset id="mic" class="mic">
+        <legend>Microphone</legend>
+        <label class="choice">
+          <input type="radio" name="mic" value="server" checked aria-label="Server microphone" />
+          <span>Server microphone</span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="mic" value="browser" disabled aria-label="This device's browser (not available yet)" />
+          <span>This device's browser <span class="muted">(not available yet)</span></span>
+        </label>
+      </fieldset>
+    </div>
+    <p id="notice" role="status" hidden></p>
+
+    <section id="empty" class="panel empty">
+      <p id="empty-text">Practice Coach shows your pitch against the score while you sing. Ask Claude to start a practice with a score and your part.</p>
+    </section>
+
+    <main id="live" class="live" hidden>
+      <section class="panel score-panel" aria-label="Score with singing cursor">
+        <div id="score-wrap" class="score-wrap">
+          <div id="score" role="img" aria-label="Score"></div>
+          <div id="cursor" class="cursor" aria-hidden="true" hidden></div>
+        </div>
+        <p id="where" class="muted where">Bar &ndash; &middot; beat &ndash;</p>
+        <p id="score-note" class="muted where" hidden></p>
+      </section>
+
+      <aside id="meter-panel" class="panel" aria-label="Pitch now">
+        <div class="row">
+          <span class="muted small">Right now</span>
+          <span id="status" class="pill tone-muted" aria-live="polite">No sound</span>
+        </div>
+        <p class="note-line"><span id="note">&ndash;</span> <span id="hz" class="muted small"></span></p>
+        <p id="cents-text" class="muted cents" aria-live="polite">Not listening</p>
+        <div id="meter" class="meter" role="meter" aria-label="Pitch" aria-valuemin="-50" aria-valuemax="50" aria-valuenow="0" aria-valuetext="Not listening">
+          <span class="zone"></span>
+          <span class="center"></span>
+          <span id="needle" class="needle" hidden></span>
+        </div>
+        <div class="scale small muted" aria-hidden="true"><span>&minus;50</span><span>0</span><span>+50</span></div>
+        <h2>Last 3 bars</h2>
+        <ul id="last-bars" class="bars"></ul>
+      </aside>
+
+      <aside id="report" class="panel" aria-label="Take summary" hidden>
+        <h2 id="report-title">Take summary</h2>
+        <p id="report-avg" class="muted"></p>
+        <p id="report-timeout" class="muted" hidden></p>
+        <h3>Accuracy by bar</h3>
+        <ol id="heat" class="heat"></ol>
+        <h3>Notes by result</h3>
+        <ul id="histogram" class="histogram"></ul>
+        <h3>Where to work</h3>
+        <ul id="highlights" class="highlights"></ul>
+        <div class="actions">
+          <button id="again" type="button" class="primary">Practice again</button>
+          <button id="tips" type="button" hidden>Ask Claude for tips</button>
+        </div>
+      </aside>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

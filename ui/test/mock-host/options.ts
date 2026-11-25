@@ -10,6 +10,10 @@
 //             1 = five placeholder pages for render_page_svg, 0 = no tool at all,
 //             real = the real render-mcp over stdio, through window.mcpHostRelay
 //             (test/e2e/host-fixture.ts). With real, render_to_pdf runs there too.
+//   take      steady | closed | lost    the scripted singing the Practice Coach's pitch tools
+//             answer with (default steady; pitch-backend.ts). latency= is their delay in ms.
+//             The coach scenarios: coach (a started practice), coach-loaded (microphone still
+//             closed), coach-empty (a result with no session), coach-error (start_practice failed).
 //   app       a registered app name (apps.config.mjs)   (default score-viewer); the frame loads
 //             /app.html?app=<name>, which server.mjs resolves to dist/<name>.html or answers 404
 //   host      default | claude   style variables the host sends (default default): a partial
@@ -17,8 +21,10 @@
 
 import { HOSTS, type HostName } from "./host-styles.ts";
 
-export const SCENARIOS = ["inline-long", "inline-satb", "path-only"] as const;
+export const SCENARIOS = ["inline-long", "inline-satb", "path-only", "coach", "coach-loaded", "coach-empty", "coach-error"] as const;
 export type ScenarioName = (typeof SCENARIOS)[number];
+export const TAKE_NAMES = ["steady", "closed", "lost"] as const;
+export type TakeName = (typeof TAKE_NAMES)[number];
 export type ToolsMode = "placeholder" | "none" | "real";
 export type DisplayMode = "inline" | "fullscreen" | "pip";
 
@@ -32,6 +38,9 @@ export interface HostOptions {
   tools: ToolsMode;
   host: HostName;
   app: string;
+  take: TakeName;
+  /** Delay of every pitch-tool answer, in ms. */
+  latencyMs: number;
 }
 
 // Only the shape is checked here (this module is bundled for the browser); server.mjs checks the registry.
@@ -51,6 +60,10 @@ export function hostOptions(search: string): HostOptions {
   if (!(HOSTS as readonly string[]).includes(host)) throw new Error(`Unknown host=${host}; expected ${HOSTS.join(" or ")}`);
   const app = params.get("app") ?? "score-viewer";
   if (!APP_NAME.test(app)) throw new Error(`Invalid app=${app}; expected a registered app name such as score-viewer`);
+  const take = params.get("take") ?? "steady";
+  if (!(TAKE_NAMES as readonly string[]).includes(take)) throw new Error(`Unknown take=${take}; expected one of ${TAKE_NAMES.join(", ")}`);
+  const latency = Number(params.get("latency") ?? 0);
+  if (!Number.isFinite(latency) || latency < 0) throw new Error(`Invalid latency=${params.get("latency")}; expected milliseconds, 0 or more`);
   return {
     scenario: scenario as ScenarioName,
     theme: params.get("theme") === "dark" ? "dark" : "light",
@@ -61,5 +74,7 @@ export function hostOptions(search: string): HostOptions {
     tools,
     host: host as HostName,
     app,
+    take: take as TakeName,
+    latencyMs: latency,
   };
 }

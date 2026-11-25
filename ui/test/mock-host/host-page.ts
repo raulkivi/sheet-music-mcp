@@ -13,8 +13,9 @@ import {
 import { LoggingTransport, MessageLog, type LoggedMessage } from "./message-log.ts";
 import { hostStyleVariables } from "./host-styles.ts";
 import { hostOptions } from "./options.ts";
-import { openingCall, OPENING_TOOL } from "./scenarios.ts";
-import { noTools, placeholderTools, relayedTools, type Relay, type ToolBackend } from "./tool-backends.ts";
+import { pitchTools } from "./pitch-backend.ts";
+import { openingCall, openingTool } from "./scenarios.ts";
+import { composeTools, noTools, placeholderTools, relayedTools, type Relay, type ToolBackend } from "./tool-backends.ts";
 
 declare global {
   interface Window {
@@ -36,11 +37,18 @@ const options = hostOptions(location.search);
 
 function viewTools(): ToolBackend {
   if (options.tools === "none") return noTools;
-  if (options.tools === "placeholder") return placeholderTools;
+  if (options.tools === "placeholder") {
+    // The coach scenarios add pitch-mcp's session tools to the placeholder pages.
+    if (!options.scenario.startsWith("coach")) return placeholderTools;
+    const state = options.scenario === "coach-loaded" ? "loaded" : "monitoring";
+    return composeTools(pitchTools({ xml: scoreXml, take: options.take, state, latencyMs: options.latencyMs }), placeholderTools);
+  }
   if (!window.mcpHostRelay) throw new Error("server=real needs window.mcpHostRelay: use the renderMcp fixture (test/e2e/host-fixture.ts)");
   return relayedTools(window.mcpHostRelay);
 }
 
+// The score the coach's get_score_for_session returns (the scenario's own input for the coach).
+const scoreXml = options.scenario.startsWith("coach") ? await (await fetch("/fixtures/satb-4bars.musicxml")).text() : "";
 const tools = viewTools();
 const opening = await openingCall(options.scenario, options.tools === "real" ? tools : undefined);
 
@@ -49,7 +57,7 @@ const box = document.getElementById("frame-box")!;
 let inlineWidth = options.width;
 box.style.width = `${inlineWidth}px`;
 const frame = document.createElement("iframe");
-frame.title = "Score Viewer";
+frame.title = options.app === "practice-coach" ? "Practice Coach" : "Score Viewer";
 frame.setAttribute("sandbox", options.downloads ? "allow-scripts allow-downloads" : "allow-scripts");
 
 let displayMode: McpUiDisplayMode = "inline";
@@ -61,7 +69,7 @@ const hostContext: McpUiHostContext = {
   containerDimensions: { width: options.width, maxHeight: MAX_HEIGHT },
   locale: "en-US",
   platform: "web",
-  toolInfo: { tool: { name: OPENING_TOOL, inputSchema: { type: "object" } } },
+  toolInfo: { tool: { name: openingTool(options.scenario), inputSchema: { type: "object" } } },
 } as McpUiHostContext;
 
 const bridge = new AppBridge(
