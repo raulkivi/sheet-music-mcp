@@ -37,4 +37,7 @@ export const APPS = {
   "practice-coach": {
     targets: [{ server: "pitch-mcp", pkg: "pitch_mcp" }],
   },
+  "recognition-review": {
+    targets: [{ server: "omr-mcp", pkg: "omr_mcp" }],
+  },
 };

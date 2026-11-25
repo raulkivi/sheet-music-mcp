@@ -49,6 +49,12 @@ describe("hostOptions", () => {
     }
   });
 
+  it("knows the Recognition Review scenarios", () => {
+    for (const scenario of ["review", "review-clean", "review-error"]) {
+      expect(hostOptions(`?scenario=${scenario}&app=recognition-review`).scenario).toBe(scenario);
+    }
+  });
+
   it("scenario=health-mixed and clipboard=0 are read", () => {
     expect(hostOptions("?scenario=health-mixed&clipboard=0")).toMatchObject({ scenario: "health-mixed", clipboard: false });
   });

@@ -7,7 +7,7 @@ in-process) and `audiveris` (opt-in via `engine="audiveris"`, subprocess). Entry
 pipeline — all other servers consume MusicXML produced here.
 
 **Status:** Phases 1–4 code complete, including the Audiveris backend option (shipped 2026-08-16).
-UX Wave 2 (score references) done. 299 unit tests pass (+89 skipped). MCP Apps Recognition Review server side done (`structuredContent`, app-only `get_source_preview`, `staff_systems_estimate`); the page is not built yet. Integration tests run
+UX Wave 2 (score references) done. 299 unit tests pass (+89 skipped). MCP Apps Recognition Review server side done (`structuredContent`, app-only `get_source_preview`, `staff_systems_estimate`); the Recognition Review page is built (`ui/apps/recognition-review/`). Integration tests run
 against real oemer for the first time (2026-08-15): fixing a 100%-blocking API bug plus pinning
 `onnxruntime` and `opencv-python-headless` took the suite from 0/41 to 20/41 passing. **oemer's default output is not usable for SATB scores** — it
 reads multi-staff systems sequentially instead of simultaneously, so a 4-voice choir score comes
@@ -145,7 +145,7 @@ asyncio.run(_run())
   `get_recognized_score`). The job, the preview files and `staff_systems_estimate` are made only for
   clients that advertise MCP Apps; a call with `ctx=None` counts as one that does not, so tests that
   want the app pass a ctx (see `_ctx` in `tests/test_recognition_review.py`). `get_*` app tools never
-  take a path; every input image is re-encoded into the output root first. `pytest` runs with
+  take a path; every input image is re-encoded into the output root first. The page (`ui/apps/recognition-review/`) reads `warnings[]` and `metadata.staff_systems_estimate`, calls `recognize_sheet` again with `engine` from the tool input it received, and shows page 1 only (multi-page is later). `pytest` runs with
   `asyncio_mode = "auto"`.
 
 ---
