@@ -195,7 +195,7 @@ def _render_pdf_verovio(musicxml_str: str, output_path: str) -> tuple[str, int]:
     import cairosvg
     import pypdf
 
-    tk = verovio.toolkit()
+    tk = _verovio_toolkit()
     tk.setOptions({
         "pageWidth": 1800,
         "pageHeight": 2546,
@@ -365,7 +365,7 @@ def _render_image_verovio(
             f"Unsupported format {fmt!r}. Use 'png' or 'svg'.", "INVALID_PARAMETER"
         )
 
-    tk = verovio.toolkit()
+    tk = _verovio_toolkit()
     tk.setOptions({
         "pageWidth": 1800,
         "pageHeight": 2546,

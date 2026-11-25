@@ -93,13 +93,17 @@ describe.each(ALL_HOST_SETS)("contrast: $name", (set) => {
 
 describe("what the checks cover", () => {
   it("has every colour in style.css as a theme token or currentColor, so no colour escapes a pair", () => {
-    const literals = STYLE_CSS.match(/#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/g) ?? [];
+    // The tricolor's bands are the flag's reference colors (--kannel-flag-*, design system §3.1 and §7),
+    // fixed by the identity and not part of any contrast pair.
+    const withoutFlag = STYLE_CSS.split("\n").filter((line) => !/--kannel-flag-|linear-gradient\(#0072ce/.test(line)).join("\n");
+    const literals = withoutFlag.match(/#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/g) ?? [];
     expect(literals).toEqual([]);
   });
 
   it("checks every colour declaration in style.css, bar the exemptions named here", () => {
     const EXEMPT: Record<string, string> = {
       ".toolbar border-bottom": "a separator, not a mark needed to use the page",
+      ".tricolor background": "the identity's signature bar: three fixed flag bands, no text or mark on it",
       "#score svg fill": "currentColor: the score's colour, checked as the svg's own colour",
     };
     const checked = new Set(PAIRS.flatMap((pair) => [pair.foreground, pair.ground]).map((paint) => `${paint.selector} ${paint.property}`));

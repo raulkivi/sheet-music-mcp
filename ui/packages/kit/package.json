@@ -15,7 +15,8 @@
     "./score/ScoreRenderer": "./src/score/ScoreRenderer.ts",
     "./score/ServerScoreRenderer": "./src/score/ServerScoreRenderer.ts",
     "./score/openScore": "./src/score/openScore.ts",
-    "./score/paging": "./src/score/paging.ts"
+    "./score/paging": "./src/score/paging.ts",
+    "./score/parts": "./src/score/parts.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/client": "2.4.0",

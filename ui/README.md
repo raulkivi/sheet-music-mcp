@@ -147,6 +147,9 @@ raulkivi/agent-cost-analyzer (`packages/web/e2e/support/axe.ts`, `packages/mcp-a
 | AC-A3 error marker on the reported line within 500 ms; `validate_abc` debounced (one call per typing burst); Accept blocked while invalid | `apps/abc-workbench/e2e/live-validation.spec.ts` |
 | ABC Workbench: six states x desktop and 360 px x default host, Claude light and Claude dark: axe, a focus ring on every Tab stop, no sideways scroll; recorded theme; X1 reduced motion | `apps/abc-workbench/e2e/themes-and-sizes.spec.ts` |
 | X1 ABC Workbench Tab order, arrow keys between changes, Space, Enter, live regions | `apps/abc-workbench/e2e/keyboard.spec.ts` |
+| T4.1 Kannel chrome: the 3 px tricolor bar (blue, black, white; the white band follows the theme), the 2 px ring in `--color-ring-primary`, 40 x 40 px minimum on every control at 360 px | `apps/score-viewer/e2e/t41-kannel-chrome.spec.ts` |
+| T4.2 Download PDF beside SVG: `get_pdf` then `read_pdf_chunk` through the mock host (placeholder PDF, `pdf-mock.ts`), `%PDF` bytes, status line, keyboard, the D6 fallback without allow-downloads, a host with no tools; the real render-mcp makes a real PDF (`real-server.spec.ts`) | `apps/score-viewer/e2e/t42-pdf-download.spec.ts`, `real-server.spec.ts` |
+| T4.3 part filter (one part or all; paging stops at both ends, AC-R3), highlight (the others dim on every page), the PDF made from the shown part, the server render path receives the filtered score, selects reachable by keyboard with a ring, reduced motion drops the fade, a one-part score hides the choices; the real render-mcp pages the filtered score | `apps/score-viewer/e2e/t43-part-filter.spec.ts` |
 | U5 Tab reaches every control with a ring; Enter and Space activate Next, Prev, zoom, Fullscreen and Download; focus is kept when a paging button disables itself; arrow and Page keys (there is no page-jump field) | `apps/score-viewer/e2e/u5-keyboard.spec.ts` |
 
 ## Performance budget (U7)

@@ -4,12 +4,15 @@
 import type { HostBridge, HostContext, ToolInput, ToolResult } from "@sheet-music-mcp/ui-kit/host/HostBridge";
 import { openScore } from "@sheet-music-mcp/ui-kit/score/openScore";
 import { clampPage, stepZoom } from "@sheet-music-mcp/ui-kit/score/paging";
+import { dimmedStaffIndexes, filterParts, listParts, type ScorePart } from "@sheet-music-mcp/ui-kit/score/parts";
 import {
   ScoreLoadError,
   type RendererEngine,
   type RendererFactory,
   type ScoreRenderer,
 } from "@sheet-music-mcp/ui-kit/score/ScoreRenderer";
+import { loadArtifact } from "@sheet-music-mcp/ui-kit/audio/loadAudio";
+import { errorEnvelope } from "@sheet-music-mcp/ui-kit/host/toolErrors";
 import { helpMessage, pageContext, readSavedFile, readScoreInput } from "./messages.ts";
 
 export interface ViewerUi {
@@ -23,7 +26,13 @@ export interface ViewerUi {
   showFullscreen(available: boolean, active: boolean): void;
   applyHostContext(context: HostContext): void;
   containerWidth(): number;
-  download(filename: string, content: string, mime: string): void;
+  /** A line for the polite live region: progress and outcome of a download. */
+  /** The part choices: empty hides them; `shown` is the one part drawn (null = all), `highlighted` the bright one. */
+  showParts(parts: { id: string; name: string }[], shown: string | null, highlighted: string | null): void;
+  /** Dims the staves with these indexes (position among the staves of the drawn score). */
+  showHighlight(dimmed: number[]): void;
+  showStatus(text: string): void;
+  download(filename: string, content: BlobPart, mime: string): void;
 }
 
 export const NOTICES = {
@@ -35,15 +44,28 @@ export const NOTICES = {
     "The rendered file is listed below.",
   unreadable: "The viewer could not read this score.",
   pageFailed: "The viewer could not render this page. The rendered file is listed below.",
+  pdfFailed: "The viewer could not make the PDF. The rendered file is listed below.",
   noScore: "This tool call did not include a score.",
   renderFailed: (code: string) => `Rendering failed (${code}).`,
 };
+
+const PDF_TOOL = "get_pdf";
+const PDF_CHUNK_TOOL = { tool: "read_pdf_chunk", idArgument: "pdf_id" } as const;
+const PDF_FILENAME = "score.pdf";
 
 export class ScoreViewer {
   private renderer: ScoreRenderer | undefined;
   private page = 1;
   private pageCount = 1;
   private svg: string | undefined;
+  /** The score as given, and the part choices it offers. */
+  private sourceXml: string | undefined;
+  private parts: ScorePart[] = [];
+  private shownPart: string | null = null;
+  private highlight: string | null = null;
+  /** The score the pages show (the source cut to the shown part); the PDF is made from it. */
+  private xml: string | undefined;
+  private busy = false;
   private width = 0;
   private savedPath: string | undefined;
   private context: HostContext = {};
@@ -105,6 +127,59 @@ export class ScoreViewer {
     if (this.savedPath) this.ui.showDownloadFallback(this.savedPath);
   }
 
+  /** Draws only this part (re-rendering), or all parts for null. Unknown IDs are ignored. */
+  setPartFilter(id: string | null): void {
+    if (!this.renderer || this.sourceXml === undefined) return;
+    if (id !== null && !this.parts.some((part) => part.id === id)) return;
+    this.shownPart = id;
+    if (this.highlight !== null && id !== null && this.highlight !== id) this.highlight = null;
+    const xml = filterParts(this.sourceXml, id === null ? [] : [id]);
+    this.xml = xml;
+    this.enqueue(async () => {
+      try {
+        await this.renderer?.load(xml);
+      } catch {
+        this.ui.showNotice(NOTICES.unreadable);
+      }
+    });
+    this.render();
+    this.showPartChoice();
+    this.ui.showStatus(id === null ? "Showing all parts" : `Showing ${this.nameOf(id)} only`);
+    this.enqueue(() => this.tellModel());
+  }
+
+  /** Dims every other part's staves, or none for null. Unknown IDs are ignored. */
+  setHighlight(id: string | null): void {
+    if (!this.renderer) return;
+    if (id !== null && !this.shownParts().some((part) => part.id === id)) return;
+    this.highlight = id;
+    this.ui.showHighlight(this.dimmed());
+    this.showPartChoice();
+    this.ui.showStatus(id === null ? "Highlight off" : `Highlighting ${this.nameOf(id)}`);
+    this.enqueue(() => this.tellModel());
+  }
+
+  /** App-only get_pdf makes the PDF; read_pdf_chunk streams it by id (no path reaches the page). */
+  async downloadPdf(): Promise<void> {
+    if (!this.xml || this.busy) return;
+    this.busy = true;
+    this.ui.showStatus("Preparing the PDF…");
+    try {
+      const made = await this.bridge.callTool(PDF_TOOL, { musicxml: this.xml });
+      const pdfId = made.structuredContent?.pdf_id;
+      if (errorEnvelope(made) || typeof pdfId !== "string") throw new Error("no PDF");
+      const blob = await loadArtifact(this.bridge, PDF_CHUNK_TOOL, pdfId, { mimeType: "application/pdf" });
+      this.ui.download(PDF_FILENAME, blob, "application/pdf");
+      this.ui.showStatus(`PDF ready: ${PDF_FILENAME}`);
+    } catch {
+      this.ui.showStatus(NOTICES.pdfFailed);
+    } finally {
+      this.busy = false;
+    }
+    // A sandbox without allow-downloads drops the click silently, so always offer the fallback.
+    if (this.savedPath) this.ui.showDownloadFallback(this.savedPath);
+  }
+
   async askForHelp(): Promise<void> {
     if (!this.savedPath) return;
     await this.bridge.sendMessage(helpMessage(this.savedPath));
@@ -140,6 +215,11 @@ export class ScoreViewer {
   }
 
   private async open(xml: string): Promise<void> {
+    this.sourceXml = xml;
+    this.xml = xml;
+    this.parts = listParts(xml);
+    this.shownPart = null;
+    this.highlight = null;
     this.width = Math.round(this.ui.containerWidth());
     try {
       if (this.renderer) {
@@ -153,6 +233,7 @@ export class ScoreViewer {
     }
     this.ui.showEngine(this.renderer.engine);
     this.page = 1;
+    this.showPartChoice();
     this.ui.showZoom(this.renderer.zoomFactor);
     this.render();
   }
@@ -163,7 +244,7 @@ export class ScoreViewer {
     if (target === this.page) return;
     this.page = target;
     this.render();
-    this.enqueue(() => this.bridge.updateModelContext(pageContext(this.page, this.pageCount)));
+    this.enqueue(() => this.tellModel());
   }
 
   private setZoom(direction: 1 | -1): void {
@@ -184,10 +265,33 @@ export class ScoreViewer {
         this.pageCount = shown.pageCount;
         this.svg = shown.svg;
         this.ui.showPage(shown.svg, shown.page, shown.pageCount);
+        this.ui.showHighlight(this.dimmed());
       } catch {
         this.ui.showNotice(NOTICES.pageFailed);
       }
     });
+  }
+
+  private shownParts(): ScorePart[] {
+    return this.shownPart === null ? this.parts : this.parts.filter((part) => part.id === this.shownPart);
+  }
+
+  private dimmed(): number[] {
+    return dimmedStaffIndexes(listParts(this.xml ?? ""), this.highlight);
+  }
+
+  private nameOf(id: string): string {
+    return this.parts.find((part) => part.id === id)?.name ?? id;
+  }
+
+  /** One part has nothing to choose between, so the choices are hidden. */
+  private showPartChoice(): void {
+    const choices = this.parts.length > 1 ? this.parts : [];
+    this.ui.showParts(choices.map(({ id, name }) => ({ id, name })), this.shownPart, this.highlight);
+  }
+
+  private tellModel(): Promise<void> {
+    return this.bridge.updateModelContext(pageContext(this.page, this.pageCount, this.highlight));
   }
 
   private enqueue(task: () => Promise<void>): void {

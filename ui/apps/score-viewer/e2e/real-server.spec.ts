@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "../../../test/e2e/host-fixture.ts";
 import { messages, openHost } from "../../../test/e2e/host-helpers.ts";
 
@@ -24,4 +25,17 @@ test("renders a page through the real render-mcp over stdio (R1)", async ({ page
   expect(renderMcp.calls.map((call) => call.name)).toEqual(["render_to_pdf", "render_page_svg"]);
   const [viewCall] = await messages(page, "tools/call");
   expect(viewCall!.params).toMatchObject({ name: "render_page_svg", arguments: { page: 1, zoom: 1 } });
+});
+
+test("Download PDF saves a real PDF made by the real render-mcp (T4.2)", async ({ page, renderMcp }) => {
+  const frame = await openHost(page, { scenario: "inline-satb", csp: "spec", server: "real" });
+  await expect(frame.locator("#score svg").first()).toBeVisible();
+
+  const [download] = await Promise.all([page.waitForEvent("download"), frame.locator("#download-pdf").click()]);
+
+  expect(download.suggestedFilename()).toBe("score.pdf");
+  const bytes = readFileSync(await download.path());
+  expect(bytes.subarray(0, 4).toString("latin1")).toBe("%PDF");
+  expect(bytes.length).toBeGreaterThan(1000);
+  expect(renderMcp.calls.map((call) => call.name)).toEqual(expect.arrayContaining(["get_pdf", "read_pdf_chunk"]));
 });

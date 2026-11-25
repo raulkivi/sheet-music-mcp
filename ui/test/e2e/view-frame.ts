@@ -13,7 +13,10 @@ export type Control =
   | "Next page"
   | "Zoom out"
   | "Zoom in"
+  | "Show parts"
+  | "Highlight part"
   | "Download SVG"
+  | "Download PDF"
   | "Fullscreen"
   | "Exit fullscreen"
   | "Ask the assistant to open it";

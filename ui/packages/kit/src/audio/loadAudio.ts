@@ -44,19 +44,29 @@ function decodeBase64(data: string): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
+/** An app-only chunk tool: its name and the argument that carries the artifact id. */
+export interface ChunkTool {
+  tool: string;
+  idArgument: string;
+}
+
+const AUDIO_CHUNK_TOOL: ChunkTool = { tool: READ_AUDIO_CHUNK_TOOL, idArgument: "audio_id" };
+
 /** Fetches one chunk and checks the shape the server promises. */
 async function readChunk(
   bridge: HostBridge,
+  source: ChunkTool,
   audioId: string,
   offset: number,
   length: number,
 ): Promise<Chunk> {
+  const { tool } = source;
   let result: ToolResult;
   try {
-    result = await bridge.callTool(READ_AUDIO_CHUNK_TOOL, { audio_id: audioId, offset, length });
+    result = await bridge.callTool(tool, { [source.idArgument]: audioId, offset, length });
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    throw new AudioLoadError(`${READ_AUDIO_CHUNK_TOOL} is not available: ${reason}`, "TOOL_UNAVAILABLE");
+    throw new AudioLoadError(`${tool} is not available: ${reason}`, "TOOL_UNAVAILABLE");
   }
 
   const envelope = errorEnvelope(result);
@@ -72,13 +82,13 @@ async function readChunk(
     typeof eof !== "boolean" ||
     typeof encoded !== "string"
   ) {
-    throw new AudioLoadError(`${READ_AUDIO_CHUNK_TOOL} returned no data.`, "INVALID_RESULT");
+    throw new AudioLoadError(`${tool} returned no data.`, "INVALID_RESULT");
   }
 
   const bytes = decodeBase64(encoded);
   if (bytes.length !== returned) {
     throw new AudioLoadError(
-      `${READ_AUDIO_CHUNK_TOOL} returned ${bytes.length} bytes for a chunk of ${returned}.`,
+      `${tool} returned ${bytes.length} bytes for a chunk of ${returned}.`,
       "INVALID_RESULT",
     );
   }
@@ -86,20 +96,26 @@ async function readChunk(
 }
 
 /** Reads every chunk of `audioId` and returns them as one Blob. */
-export async function loadAudio(
+export function loadAudio(bridge: HostBridge, audioId: string, options: LoadAudioOptions = {}): Promise<Blob> {
+  return loadArtifact(bridge, AUDIO_CHUNK_TOOL, audioId, { mimeType: "audio/wav", ...options });
+}
+
+/** Reads every chunk of an artifact through `source` and returns them as one Blob. */
+export async function loadArtifact(
   bridge: HostBridge,
+  source: ChunkTool,
   audioId: string,
   options: LoadAudioOptions = {},
 ): Promise<Blob> {
   const chunkBytes = options.chunkBytes ?? DEFAULT_CHUNK_BYTES;
-  const mimeType = options.mimeType ?? "audio/wav";
+  const mimeType = options.mimeType ?? "application/octet-stream";
   const parts: BlobPart[] = [];
   let offset = 0;
 
   for (;;) {
     if (options.signal?.aborted) throw new DOMException("Audio loading was aborted.", "AbortError");
 
-    const chunk = await readChunk(bridge, audioId, offset, chunkBytes);
+    const chunk = await readChunk(bridge, source, audioId, offset, chunkBytes);
     if (chunk.bytes.length > 0) parts.push(chunk.bytes);
     offset += chunk.length;
     options.onProgress?.(offset, chunk.byteLength);
