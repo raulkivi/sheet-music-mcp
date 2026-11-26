@@ -111,16 +111,16 @@ test.describe("X1 keyboard", () => {
     await view.issues().first().focus();
 
     await view.press("ArrowDown");
-    expect((await view.focused()).name).toMatch(/^Check 1 part recognized/);
-    await view.press("End");
     expect((await view.focused()).name).toMatch(/^Check Measure 3/);
+    await view.press("End");
+    expect((await view.focused()).name).toMatch(/^Note 1 part recognized/);
     await view.press("ArrowUp");
     await view.press("Home");
     expect((await view.focused()).name).toMatch(/^Check Image is 150 DPI/);
-    await view.press("End");
+    await view.press("ArrowDown");
     await view.press("Enter");
 
-    await expect(view.selection()).toHaveText(/^Issue 3 of 3\. Check: Measure 3.*Showing bar 3 in the score\.$/);
+    await expect(view.selection()).toHaveText(/^Issue 2 of 3\. Check: Measure 3.*Showing bar 3 in the score\.$/);
     await expect(view.highlight()).toHaveCount(1);
     await expect(view.selection()).toHaveAttribute("aria-live", "polite");
   });

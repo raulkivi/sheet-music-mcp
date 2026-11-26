@@ -13,7 +13,7 @@ export function otherEngine(engine: string): "oemer" | "audiveris" {
 }
 
 export interface StaffCounts {
-  /** `metadata.staff_systems_estimate`: staves counted on the busiest page image. */
+  /** `metadata.staff_systems_estimate`: staves per system, counted on the busiest page image. */
   estimate: number | undefined;
   /** `metadata.staves_detected`: the parts the engine produced. */
   detected: number | undefined;
@@ -23,7 +23,7 @@ export interface StaffCounts {
 /** Advice when the page looks like it has more staves than the engine produced parts. */
 export function staffAdvice({ estimate, detected, engine }: StaffCounts): string | undefined {
   if (estimate === undefined || detected === undefined || estimate <= detected) return undefined;
-  const found = `Detected ${detected} ${detected === 1 ? "part" : "parts"}, but the page looks like it has ${estimate} staves.`;
+  const found = `Detected ${detected} ${detected === 1 ? "part" : "parts"}, but the page looks like it has ${estimate} staves per system.`;
   return engine === "audiveris"
     ? `${found} Audiveris was already used: check the voices against the photo.`
     : `${found} Try the Audiveris engine, which keeps SATB voices apart.`;

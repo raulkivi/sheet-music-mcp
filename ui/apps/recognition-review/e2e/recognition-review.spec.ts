@@ -39,7 +39,7 @@ test.describe("AC-O3: staff estimate against the detected parts (G2)", () => {
     await view.drawn();
 
     await expect(view.advice()).toHaveText(
-      "Detected 1 part, but the page looks like it has 4 staves. Try the Audiveris engine, which keeps SATB voices apart.",
+      "Detected 1 part, but the page looks like it has 4 staves per system. Try the Audiveris engine, which keeps SATB voices apart.",
     );
     await expect(view.button("Recognize again with Audiveris")).toBeVisible();
   });
@@ -88,7 +88,7 @@ test.describe("selecting an issue scrolls the score to its bar", () => {
     const { pane, mark } = await view.boxes();
     expect(mark.top).toBeGreaterThanOrEqual(pane.top - 1);
     expect(mark.bottom).toBeLessThanOrEqual(pane.bottom + 1);
-    await expect(view.selection()).toHaveText("Issue 3 of 3. Check: Measure 3 has no notes or rests. Showing bar 3 in the score.");
+    await expect(view.selection()).toHaveText("Issue 2 of 3. Check: Measure 3 has no notes or rests. Showing bar 3 in the score.");
     await expect(view.issue(/Measure 3 has no notes/)).toHaveAttribute("aria-current", "true");
   });
 

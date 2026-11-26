@@ -14,7 +14,11 @@ const recognition = (over: Record<string, unknown> = {}): ToolResult => ({
     pages: [{ index: 1, staves_detected: 1, measures: 4, has_preview: true }],
     warnings: [
       { code: "EMPTY_MEASURE", severity: "warning", message: "Measure 3 has no notes or rests", measure: 3, part: "P1" },
-      { code: "PARTS_FEWER_THAN_STAVES", severity: "error", message: "1 part recognized but 4 staves found" },
+      {
+        code: "PARTS_FEWER_THAN_STAVES",
+        severity: "info",
+        message: "1 part recognized but the page has 4 staves per system; voices may be merged",
+      },
     ],
     ...over,
   },
@@ -100,18 +104,20 @@ async function open(script: FakeScript = {}, pane = new FakePane()) {
 const tools = (bridge: FakeBridge) => bridge.calls.filter((c) => c.method === "tools/call").map((c) => (c.params as { name: string }).name);
 
 describe("RecognitionReview showing a result", () => {
-  it("lists only the server's warnings, errors first, and says what it found", async () => {
+  it("lists only the server's warnings, warnings first and notes last, and says what it found", async () => {
     const { ui } = await open();
     expect(ui.headline).toBe("Recognized with oemer: 1 part, 4 bars. 2 things to check.");
     expect(ui.issues.map((i) => [i.tag, i.message])).toEqual([
-      ["Must fix", "1 part recognized but 4 staves found"],
       ["Check", "Measure 3 has no notes or rests"],
+      ["Note", "1 part recognized but the page has 4 staves per system; voices may be merged"],
     ]);
   });
 
   it("G2: advises Audiveris from the estimate and the detected parts", async () => {
     const { ui } = await open();
-    expect(ui.advice).toBe("Detected 1 part, but the page looks like it has 4 staves. Try the Audiveris engine, which keeps SATB voices apart.");
+    expect(ui.advice).toBe(
+      "Detected 1 part, but the page looks like it has 4 staves per system. Try the Audiveris engine, which keeps SATB voices apart.",
+    );
   });
 
   it("fetches the score and the photo by job id and draws them", async () => {
@@ -182,17 +188,17 @@ describe("RecognitionReview showing a result", () => {
 describe("RecognitionReview selecting an issue (AC-O: scrolls the score to its bar)", () => {
   it("shows the issue's bar in the score and announces it", async () => {
     const { ui, review, pane } = await open();
-    review.select(1);
+    review.select(0);
     expect(pane.measures).toEqual([3]);
     expect(ui.selection).toEqual({
-      index: 1,
-      spoken: "Issue 2 of 2. Check: Measure 3 has no notes or rests. Showing bar 3 in the score.",
+      index: 0,
+      spoken: "Issue 1 of 2. Check: Measure 3 has no notes or rests. Showing bar 3 in the score.",
     });
   });
 
   it("an issue without a bar leaves the score where it is", async () => {
     const { ui, review, pane } = await open();
-    review.select(0);
+    review.select(1);
     expect(pane.measures).toEqual([]);
     expect(ui.selection?.spoken).toMatch(/This applies to the whole page\.$/);
   });
