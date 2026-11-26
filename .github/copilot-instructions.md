@@ -7,7 +7,6 @@ together enable choir singers to digitize, practice with, and navigate sheet mus
 
 See [docs/Intro.md](../docs/Intro.md) for goals, phases, and data flow.
 See [docs/conventions.md](../docs/conventions.md) for coding standards all servers must follow.
-See [docs/implementation-plan.md](../docs/implementation-plan.md) for the high-level build order.
 
 ---
 
@@ -39,7 +38,6 @@ sheet-music-mcp/
 ├── docs/
 │   ├── Intro.md                # Vision, goals, phases, data flow
 │   ├── conventions.md          # Shared conventions for all MCP servers
-│   ├── implementation-plan.md  # High-level build order and server summaries
 │   └── sources.md              # Reference links (ABC notation, etc.)
 ├── omr-mcp/                    # Image → MusicXML          ✅ mostly complete
 ├── synth-mcp/                  # MusicXML → Audio          ✅ Phase 1 COMPLETE
