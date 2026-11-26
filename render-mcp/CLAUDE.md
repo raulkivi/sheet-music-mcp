@@ -1,12 +1,15 @@
 # render-mcp — Claude Code Instructions
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## What This Server Does
 
 Renders MusicXML scores to PDF (for printing) or PNG (for display in web/mobile apps).
 Uses Verovio (in-process) + cairosvg + pypdf. No MuseScore CLI required.
 
-**Status:** Phase 1 + UX Waves 1–3 complete; MCP Apps spike phase 0c (Score Viewer resource,
-`structuredContent`, app-only `render_page_svg`). 284 unit tests (default run) + 13 integration.
+**Status:** Phase 1 + UX Waves 1–3 complete; MCP Apps pages built: Score Viewer (SVG and PDF
+download, part filter and highlight; app-only `render_page_svg`, `get_pdf`, `read_pdf_chunk`) and
+Setup Doctor. 284 unit tests (default run) + 13 integration.
 
 ---
 
@@ -31,7 +34,8 @@ Install dependencies: `uv sync`
 |------|---------|
 | `src/render_mcp/server.py` | MCP tool definitions and handlers, Score Viewer registry |
 | `src/render_mcp/presenter.py` | Engine result → `content` + `structuredContent`; output schemas |
-| `src/render_mcp/ui/assets/score-viewer.html` | Built by `ui/` (`npm run copy-assets`), gitignored |
+| `src/render_mcp/ui/assets/score-viewer.html`, `setup-doctor.html` | Built by `ui/` (`npm run copy-assets`), gitignored |
+| `src/render_mcp/health.py` | Health checks mapped to the shared report (core `health`) |
 | `src/render_mcp/engine.py` | Verovio + cairosvg rendering pipeline (no MCP imports) |
 | `src/render_mcp/utils.py` | MusicXML validation, path helpers |
 | `docs/HANDOVER.md` | Status, remaining work, definition of done |
@@ -48,7 +52,7 @@ Install dependencies: `uv sync`
 | `render_to_pdf` | MusicXML → multi-page PDF at caller-specified path |
 | `render_to_image` | MusicXML → PNG or SVG, single page, configurable DPI |
 | `list_capabilities` | Server metadata, active backend, format support |
-| `health_check` | Runtime dependency check |
+| `health_check` | Runtime dependency check; `structuredContent` health report, linked to `ui://render/setup-doctor` |
 | `describe_score` | Shared (core) tool: parts with IDs, key, time, tempo, measures, duration — no rendering |
 | `render_page_svg` | App-only (`_meta.ui.visibility: ["app"]`): one page of inline MusicXML as SVG for the Score Viewer when the host blocks WebAssembly; listed only for MCP Apps clients |
 | `get_pdf` / `read_pdf_chunk` | App-only: the Score Viewer's PDF download. `get_pdf(musicxml)` writes a PDF under the output root and returns an opaque `pdf_id`; `read_pdf_chunk(pdf_id, offset, length)` returns base64 chunks (core `artifacts`). No paths in or out |

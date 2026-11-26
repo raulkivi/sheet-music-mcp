@@ -1,11 +1,13 @@
 # render-mcp — Copilot Instructions
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## What This Server Does
 
 Renders MusicXML scores to PDF (for printing) or PNG (for display in web/mobile apps).
 Backend: Verovio (in-process Python) + cairosvg + pypdf. No MuseScore CLI required.
 
-**Status:** Phase 1 + UX Waves 1–3 complete; MCP Apps Score Viewer spike (`ui://render/score-viewer`, app-only `render_page_svg`) on branch `mcp-apps/phase0`. 234 unit tests (default run) + 12 integration tests.
+**Status:** Phase 1 + UX Waves 1–3 complete; MCP Apps pages built: Score Viewer (`ui://render/score-viewer`; SVG and PDF download, part filter and highlight; app-only `render_page_svg`, `get_pdf`, `read_pdf_chunk`) and Setup Doctor (`ui://render/setup-doctor`). 284 unit tests (default run) + 13 integration tests.
 
 ---
 
@@ -27,14 +29,21 @@ render-mcp/
 ├── .python-version          # "llm311"
 ├── src/render_mcp/
 │   ├── server.py            # MCP tool definitions and async handlers
+│   ├── presenter.py         # engine result -> content + structuredContent, output schemas
 │   ├── engine.py            # Verovio + cairosvg rendering — NO mcp imports
-│   └── utils.py             # MusicXML validation, path helpers
+│   ├── health.py            # health checks for the shared report
+│   ├── utils.py             # MusicXML validation, path helpers
+│   └── ui/assets/           # score-viewer.html, setup-doctor.html (built by ui/, gitignored)
 ├── tests/
 │   ├── test_server.py       # protocol tests
 │   ├── test_engine.py       # unit + integration tests
 │   ├── test_utils.py        # unit tests
 │   ├── test_score_references.py  # musicxml_path, describe_score
 │   ├── test_measures.py     # measures range (backend spies, errors, real Verovio cut)
+│   ├── test_score_viewer.py # _meta.ui, resources, structuredContent
+│   ├── test_page_svg.py, test_render_page_svg.py  # app-only render_page_svg
+│   ├── test_get_pdf.py      # app-only get_pdf / read_pdf_chunk
+│   ├── test_health_*.py     # health report mapping, health_check wiring, Setup Doctor link
 │   └── fixtures/
 └── docs/
     ├── requirements.md
@@ -52,8 +61,10 @@ MXL test fixtures are in `../omr-mcp/test_samples/pdmx_satb_samples/mxl/` — 10
 | `render_to_pdf` | MusicXML → multi-page PDF at caller-specified or auto-generated path |
 | `render_to_image` | MusicXML → PNG or SVG, single page, configurable DPI (72–600) |
 | `list_capabilities` | Server metadata, active backend, format support |
-| `health_check` | Runtime dependency check |
+| `health_check` | Runtime dependency check; linked to the Setup Doctor page |
 | `describe_score` | Shared (core) tool: parts with IDs, key, time, tempo, measures, duration — no rendering |
+| `render_page_svg` | App-only (`_meta.ui.visibility: ["app"]`): one page of inline MusicXML as SVG for the Score Viewer; listed only for MCP Apps clients |
+| `get_pdf` / `read_pdf_chunk` | App-only: the Score Viewer's PDF download; `get_pdf(musicxml)` returns an opaque `pdf_id`, `read_pdf_chunk(pdf_id, offset, length)` returns base64 chunks. No paths in or out |
 
 Both render tools take the score as `musicxml` (inline) or `musicxml_path` (`.musicxml`, `.xml`,
 `.mxl`; exactly one). Paths are read via `sheet_music_mcp_core.references.load_score()`, confined
@@ -89,8 +100,11 @@ dispatch, so MuseScore and Verovio render the same bars.
 ## Running Tests
 
 ```bash
-# All tests including integration (Verovio is in-process, no external deps)
+# Unit tests (default run)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v
+
+# Integration tests (test_packaging.py needs the UI built: cd ../ui && npm ci && npm run build && npm run copy-assets)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration
 
 # Install dependencies
 uv sync
