@@ -1,5 +1,7 @@
 # sheet-music-mcp
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 [![Tests](https://github.com/raulkivi/sheet-music-mcp/actions/workflows/tests.yml/badge.svg)](https://github.com/raulkivi/sheet-music-mcp/actions/workflows/tests.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/raulkivi/sheet-music-mcp/badge)](https://scorecard.dev/viewer/?uri=github.com/raulkivi/sheet-music-mcp)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
@@ -50,6 +52,22 @@ claude mcp add omr -- uvx omr-mcp
 ```
 
 Each server's `SETUP.md` walks through installation for non-developers, and `examples/` has ready-made configs for Claude Desktop, Cursor, Windsurf, Continue and Zed. Every server has a `health_check` tool that reports missing system libraries or files.
+
+## Interactive pages (MCP Apps)
+
+Hosts that support MCP Apps show these pages inline. Other clients keep using the text and file results.
+
+| Page | Server | Shows |
+|---|---|---|
+| Score Viewer | render-mcp | Score pages, part filter and highlight, SVG and PDF download |
+| Practice Player | synth-mcp | Practice track playback |
+| Diff Viewer | comparer-mcp | `compare_scores` result |
+| ABC Workbench | musicxml-abc-mcp | ABC text of a score |
+| Practice Coach | pitch-mcp | Position and pitch feedback, "Ask Claude for tips" |
+| Recognition Review | omr-mcp | Recognized score next to the source image, with warnings |
+| Setup Doctor | all six servers | The `health_check` report |
+
+The pages live in [ui/](ui/README.md); `ui/apps.config.mjs` lists them.
 
 ## Security
 
@@ -183,7 +201,8 @@ Releases: [publish.yml](.github/workflows/publish.yml) publishes each tag to PyP
 - [docs/conventions.md](docs/conventions.md) — coding and structural conventions shared across all servers
 - [docs/sources.md](docs/sources.md) — references and sources
 - [docs/SETUP_UX_PLAN.md](docs/SETUP_UX_PLAN.md) — end-user packaging plan (PyPI, installers, setup docs)
-- Each server has its own `docs/` folder with `PLAN.md`, `HANDOVER.md`, `requirements.md`, and `architecture.md`
+- Each server has its own `docs/` folder with `requirements.md` and `architecture.md`
+- [ui/README.md](ui/README.md) — the MCP Apps pages
 
 ## License
 

@@ -1,6 +1,6 @@
 # MCP Server Conventions
 
-**last changed:** 2026-11-25 · **source:** https://github.com/raulkivi/sheet-music-mcp
+**last changed:** 2026-11-26 · **source:** https://github.com/raulkivi/sheet-music-mcp
 
 Shared standards for all MCP servers in this project. Every server must follow these conventions
 so they compose cleanly in Phase 2 and are consistent for contributors.
@@ -31,8 +31,6 @@ Each MCP server lives in its own top-level directory and is independently deploy
 │       └── README.md           # Documents what fixtures are available and why
 ├── test_samples/               # Larger real-world samples (not committed if >10MB)
 ├── docs/
-│   ├── HANDOVER.md             # Status, remaining work, definition of done
-│   ├── PLAN.md                 # Architecture decisions and rationale
 │   ├── requirements.md         # Functional and non-functional requirements
 │   └── architecture.md         # Component diagram and data-flow
 └── examples/
@@ -250,7 +248,7 @@ items, so a client (or the Recognition Review UI) can act on them without parsin
 
 | Code | When to use |
 |------|-------------|
-| `PARTS_FEWER_THAN_STAVES` | Fewer parts recognized than staves per system on the page (voices may be merged) |
+| `PARTS_FEWER_THAN_STAVES` | Fewer parts recognized than staves per system on the page (voices may be merged); severity `info` |
 | `EMPTY_MEASURE` | A measure holds no notes or rests |
 | `MEASURE_COUNT_MISMATCH` | Parts differ in measure count |
 | `LOW_NOTE_DENSITY` | Far fewer notes than the source suggests |

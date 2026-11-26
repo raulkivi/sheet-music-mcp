@@ -1,6 +1,6 @@
 # CLAUDE.md — Choir Music Assistant
 
-**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 Project-level instructions for Claude Code. Read this before doing any work in this repository.
 
@@ -40,7 +40,7 @@ See [README.md](README.md) for the full vision and data flow.
 | musicxml-abc-mcp | [musicxml-abc-mcp/CLAUDE.md](musicxml-abc-mcp/CLAUDE.md) | [musicxml-abc-mcp/.github/copilot-instructions.md](musicxml-abc-mcp/.github/copilot-instructions.md) |
 | pitch-mcp | [pitch-mcp/CLAUDE.md](pitch-mcp/CLAUDE.md) | [pitch-mcp/.github/copilot-instructions.md](pitch-mcp/.github/copilot-instructions.md) |
 
-Also read the server's `docs/HANDOVER.md`, `docs/PLAN.md`, `docs/requirements.md`, and `docs/architecture.md`
+Also read the server's `docs/requirements.md` and `docs/architecture.md` (pitch-mcp: `docs/todo.md` too)
 before writing any code.
 
 ---
@@ -49,7 +49,7 @@ before writing any code.
 
 | Server | Status | Tests |
 |--------|--------|-------|
-| omr-mcp | ⚠️ Phase 1-4 complete; default (oemer) engine loses SATB voice structure — fixed via opt-in `engine="audiveris"`, not yet the default (see omr-mcp/docs/HANDOVER.md) | 344 unit (+150 skipped) + 41 integration; staff estimate (staves per system) checked on 60 real pages, 60/60 (`omr-mcp/docs/staff-estimate-evidence.md`); MCP Apps Recognition Review page built (PR #225; app-only `get_recognized_score` / `get_source_preview`) |
+| omr-mcp | ⚠️ Phase 1-4 complete; default (oemer) engine loses SATB voice structure — fixed via opt-in `engine="audiveris"`, not yet the default (see omr-mcp/CLAUDE.md) | 344 unit (+150 skipped) + 41 integration; staff estimate (staves per system) checked on 60 real pages, 60/60 (`omr-mcp/docs/staff-estimate-evidence.md`); MCP Apps Recognition Review page built (PR #225; app-only `get_recognized_score` / `get_source_preview`) |
 | synth-mcp | ✅ Phase 1 + UX complete; MCP Apps Practice Player page built (PR #221; app-only `read_audio_chunk` / `get_score_xml`); audio content tests, practice-timing tests, `part_gains` 1.0 = CC7 100, reverb and chorus set explicitly (same audio on FluidSynth 2.3 and 2.4) | 501 unit + 14 integration (with a soundfont; CI job `synth-integration`) |
 | render-mcp | ✅ Phase 1 + UX complete; Score Viewer (app-only `render_page_svg`; Kannel chrome, SVG and PDF download via app-only `get_pdf` / `read_pdf_chunk`, part filter and highlight, PR #226) awaiting manual host checks | 284 unit + 13 integration |
 | musicxml-abc-mcp | ✅ Phase 1 + UX complete; MCP Apps ABC Workbench page built (PR #218; app-only `get_abc`); `apply_abc_edit` (C16) replaces bars of one part, other parts byte-identical | 313 unit + 6 integration |
@@ -159,9 +159,8 @@ Soundfonts available at `/usr/share/sounds/sf2/` — `TimGM6mb.sf2` and `default
 
 When you finish work or reach a milestone, update:
 
-1. `<server>/docs/HANDOVER.md` — check off done items, add new gotchas
-2. `<server>/docs/PLAN.md` — check off phase items, note any changed decisions
-3. `<server>/docs/requirements.md` — update if behavior or interfaces changed
-4. `<server>/docs/architecture.md` — update diagrams/algorithms if implementation changed
-5. `.github/copilot-instructions.md` — update status markers
-6. This file (`CLAUDE.md`) — update status table if needed
+1. `<server>/docs/requirements.md` — update if behavior or interfaces changed
+2. `<server>/docs/architecture.md` — update diagrams/algorithms if implementation changed
+3. `<server>/CLAUDE.md` — add new gotchas, update status
+4. `.github/copilot-instructions.md` — update status markers
+5. This file (`CLAUDE.md`) — update status table if needed

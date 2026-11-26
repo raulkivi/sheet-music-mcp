@@ -1,11 +1,13 @@
 # Copilot Instructions
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## Project Overview
 
 Choir Music Assistant — a collection of independent MCP (Model Context Protocol) servers that
 together enable choir singers to digitize, practice with, and navigate sheet music.
 
-See [docs/Intro.md](../docs/Intro.md) for goals, phases, and data flow.
+See [README.md](../README.md) for goals, phases, and data flow.
 See [docs/conventions.md](../docs/conventions.md) for coding standards all servers must follow.
 See [docs/implementation-plan.md](../docs/implementation-plan.md) for the high-level build order.
 
@@ -17,17 +19,17 @@ Each server has its own local instruction file — **read it before writing any 
 
 | Server | Instructions | Status |
 |--------|-------------|--------|
-| omr-mcp | [omr-mcp/.github/copilot-instructions.md](../omr-mcp/.github/copilot-instructions.md) | ✅ mostly complete |
-| synth-mcp | [synth-mcp/.github/copilot-instructions.md](../synth-mcp/.github/copilot-instructions.md) | ✅ Phase 1 COMPLETE |
-| render-mcp | [render-mcp/.github/copilot-instructions.md](../render-mcp/.github/copilot-instructions.md) | ✅ Phase 1 COMPLETE |
-| musicxml-abc-mcp | [musicxml-abc-mcp/.github/copilot-instructions.md](../musicxml-abc-mcp/.github/copilot-instructions.md) | ✅ Phase 1 COMPLETE |
-| pitch-mcp | [pitch-mcp/.github/copilot-instructions.md](../pitch-mcp/.github/copilot-instructions.md) | ✅ Phase A+B COMPLETE |
-| comparer-mcp | [comparer-mcp/.github/copilot-instructions.md](../comparer-mcp/.github/copilot-instructions.md) | ✅ Phase 4 COMPLETE |
+| omr-mcp | [omr-mcp/.github/copilot-instructions.md](../omr-mcp/.github/copilot-instructions.md) | ✅ Phase 1-4 complete; Recognition Review page built |
+| synth-mcp | [synth-mcp/.github/copilot-instructions.md](../synth-mcp/.github/copilot-instructions.md) | ✅ Phase 1 COMPLETE; Practice Player page built |
+| render-mcp | [render-mcp/.github/copilot-instructions.md](../render-mcp/.github/copilot-instructions.md) | ✅ Phase 1 COMPLETE; Score Viewer page built |
+| musicxml-abc-mcp | [musicxml-abc-mcp/.github/copilot-instructions.md](../musicxml-abc-mcp/.github/copilot-instructions.md) | ✅ Phase 1 COMPLETE; ABC Workbench page built |
+| pitch-mcp | [pitch-mcp/.github/copilot-instructions.md](../pitch-mcp/.github/copilot-instructions.md) | ✅ Phase A+B COMPLETE; Practice Coach page built |
+| comparer-mcp | [comparer-mcp/.github/copilot-instructions.md](../comparer-mcp/.github/copilot-instructions.md) | ✅ Phase 4 COMPLETE; `compare_scores`; Diff Viewer page built |
 
 The per-server files contain: status, key files, implemented tools, environment setup, test
 commands, known gotchas, and the definition of done.
 
-Also read the server's `docs/HANDOVER.md`, `docs/PLAN.md`, `docs/requirements.md`, and `docs/architecture.md`
+Also read the server's `docs/requirements.md` and `docs/architecture.md` (pitch-mcp: `docs/todo.md` too)
 before writing any code.
 
 ---
@@ -37,17 +39,16 @@ before writing any code.
 ```
 sheet-music-mcp/
 ├── docs/
-│   ├── Intro.md                # Vision, goals, phases, data flow
 │   ├── conventions.md          # Shared conventions for all MCP servers
 │   ├── implementation-plan.md  # High-level build order and server summaries
 │   └── sources.md              # Reference links (ABC notation, etc.)
-├── omr-mcp/                    # Image → MusicXML          ✅ mostly complete
+├── omr-mcp/                    # Image → MusicXML          ✅ Phase 1-4 complete
 ├── synth-mcp/                  # MusicXML → Audio          ✅ Phase 1 COMPLETE
 ├── render-mcp/                 # MusicXML → PDF/PNG        ✅ Phase 1 COMPLETE
 ├── musicxml-abc-mcp/           # MusicXML ↔ ABC            ✅ Phase 1 COMPLETE
 ├── pitch-mcp/                  # Mic audio → score pos/accuracy  ✅ Phase A+B COMPLETE
 ├── comparer-mcp/               # Two MusicXML → structured diff  ✅ Phase 4 COMPLETE
-├── ui/                         # MCP Apps UI workspace (TypeScript): kit + Score Viewer, built into render-mcp
+├── ui/                         # MCP Apps UI workspace (TypeScript): seven pages (Score Viewer, Setup Doctor, Diff Viewer, Practice Coach, ABC Workbench, Practice Player, Recognition Review), registry `ui/apps.config.mjs`, built into the servers
 └── sheet-music-mcp-core/       # Shared library (errors, parts, annotations, content, wiring, score references, measures) — not a server
 ```
 
@@ -100,9 +101,8 @@ uv sync                                                # install dependencies
 
 Update the documents so the next person (or session) starts with accurate information:
 
-- **`<server>/docs/HANDOVER.md`** — check off done items, add new gotchas, update status
-- **`<server>/docs/PLAN.md`** — check off completed phase items, note changed decisions
-- **`<server>/docs/requirements.md`** — update if behaviour or interfaces changed
+- **`<server>/docs/requirements.md`** — update if behavior or interfaces changed
 - **`<server>/docs/architecture.md`** — update if implementation structure changed
+- **`<server>/CLAUDE.md`** — add new gotchas, update status
 - **`<server>/.github/copilot-instructions.md`** — update status and tool list
 - **This file** — update server status markers in the table above

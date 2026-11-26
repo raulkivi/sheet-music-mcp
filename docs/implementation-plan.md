@@ -1,23 +1,26 @@
 # Implementation Plan
 
-High-level roadmap for the Choir Music Assistant. Each MCP server has its own detailed `docs/PLAN.md`
-in its directory. See [Intro.md](Intro.md) for goals, phases, and data flow.
+High-level roadmap for the Choir Music Assistant. Each MCP server has its own `docs/requirements.md`
+and `docs/architecture.md` in its directory. See the [README](../README.md) for goals, phases, and data flow.
 See [conventions.md](conventions.md) for coding standards all servers must follow.
 
-**Last reviewed:** 2026-08-16
+**Last changed:** 2026-11-26 · **source:** https://github.com/raulkivi/sheet-music-mcp
 
 ---
 
 ## Build Order
 
 ```
-1. omr-mcp            ✅ mostly complete — integration tests pending
-2. synth-mcp          ✅ complete — 64 unit + 7 integration tests pass
-3. render-mcp         ✅ complete — 73/73 tests pass
-4. musicxml-abc-mcp   ✅ complete — 74/74 tests pass
-5. pitch-mcp          ✅ complete (Phase A+B) — 112 unit + 4 integration tests pass
-6. comparer-mcp       ✅ complete (Phase 4) — 134/134 tests pass (127 unit + 7 integration)
+1. omr-mcp            ✅ complete (Phase 1-4)
+2. synth-mcp          ✅ complete
+3. render-mcp         ✅ complete
+4. musicxml-abc-mcp   ✅ complete
+5. pitch-mcp          ✅ complete (Phase A+B)
+6. comparer-mcp       ✅ complete (Phase 4)
+7. MCP Apps (ui/)     ✅ seven pages built; Setup Doctor is served by all six servers
 ```
+
+Test counts and per-server status: [CLAUDE.md](../CLAUDE.md#server-status).
 
 ---
 
@@ -25,11 +28,12 @@ See [conventions.md](conventions.md) for coding standards all servers must follo
 
 | Server | Purpose | Goals | Detail |
 |--------|---------|-------|--------|
-| **omr-mcp** | Converts sheet music images to MusicXML using deep learning OCR | 1 | [omr-mcp/docs/PLAN.md](../omr-mcp/docs/PLAN.md) |
-| **synth-mcp** | Synthesizes audio from MusicXML with selectable voice parts and tempo control | 3 | [synth-mcp/docs/PLAN.md](../synth-mcp/docs/PLAN.md) |
-| **render-mcp** | Renders MusicXML to high-quality PDF or PNG for printing and display | 2 | [render-mcp/docs/PLAN.md](../render-mcp/docs/PLAN.md) |
-| **musicxml-abc-mcp** | Converts between MusicXML and ABC notation so Claude can read and edit scores | LLM bridge | [musicxml-abc-mcp/docs/PLAN.md](../musicxml-abc-mcp/docs/PLAN.md) |
-| **pitch-mcp** | Real-time pitch detection from microphone, compared against a reference score | 4, 5, 6 | [pitch-mcp/docs/PLAN.md](../pitch-mcp/docs/PLAN.md) |
+| **omr-mcp** | Converts sheet music images to MusicXML using deep learning OCR | 1 | [omr-mcp/docs/requirements.md](../omr-mcp/docs/requirements.md) |
+| **synth-mcp** | Synthesizes audio from MusicXML with selectable voice parts and tempo control | 3 | [synth-mcp/docs/requirements.md](../synth-mcp/docs/requirements.md) |
+| **render-mcp** | Renders MusicXML to high-quality PDF or PNG for printing and display | 2 | [render-mcp/docs/requirements.md](../render-mcp/docs/requirements.md) |
+| **musicxml-abc-mcp** | Converts between MusicXML and ABC notation so Claude can read and edit scores | LLM bridge | [musicxml-abc-mcp/docs/requirements.md](../musicxml-abc-mcp/docs/requirements.md) |
+| **pitch-mcp** | Real-time pitch detection from microphone, compared against a reference score | 4, 5, 6 | [pitch-mcp/docs/requirements.md](../pitch-mcp/docs/requirements.md) |
+| **comparer-mcp** | Music-aware diff of two MusicXML scores (`compare_scores`) | 7 | [comparer-mcp/docs/requirements.md](../comparer-mcp/docs/requirements.md) |
 
 ---
 
@@ -52,7 +56,7 @@ respect to storage.
 
 ## Phase 2 — Web PoC
 
-Once all five MCP servers are built and tested individually, build a minimal web application that
+Once all six MCP servers are built and tested individually, build a minimal web application that
 orchestrates them.
 
 **Stack (provisional):**

@@ -1,6 +1,9 @@
 # Round-Trip Testing Across MCP Servers
 
 Analysis date: 2026-08-16
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
+Note: comparer-mcp now has `compare_scores(detail="summary"|"changes"|"report"|"full")`. `compare_musicxml`, `compare_musicxml_files`, `quick_similarity`, `list_changes` and `generate_comparison_report` are deprecated aliases of it; the loops below work with either.
 
 ## Goal
 
@@ -55,7 +58,7 @@ Recommended order: do #2 first as a quick win (cheap, self-contained), then inve
 
 **Value:** generates unlimited synthetic OMR test fixtures with a known-correct answer,
 instead of relying only on scanned CPDL/PDMX images (which currently top out at a small,
-hand-picked fixture set — see omr-mcp's HANDOVER.md). Directly useful against the
+hand-picked fixture set — see omr-mcp/CLAUDE.md). Directly useful against the
 already-root-caused SATB voice-loss bug (`oemer`'s 2-track assumption in
 `align_symbols()`): this loop can quantify how much the comparer's similarity score
 degrades as voice count increases (2 → 3 → 4 parts), instead of a binary pass/fail on a
@@ -94,8 +97,8 @@ pYIN/DTW pipeline, not singer error.
 
 **Value:** pitch-mcp's own test fixture
 (`pitch-mcp/tests/fixtures/soprano_phrase.wav`) is currently a synthesized sine-tone
-proxy, not a real recording or real synth-mcp output — a known open item in its
-HANDOVER.md. Swapping in actual `synthesize` output (real soundfont timbre/harmonics)
+proxy, not a real recording or real synth-mcp output — a known open item in
+pitch-mcp/docs/todo.md. Swapping in actual `synthesize` output (real soundfont timbre/harmonics)
 would be a strictly more realistic regression fixture, since sine tones lack the
 harmonic complexity pYIN has to handle for real voices. This can also be extended into
 mutation testing: synthesize a score, then synthesize a deliberately-wrong-note
