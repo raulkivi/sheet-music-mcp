@@ -1,6 +1,6 @@
 # pitch-mcp Requirements
 
-**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 ## Purpose
 
@@ -89,6 +89,15 @@ The server MUST expose a tool that returns:
 - Active pitch detection backend and version
 - Microphone availability flag
 - List of available tools
+
+### FR-13 — Setup Doctor UI resource (MCP Apps)
+
+The server MUST serve the Setup Doctor as `ui://pitch/setup-doctor`
+(`pitch_mcp/ui/assets/setup-doctor.html`, built in `ui/`) and link it from `health_check`
+(`_meta.ui.resourceUri`) while the HTML is packaged. The page shows the `health_check` report
+(librosa, server microphone, microphone) and a copyable fix for each problem; it asks only for
+`clipboardWrite`. `health_check` declares `HEALTH_OUTPUT_SCHEMA` and returns the report as
+`structuredContent`; its text `content` is unchanged.
 
 ### FR-7 — Idle session timeout
 
@@ -312,8 +321,9 @@ Output: structuredContent = the get_current_position snapshot (POSITION_OUTPUT_S
 | Not base64, or an odd byte count | `INVALID_INPUT` |
 | Empty `session_id` | `INVALID_INPUT` |
 
-A refused push feeds nothing. The Practice Coach resource does not yet declare
-`_meta.ui.permissions.microphone`: the shared `UiResource` cannot express resource permissions yet.
+A refused push feeds nothing. The Practice Coach resource declares
+`_meta.ui.permissions.microphone` (`resources/list` and `resources/read`), for the browser
+microphone. The page does not push audio yet (IR-5b).
 
 ### IR-5 — Tool: `get_current_position`
 
@@ -405,8 +415,12 @@ with `npm run copy-assets`. It reads only tool results:
 - Stop: `stop_monitoring` is text-only JSON (no `structuredContent`), so the page parses the JSON
   text block for `summary` and `timed_out`. A `SESSION_NOT_FOUND` poll (idle timeout) ends the take
   and fetches the kept summary. The per-bar heat strip is built from the polled history.
-- Microphone: the server microphone only (decision DA7); the browser option is shown disabled until
-  T1.6. "Ask Claude for tips" (T1.5) is not built.
+- Report mode: after Stop the page shows the summary, the heat strip and "Practice again".
+  "Ask Claude for tips" sends a fixed-template message with `ui/message`; Stop also sends
+  a `ui/update-model-context` line. Both hold only the page's own numbers (bar numbers, cents,
+  status counts, a part name stripped of tags), never score text or lyrics.
+- Microphone: the server microphone only (decision DA7); the browser option is shown disabled
+  ("not available yet", T1.6) although `source: "pushed"` and `push_audio_chunk` exist on the server.
 
 ### IR-6a — Tool: `list_sessions`
 
@@ -541,6 +555,9 @@ Unit tests MUST cover:
   is `on_pitch`), other rates, silence, sharp and flat, size / rate / sample-rate refusals,
   malformed PCM, session errors, activity, no file I/O, the tool's schema, visibility and protocol
   round trip
+- Health report (`tests/test_health_report.py`, `tests/test_health_mapping.py`): check mapping,
+  `health_check` `structuredContent` against `HEALTH_OUTPUT_SCHEMA`, the Setup Doctor link with
+  and without a UI build
 
 Unit tests MUST mock sounddevice (no real audio hardware in CI). `dtaidistance` is pure-Python-
 compatible and deterministic, so alignment unit tests run it directly rather than mocking it —
@@ -555,6 +572,9 @@ Integration tests MUST:
 - Assert the response contains `note_accuracy` with at least one entry
 - Assert `avg_accuracy_cents` is a finite number
 - Run without a microphone (offline analysis only)
+- Round trip (`tests/test_round_trip.py`): render each part of a SATB score with synth-mcp (its own
+  venv, `tests/synth_bridge.py`) and read it back with `analyze_recording`; skipped without
+  `SYNTH_SOUNDFONT_PATH`
 
 ### TR-3 — Manual tests
 

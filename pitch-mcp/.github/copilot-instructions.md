@@ -1,5 +1,7 @@
 # pitch-mcp — Copilot Instructions
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## What This Server Does
 
 Real-time pitch detection from microphone input compared against a reference MusicXML score.
@@ -8,12 +10,14 @@ status while a singer sings. This is the most complex server in the project — 
 
 **Status:** Phase A (offline analysis) + Phase B (real-time, audio-driven position tracking)
 complete, plus UX Wave 2 (score references: `musicxml_path`, `describe_score`) and UX Wave 3
-(`measures` ranges, `start_practice`, `highlights`) and the MCP Apps Practice Coach server side
-(`structuredContent`, `ui://pitch/practice-coach`, app-only `get_score_for_session`) with its
-browser-microphone mode (`start_monitoring` `source: "pushed"`, app-only `push_audio_chunk`, the
-`AudioSource` refactor); the page itself is not built yet, so tools carry no `_meta.ui`. 408 unit
-(+6 skipped) + 4 integration tests pass (`-m integration`); 2 manual mic tests (`-m manual`)
-require real hardware.
+(`measures` ranges, `start_practice`, `highlights`) and the MCP Apps Practice Coach
+(`ui://pitch/practice-coach`, server microphone; `structuredContent`, app-only
+`get_score_for_session`; page in `ui/apps/practice-coach/`, see requirements IR-5b) and Setup Doctor
+(`ui://pitch/setup-doctor`, `health_check`), plus the server side of a browser-microphone mode
+(`start_monitoring` `source: "pushed"`, app-only `push_audio_chunk`, the `AudioSource` refactor; no
+page uses it yet). 509 unit (+2 skipped) tests; 16 integration tests (`-m integration`: 4 offline
+analysis, 12 synth-to-pitch round trip that need a soundfont and synth-mcp's venv); 2 manual mic
+tests (`-m manual`) require real hardware.
 
 ---
 
@@ -35,6 +39,9 @@ pitch-mcp/
 ├── .python-version          # "llm311"
 ├── src/pitch_mcp/
 │   ├── server.py            # MCP tool definitions and async handlers
+│   ├── presenter.py         # content + structuredContent, output schemas
+│   ├── health.py            # health checks for the shared report
+│   ├── ui/assets/           # practice-coach.html, setup-doctor.html (built by ui/, gitignored)
 │   ├── engine.py            # Session management, offline/real-time orchestration — NO mcp imports
 │   ├── pitch_detector.py    # librosa pYIN backend (+ optional crepe)
 │   ├── aligner.py           # DTW (dtaidistance) alignment, accuracy classification
@@ -49,6 +56,10 @@ pitch-mcp/
 │   ├── test_score_references.py  # musicxml_path, read confinement, describe_score (Wave 2)
 │   ├── test_practice.py     # measures, start_practice, <sound tempo> (Wave 3; fake sounddevice)
 │   ├── test_highlights.py   # aligner.highlights and summaries (Wave 3)
+│   ├── test_practice_coach.py, test_content_golden.py  # MCP Apps: _meta.ui, structuredContent
+│   ├── test_audio_source.py, test_pushed_audio.py      # AudioSource, pushed browser audio
+│   ├── test_simulated_singer.py, test_round_trip.py    # grading faults; synth-to-pitch round trip
+│   ├── test_health_*.py     # health report mapping, health_check wiring, Setup Doctor link
 │   ├── test_integration.py  # @pytest.mark.integration, runs against the fixture pair
 │   ├── test_manual.py       # @pytest.mark.manual, requires a real microphone
 │   └── fixtures/
@@ -74,12 +85,12 @@ MXL test fixtures are in `../omr-mcp/test_samples/pdmx_satb_samples/mxl/` — 10
 | `describe_score` | W2 | Shared core tool: title, key, tempo, parts with IDs and ranges |
 | `start_monitoring` | B | Open mic stream for a session; `source: "pushed"` takes browser audio instead (option B) |
 | `get_current_position` | B | Current measure/beat/pitch/accuracy from active session |
-| `stop_monitoring` | B | Stop stream, return summary (with `highlights`), clean up session |
+| `stop_monitoring` | B | Stop stream, return summary (with `highlights`), clean up session; JSON text only, no `structuredContent` |
 | `list_sessions` | B | Open sessions: part, state (`loaded`/`monitoring`), idle seconds |
 | `get_score_for_session` | Apps | App-only (`visibility: ["app"]`): the session's MusicXML for the Practice Coach; `session_id` only |
 | `push_audio_chunk` | Apps | App-only: `{session_id, pcm_b64, sample_rate}` (16-bit LE mono PCM) for a pushed session → position snapshot |
 | `list_capabilities` | — | Server metadata, pitch backend and version |
-| `health_check` | — | Runtime dependency status |
+| `health_check` | — | Runtime dependency status; linked to the Setup Doctor page |
 
 ---
 
@@ -113,7 +124,7 @@ MXL test fixtures are in `../omr-mcp/test_samples/pdmx_satb_samples/mxl/` — 10
 # Unit tests only (fast, no mic needed) — integration/manual are skipped by default
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v
 
-# Integration tests only (offline analysis against the committed fixture pair)
+# Integration tests only (offline analysis + synth round trip; the round trip needs SYNTH_SOUNDFONT_PATH)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration
 
 # Manual tests (real mic — skip in CI)

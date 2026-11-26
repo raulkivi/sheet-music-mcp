@@ -1,11 +1,12 @@
 # pitch-mcp — Technical Architecture
 
-**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 > The Practice Coach page lives in `ui/apps/practice-coach/` (not in this package): `coach.ts`
 > (behavior over ports), `polling.ts` (adaptive scheduler), `status.ts` / `meter.ts` / `history.ts`
 > (pure), `scoreStage.ts` + `scoreMap.ts` (score and cursor), `dom.ts` / `scoreDom.ts` (markup).
-> See requirements IR-5b.
+> See requirements IR-5b. The Setup Doctor page (`ui://pitch/setup-doctor`) is the shared one from
+> `ui/apps/setup-doctor/`; `health_check` links it.
 
 ## Overview
 
@@ -86,7 +87,7 @@ The server is stateful in Phase B: sessions live in a module-level `SessionRegis
 MCP protocol layer. Contains no analysis logic.
 
 - Registers twelve tools: `analyze_recording`, `load_score`, `start_practice`, `describe_score` (shared, from `sheet_music_mcp_core.references`), `start_monitoring` (`source: server_mic | pushed`), `get_current_position`, `stop_monitoring`, `list_sessions`, `get_score_for_session` (app-only), `push_audio_chunk` (app-only), `list_capabilities`, `health_check`
-- MCP Apps: `PRACTICE_COACH` (`ui://pitch/practice-coach`) in a `UiRegistry` over `PackageAssetSource("pitch_mcp")`, served with `make_resource_handlers`; `meta_for()` drops the link while the HTML is not packaged. `call_tool_result()` returns `CallToolResult` for the tools in `_RESULT_TOOLS` (the six structured ones, plus `start_monitoring`, `stop_monitoring` and `list_sessions`, whose errors set `isError` through `_text_result`), `call_tool()` keeps returning the content blocks
+- MCP Apps: `PRACTICE_COACH` (`ui://pitch/practice-coach`, with the `microphone` permission) and `SETUP_DOCTOR` (`ui://pitch/setup-doctor`, core `setup_doctor_resource("pitch")`) in a `UiRegistry` over `PackageAssetSource("pitch_mcp")`, served with `make_resource_handlers`; `meta_for()` drops the links while the HTML is not packaged. `call_tool_result()` returns `CallToolResult` for the tools in `_RESULT_TOOLS`: the structured ones (`analyze_recording`, `load_score`, `start_practice`, `get_current_position`, `get_score_for_session`, `push_audio_chunk`, `health_check`) and the text-only ones (`start_monitoring`, `stop_monitoring`, `list_sessions`, JSON text without `structuredContent`, whose errors set `isError` through `_text_result`); `call_tool()` keeps returning the content blocks
 - `analyze_recording`, `load_score` and `start_practice` take `measures` (`MEASURES_PROPERTY` from `sheet_music_mcp_core.measures`); `_measures(arguments)` passes it to the engine only when given, so calls without it are unchanged
 - Resolves the score of `analyze_recording`, `load_score` and `start_practice` with `_reference_score()`: the core's `references.load_score()` (inline `musicxml`, or `musicxml_path` confined to the read roots, `.mxl` unpacked) followed by the same `validate_musicxml()` check inline text always had. The engine still receives MusicXML text, so it is unchanged
 - `call_tool(name, arguments, ctx=None)` is wired with `make_handlers(..., pass_context=True)` so `load_score` can ask the client for its MCP roots
@@ -590,7 +591,8 @@ pitch-mcp/
 │       ├── __init__.py
 │       ├── server.py          ← MCP layer (tool registration, dispatch, UI resource)
 │       ├── presenter.py       ← content + structuredContent, output schemas
-│       ├── ui/assets/         ← practice-coach.html, built by ui/ (gitignored, packaged)
+│       ├── health.py          ← health checks mapped to the shared report
+│       ├── ui/assets/         ← practice-coach.html, setup-doctor.html; built by ui/ (gitignored, packaged)
 │       ├── engine.py          ← Session management, offline analysis orchestration
 │       ├── pitch_detector.py  ← librosa / crepe pitch detection
 │       ├── aligner.py         ← Time-domain alignment, accuracy classification
