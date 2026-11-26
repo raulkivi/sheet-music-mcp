@@ -1,9 +1,9 @@
 # Kannel interactive mockups (Design canvas source)
 
-**Last changed:** 2026-11-25
+**Last changed:** 2026-11-26
 **Source:** https://github.com/raulkivi/sheet-music-mcp
 
-This is the canonical Kannel mockup set; [mockups/](../mockups/) is superseded.
+This is the canonical Kannel mockup set. The earlier static set (`docs/design/mockups/`) was removed on 2026-11-26; it remains in git history.
 
 Source of the clickable Kannel prototypes published as a Design canvas
 (one artboard per MCP App, plus a start page). The published canvas is the

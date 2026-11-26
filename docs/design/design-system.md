@@ -1,6 +1,6 @@
 # Kannel: visual identity and design system for the MCP Apps
 
-**Last changed:** 2026-11-11
+**Last changed:** 2026-11-26
 **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 **Status:** Proposal, with mockups and tokens. Not yet adopted by the shipped Score Viewer.
@@ -12,9 +12,6 @@
 |---|---|
 | [tokens.css](tokens.css) | The design tokens. Source of truth for colour, type, radius. Tested by `ui/test/theme/brand-tokens.test.ts` |
 | [interactive/](interactive/README.md) | **Canonical** mockups: clickable Design canvas source, one artboard per app |
-| [mockups/index.html](mockups/index.html) | Gallery of the seven static mockups, light and dark. **Superseded** by `interactive/` |
-| [mockups/mockup.css](mockups/mockup.css) | Shared chrome for the superseded static mockups (not part of any app) |
-| `mockups/*.html` | Superseded: one static mockup per app, at phone width and desktop width |
 
 ---
 
@@ -165,19 +162,19 @@ the part chips, not as decoration.
 
 ## 10. Applying the system to each app
 
-Each mockup shows one app at phone width (360 px) and desktop width (1280 px), in both themes.
+Each interactive artboard shows one app at phone width (360 px) and desktop width (1280 px), in both themes.
 
-| App | Mockup | Interactive source | Signature element |
-|---|---|---|---|
-| Score Viewer (built, render-mcp) | [score-viewer.html](mockups/score-viewer.html) | [ScoreViewer.dc.html](interactive/ScoreViewer.dc.html) | Page controls and the score panel |
-| Practice Player (synth-mcp) | [practice-player.html](mockups/practice-player.html) | [PracticePlayer.dc.html](interactive/PracticePlayer.dc.html) | Part chips, gold playhead, tempo |
-| Recognition Review (omr-mcp) | [recognition-review.html](mockups/recognition-review.html) | [RecognitionReview.dc.html](interactive/RecognitionReview.dc.html) | Scan beside score, issue list |
-| ABC Workbench (musicxml-abc-mcp) | [abc-workbench.html](mockups/abc-workbench.html) | [AbcWorkbench.dc.html](interactive/AbcWorkbench.dc.html) | Original and proposed panes, change marks |
-| Practice Coach (pitch-mcp) | [practice-coach.html](mockups/practice-coach.html) | [PracticeCoach.dc.html](interactive/PracticeCoach.dc.html) | Pitch meter with gold centre |
-| Diff Viewer (comparer-mcp) | [diff-viewer.html](mockups/diff-viewer.html) | [DiffViewer.dc.html](interactive/DiffViewer.dc.html) | Change list with solid and dashed marks |
-| Setup Doctor (all) | [setup-doctor.html](mockups/setup-doctor.html) | [SetupDoctor.dc.html](interactive/SetupDoctor.dc.html) | Swallow mark, fix-it steps |
+| App | Interactive source | Signature element |
+|---|---|---|
+| Score Viewer (built, render-mcp) | [ScoreViewer.dc.html](interactive/ScoreViewer.dc.html) | Page controls and the score panel |
+| Practice Player (synth-mcp) | [PracticePlayer.dc.html](interactive/PracticePlayer.dc.html) | Part chips, gold playhead, tempo |
+| Recognition Review (omr-mcp) | [RecognitionReview.dc.html](interactive/RecognitionReview.dc.html) | Scan beside score, issue list |
+| ABC Workbench (musicxml-abc-mcp) | [AbcWorkbench.dc.html](interactive/AbcWorkbench.dc.html) | Original and proposed panes, change marks |
+| Practice Coach (pitch-mcp) | [PracticeCoach.dc.html](interactive/PracticeCoach.dc.html) | Pitch meter with gold center |
+| Diff Viewer (comparer-mcp) | [DiffViewer.dc.html](interactive/DiffViewer.dc.html) | Change list with solid and dashed marks |
+| Setup Doctor (all) | [SetupDoctor.dc.html](interactive/SetupDoctor.dc.html) | Swallow mark, fix-it steps |
 
-Interactive sources need the Design runtime and do not render on GitHub. The static mockups open directly in a browser.
+Interactive sources need the Design runtime and do not render on GitHub. The static mockups were removed on 2026-11-26; they remain in git history.
 
 ## 11. Decisions, open questions and follow-ups
 

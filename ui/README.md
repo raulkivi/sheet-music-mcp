@@ -1,6 +1,6 @@
 # ui/ — MCP Apps pages
 
-**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 TypeScript workspace for the [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) UIs that the
 servers serve as `ui://` resources. Each app builds to one self-contained HTML file (JS, CSS and the
@@ -29,7 +29,7 @@ Verovio WASM inlined; no network references). See
 Node 20 or later. Dependency versions are exact and locked in `package-lock.json`.
 
 Visual identity (Kannel) for these pages: [docs/design/design-system.md](../docs/design/design-system.md).
-The tokens in `docs/design/tokens.css` are tested by `test/theme/brand-tokens.test.ts`; the mockups are in `docs/design/mockups/`.
+The tokens in `docs/design/tokens.css` are tested by `test/theme/brand-tokens.test.ts`; the mockups are in `docs/design/interactive/`.
 
 ## Scripts
 

@@ -4,7 +4,7 @@
 **Date:** 2026-10-27
 **Parent:** [ux-architecture-and-tool-improvements.md](ux-architecture-and-tool-improvements.md),
 roadmap wave 3 (C8–C11, C13, B2, C19, C22).
-**Builds on:** [ux-wave2-plan.md](ux-wave2-plan.md) (core 0.2.0), [handover](ux-wave3-handover.md).
+**Builds on:** [ux-wave2-plan.md](ux-wave2-plan.md) (core 0.2.0).
 
 ## Progress
 
