@@ -31,6 +31,8 @@ Each MCP server lives in its own top-level directory and is independently deploy
 │       └── README.md           # Documents what fixtures are available and why
 ├── test_samples/               # Larger real-world samples (not committed if >10MB)
 ├── docs/
+│   ├── HANDOVER.md             # Status, remaining work, definition of done (local, gitignored)
+│   ├── PLAN.md                 # Architecture decisions and rationale (local, gitignored)
 │   ├── requirements.md         # Functional and non-functional requirements
 │   └── architecture.md         # Component diagram and data-flow
 └── examples/

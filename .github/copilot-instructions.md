@@ -29,7 +29,7 @@ Each server has its own local instruction file — **read it before writing any 
 The per-server files contain: status, key files, implemented tools, environment setup, test
 commands, known gotchas, and the definition of done.
 
-Also read the server's `docs/requirements.md` and `docs/architecture.md` (pitch-mcp: `docs/todo.md` too)
+Also read the server's `docs/HANDOVER.md`, `docs/PLAN.md`, `docs/requirements.md`, and `docs/architecture.md` (HANDOVER.md and PLAN.md are local and gitignored; pitch-mcp also has `docs/todo.md`)
 before writing any code.
 
 ---
@@ -101,8 +101,9 @@ uv sync                                                # install dependencies
 
 Update the documents so the next person (or session) starts with accurate information:
 
+- **`<server>/docs/HANDOVER.md`** — check off done items, add new gotchas, update status (local, gitignored)
+- **`<server>/docs/PLAN.md`** — check off completed phase items, note changed decisions (local, gitignored)
 - **`<server>/docs/requirements.md`** — update if behavior or interfaces changed
 - **`<server>/docs/architecture.md`** — update if implementation structure changed
-- **`<server>/CLAUDE.md`** — add new gotchas, update status
 - **`<server>/.github/copilot-instructions.md`** — update status and tool list
 - **This file** — update server status markers in the table above

@@ -201,7 +201,7 @@ Releases: [publish.yml](.github/workflows/publish.yml) publishes each tag to PyP
 - [docs/conventions.md](docs/conventions.md) — coding and structural conventions shared across all servers
 - [docs/sources.md](docs/sources.md) — references and sources
 - [docs/SETUP_UX_PLAN.md](docs/SETUP_UX_PLAN.md) — end-user packaging plan (PyPI, installers, setup docs)
-- Each server has its own `docs/` folder with `requirements.md` and `architecture.md`
+- Each server has its own `docs/` folder with `PLAN.md`, `HANDOVER.md` (both local, gitignored), `requirements.md` and `architecture.md`
 - [ui/README.md](ui/README.md) — the MCP Apps pages
 
 ## License
