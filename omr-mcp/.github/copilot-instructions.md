@@ -1,5 +1,7 @@
 # omr-mcp — Copilot Instructions
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## What This Server Does
 
 Converts sheet music images (PNG/JPEG) to MusicXML. Two selectable OMR backends: `oemer` (default,
@@ -8,7 +10,7 @@ multi-staff SATB scores where oemer flattens or crashes). This is the entry poin
 music pipeline — all other servers consume MusicXML produced here.
 
 **Status:** Phases 1–4 complete, including the Audiveris backend option (2026-08-16), and UX
-Wave 2 (score references). MCP Apps Recognition Review server side is done (`structuredContent`, app-only `get_recognized_score` and `get_source_preview`); `staff_systems_estimate` (staves per system) is checked against 60 real sample pages; the Recognition Review page is built (`ui/apps/recognition-review/`). 344 unit tests pass, 150 skipped (all mocked — no real
+Wave 2 (score references). MCP Apps Recognition Review server side is done (`structuredContent`, app-only `get_recognized_score` and `get_source_preview`); `staff_systems_estimate` (staves per system) is checked against 60 real sample pages; the Recognition Review page is built (`ui/apps/recognition-review/`). 344 unit tests pass, 48 skipped (all mocked — no real
 oemer/Audiveris invocation). Integration tests verified against real oemer (2026-08-15);
 oemer's SATB voice-loss is root-caused as an architectural limitation, fixed via the opt-in
 Audiveris engine, not yet the default. See `docs/HANDOVER.md`.
@@ -33,10 +35,15 @@ omr-mcp/
 ├── .python-version          # "llm311"
 ├── src/omr_mcp/
 │   ├── server.py            # MCP tool definitions and async handlers
-│   ├── omr_engine.py        # oemer wrapper — NO mcp imports
+│   ├── omr_engine.py        # oemer + Audiveris wrappers — NO mcp imports
+│   ├── presenter.py         # structuredContent + output schemas (Recognition Review)
+│   ├── previews.py          # source-preview JPEG and job table
+│   ├── staff_estimate.py    # staves per system from the image
+│   ├── recognition_warnings.py  # structured warnings[]
 │   └── utils.py             # image validation, base64 helpers
 ├── tests/
-│   ├── test_omr.py          # unit + integration tests
+│   ├── test_omr.py          # unit tests
+│   ├── test_recognition_review.py  # structuredContent, app-only tools
 │   └── fixtures/
 ├── test_samples/
 │   └── pdmx_satb_samples/   # 10 SATB PNG + MXL fixtures — use these in tests
@@ -56,6 +63,8 @@ omr-mcp/
 | `recognize_sheet` | Image path or base64; optional `engine` ("oemer"\|"audiveris"), `return` ("auto"\|"path"\|"inline") | MusicXML string + metadata; large results (`auto`) as `musicxml_path` + `score_summary` |
 | `recognize_sheet_to_file` | Image path; optional `engine` | MusicXML file path + metadata + `score_summary` |
 | `recognize_sheets` | List of image paths/base64; optional `engine`, `return` | Single merged MusicXML (multi-page); large results as `musicxml_path` + `score_summary` |
+| `get_recognized_score` | `job_id` (app-only) | The MusicXML of an earlier recognition |
+| `get_source_preview` | `job_id`, optional `page`, `offset`, `length` (app-only) | Chunk of a downscaled JPEG of an input page, by opaque id |
 | `list_capabilities` | — | Server capabilities incl. per-engine availability |
 | `list_supported_formats` | — | Deprecated alias for `list_capabilities` |
 | `health_check` | — | Runtime dependency status incl. oemer/model cache/Audiveris |

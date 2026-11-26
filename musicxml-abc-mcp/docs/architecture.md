@@ -1,6 +1,6 @@
 # musicxml-abc-mcp — Technical Architecture
 
-**Last changed:** 2026-11-11 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 ## Overview
 
@@ -380,6 +380,7 @@ musicxml-abc-mcp/
 │       ├── engine.py     ← Conversion logic + custom ABC serializer
 │       ├── abc_edit.py   ← apply_abc_edit: splice edited bars into the score text
 │       ├── abc_bars.py   ← split ABC at its bar lines, one tune per bar
+│       ├── health.py     ← health_check report
 │       └── utils.py      ← Minimal input validation
 └── tests/
     ├── test_server.py
@@ -387,6 +388,8 @@ musicxml-abc-mcp/
     ├── test_measures.py  ← measures ranges (Wave 3): cut bars, carried K:/M:/Q:, errors
     ├── test_abc_workbench.py  ← ui:// resource, linking, structuredContent, get_abc
     ├── test_abc_store.py
+    ├── test_part_selection.py
+    ├── test_abc_edit_hardening.py  ← apply_abc_edit edge cases
     ├── test_content_golden.py  ← content byte-identical (golden/abc_content.json)
     ├── test_engine.py
     ├── test_abc_edit.py  ← apply_abc_edit engine (other parts identical, shell, divisions, warnings)

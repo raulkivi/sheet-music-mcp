@@ -1,12 +1,14 @@
 # musicxml-abc-mcp — Copilot Instructions
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## What This Server Does
 
 Converts between MusicXML and ABC notation. ABC is compact and text-based, making it practical
 for Claude to read and edit scores directly in its context window.
 
 **Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references) + UX Wave 3 (`measures`) complete.
-306 unit tests pass (`-m "not integration"`) + 6 integration tests. MCP Apps ABC Workbench server side done (`structuredContent`, output schemas, app-only `get_abc`); the page is built (`ui/apps/abc-workbench/`). `apply_abc_edit` (C16) replaces bars of one part and keeps the rest of the score byte-identical.
+313 unit tests pass (`-m "not integration"`) + 6 integration tests. MCP Apps ABC Workbench server side done (`structuredContent`, output schemas, app-only `get_abc`); the page is built (`ui/apps/abc-workbench/`). `apply_abc_edit` (C16) replaces bars of one part and keeps the rest of the score byte-identical.
 
 ---
 
@@ -31,6 +33,8 @@ musicxml-abc-mcp/
 │   ├── presenter.py         # structuredContent + output schemas (ABC Workbench)
 │   ├── abc_store.py         # abc_id handles to musicxml_to_abc results — NO mcp imports
 │   ├── engine.py            # Conversion pipeline + custom ABC serializer — NO mcp imports
+│   ├── abc_edit.py          # apply_abc_edit: splice edited bars into the score — NO mcp imports
+│   ├── abc_bars.py          # split ABC at its bar lines — NO mcp imports
 │   └── utils.py             # Input validation helpers
 ├── tests/
 │   ├── test_server.py       # protocol tests

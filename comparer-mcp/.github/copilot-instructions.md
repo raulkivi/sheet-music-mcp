@@ -1,5 +1,7 @@
 # comparer-mcp — Copilot Instructions
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## What This Server Does
 
 Music-aware comparison of two MusicXML files. Provides structured, multi-level diffs
@@ -8,9 +10,11 @@ version/arrangement comparison, OMR quality evaluation, round-trip fidelity test
 
 **Status:** Phase 4 (Advanced features) complete — all originally-scoped phases done. UX Wave 2
 (score references) complete. UX Wave 3: `options.measures` / `list_changes.measures` (old name
-`measure_range` kept as a deprecated alias). 314 unit tests pass (+7 integration). `server.py`
-exposes all 9 tools. MCP Apps Diff Viewer server side done (`ui://comparer/diff-viewer`,
-`structuredContent`, output schemas; page not built yet).
+`measure_range` kept as a deprecated alias). `compare_scores` (C24) consolidates the five compare
+tools (`detail`: summary, changes, report, full); the old names are deprecated aliases for one minor
+release. 413 unit tests pass (+7 integration, which need the omr-mcp `.mxl` samples). `server.py`
+exposes all 12 tools (two app-only). MCP Apps Diff Viewer done (`ui://comparer/diff-viewer`,
+`structuredContent`, output schemas, `diff_id`; page in `ui/apps/diff-viewer/`).
 
 ---
 
@@ -35,7 +39,9 @@ comparer-mcp/
 │   ├── score_inputs.py      # Reference/target pair: schema and loading (inline or path)
 │   ├── engine.py            # Comparison orchestration — NO mcp imports
 │   ├── models.py            # Dataclasses: ComparisonResult, NoteDiff, etc.
+│   ├── comparison_view.py   # compare_scores detail levels, filter folding — NO mcp imports
 │   ├── presenter.py         # content + structuredContent + output schemas (Diff Viewer)
+│   ├── diff_book.py         # DiffBook: scores of a result under an opaque diff_id — NO mcp imports
 │   ├── result_schema.py     # JSON Schema generated from the models dataclasses
 │   ├── part_matcher.py      # Part matching (name, instrument, range)
 │   ├── measure_comparator.py # Measure-level structural comparison
@@ -49,6 +55,10 @@ comparer-mcp/
 │   ├── test_part_matcher.py # Part matching edge cases
 │   ├── test_note_aligner.py # Alignment algorithm tests
 │   ├── test_report.py
+│   ├── test_compare_scores.py   # detail levels, output schema, deprecated aliases
+│   ├── test_diff_viewer.py      # ui:// resource, linking, structuredContent, diff_id
+│   ├── test_diff_viewer_tools.py # app-only get_diff_scores / export_diff_scores
+│   ├── test_diff_book.py
 │   ├── test_annotator.py
 │   ├── test_score_references.py # Path inputs, read policy, return modes, describe_score
 │   ├── test_utils.py
@@ -66,12 +76,15 @@ comparer-mcp/
 
 | Tool | Description |
 |------|-------------|
-| `compare_musicxml` | Full diff of two scores (inline or by path) → structured `ComparisonResult` JSON |
-| `compare_musicxml_files` | Full diff of two MusicXML file paths (read roots apply) → structured `ComparisonResult` JSON |
-| `quick_similarity` | Similarity score (0.0–1.0) + summary statistics |
-| `list_changes` | Filtered note-level diffs (by `part`, `measures`) |
-| `generate_comparison_report` | Human-readable version comparison report |
+| `compare_scores` | The comparison tool: `detail` summary/changes/report/full, `parts`, `measures`, `options`; `structuredContent` + `output_schema` |
+| `compare_musicxml` | Deprecated alias (`detail="full"`): full diff of two scores (inline or by path) |
+| `compare_musicxml_files` | Deprecated alias (`detail="full"`): full diff of two MusicXML file paths (read roots apply) |
+| `quick_similarity` | Deprecated alias (`detail="summary"`): similarity score (0.0–1.0) + summary statistics |
+| `list_changes` | Deprecated alias (`detail="changes"`): filtered note-level diffs (by `part`, `measures`) |
+| `generate_comparison_report` | Deprecated alias (`detail="report"`): human-readable version comparison report |
 | `export_annotated_musicxml` | Colored MusicXML diff export; paths for large results (`return`), feed them to render-mcp's `musicxml_path` |
+| `get_diff_scores` | App-only (Diff Viewer): both scores of a `diff_id` with the differences colored |
+| `export_diff_scores` | App-only (Diff Viewer): writes the annotated pair of a `diff_id`, returns paths |
 | `describe_score` | Shared core tool: parts (IDs), key, time, range, measures |
 | `health_check` | Server status and music21 version |
 | `list_capabilities` | Server metadata per conventions |

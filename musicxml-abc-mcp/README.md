@@ -1,5 +1,7 @@
 # musicxml-abc-mcp
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 <!-- mcp-name: io.github.raulkivi/musicxml-abc-mcp -->
 
 MCP server that converts between MusicXML and ABC notation.
@@ -21,6 +23,11 @@ ABC is ideal for LLM editing because it is concise enough to fit in a context wi
 | `list_capabilities` | Return server metadata: backend version, ABC standard |
 | `health_check` | Run a MusicXML → ABC → MusicXML round-trip smoke test and report status |
 | `describe_score` | Summarize a score cheaply: parts (IDs `P1`…), key, time, tempo, ranges, measures |
+
+In clients that support MCP Apps, `musicxml_to_abc` and `abc_to_musicxml` open the ABC Workbench page
+(`ui://abc/workbench`): the changes as hunks to keep or drop, live `validate_abc` on the text that would be
+written, and Accept via `abc_to_musicxml`. The page reads the original ABC through the app-only `get_abc`
+tool, which models do not see.
 
 ## Installation
 

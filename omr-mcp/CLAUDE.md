@@ -1,5 +1,7 @@
 # omr-mcp — Claude Code Instructions
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## What This Server Does
 
 Converts sheet music images (PNG/JPEG) to MusicXML. Two selectable OMR backends: `oemer` (default,
@@ -7,7 +9,7 @@ in-process) and `audiveris` (opt-in via `engine="audiveris"`, subprocess). Entry
 pipeline — all other servers consume MusicXML produced here.
 
 **Status:** Phases 1–4 code complete, including the Audiveris backend option (shipped 2026-08-16).
-UX Wave 2 (score references) done. 344 unit tests pass (+150 skipped). MCP Apps Recognition Review server side done (`structuredContent`, app-only `get_source_preview`, `staff_systems_estimate` = staves per system, checked on 60 real sample pages); the Recognition Review page is built (`ui/apps/recognition-review/`). Integration tests run
+UX Wave 2 (score references) done. 344 unit tests pass (+48 skipped). MCP Apps Recognition Review server side done (`structuredContent`, app-only `get_source_preview`, `staff_systems_estimate` = staves per system, checked on 60 real sample pages); the Recognition Review page is built (`ui/apps/recognition-review/`). Integration tests run
 against real oemer for the first time (2026-08-15): fixing a 100%-blocking API bug plus pinning
 `onnxruntime` and `opencv-python-headless` took the suite from 0/41 to 20/41 passing. **oemer's default output is not usable for SATB scores** — it
 reads multi-staff systems sequentially instead of simultaneously, so a 4-voice choir score comes
@@ -26,7 +28,7 @@ both root-caused 2026-08-16 (one is the SATB bug itself manifesting as a hard cr
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v                # 344 unit tests (+150 skipped; fast; all subprocess/network calls mocked)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v                # 344 unit tests (+48 skipped; fast; all subprocess/network calls mocked)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration # invokes real oemer (~3–5 min/page)
 ```
 
@@ -42,9 +44,10 @@ Install dependencies: `uv sync`
 | `src/omr_mcp/omr_engine.py` | oemer + Audiveris wrappers, `_ENGINE_RUNNERS` dispatch table (no MCP imports) |
 | `src/omr_mcp/presenter.py` | `structuredContent` and output schemas for the Recognition Review |
 | `src/omr_mcp/previews.py` | Source-preview JPEG and the job table (score + previews) |
+| `src/omr_mcp/recognition_warnings.py` | Structured `warnings[]` (`LOW_RESOLUTION`, `PARTS_FEWER_THAN_STAVES` at severity `info`) |
 | `src/omr_mcp/staff_estimate.py` | Staves per system from the image (`staff_systems_estimate`); evidence in `docs/staff-estimate-evidence.md` |
 | `src/omr_mcp/utils.py` | Image validation, base64 helpers |
-| `tests/test_omr.py` | Unit + integration tests |
+| `tests/` | Unit tests per module (`test_omr.py`, `test_recognition_review.py`, `test_source_preview.py`, `test_staff_estimate.py`, `test_recognition_warnings.py`, ...); integration in `test_integration.py`, `test_satb_samples.py`, `test_staff_estimate_samples.py` |
 | `test_samples/pdmx_satb_samples/` | 10 SATB PNG + MXL ground-truth fixtures |
 | `docs/HANDOVER.md` | Status, remaining work, definition of done |
 | `docs/PLAN.md` | Architecture decisions and rationale |
