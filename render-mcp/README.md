@@ -1,5 +1,7 @@
 # render-mcp
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 <!-- mcp-name: io.github.raulkivi/render-mcp -->
 
 MCP server that renders MusicXML scores to PDF or PNG images.
@@ -16,6 +18,23 @@ Takes a MusicXML document and produces print-ready PDFs or screen-ready PNG imag
 | `render_to_image` | Render a single page to PNG or SVG |
 | `list_capabilities` | Return server metadata: backend version, supported formats, available renderers |
 | `health_check` | Check whether all runtime dependencies are available and the server is ready to render scores |
+| `describe_score` | Shared tool: parts (IDs `P1` ...), key, time, tempo and length of a score, without rendering it |
+
+### MCP Apps pages
+
+Hosts that support MCP Apps show two pages, built in `ui/` and packaged with the server (without a
+UI build the tools carry no `_meta.ui`):
+
+- **Score Viewer** (`ui://render/score-viewer`, linked from `render_to_pdf` and `render_to_image`):
+  pages and zooms the score inline, filters or highlights one part in the page, and downloads
+  the score as SVG or PDF. It renders with Verovio WebAssembly, or with server-rendered SVG when
+  the host blocks WebAssembly.
+- **Setup Doctor** (`ui://render/setup-doctor`, linked from `health_check`): shows the health report
+  with a copyable fix for each problem.
+
+Three app-only tools serve the Score Viewer and are hidden from clients without MCP Apps:
+`render_page_svg` (one page as SVG), `get_pdf` (renders an inline score to a PDF and returns an
+opaque `pdf_id`) and `read_pdf_chunk` (reads that PDF in base64 chunks). None takes or returns a path.
 
 ## Installation
 
@@ -93,8 +112,11 @@ tempo and length without rendering it.
 ## Testing
 
 ```bash
-# All tests including integration (Verovio runs in-process, no external tool needed)
+# Unit tests (the default run)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v
+
+# Integration tests (Verovio runs in-process; test_packaging.py needs the UI built, see CLAUDE.md)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration
 ```
 
 ## Dependencies

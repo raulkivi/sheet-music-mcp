@@ -1,5 +1,7 @@
 # synth-mcp — Copilot Instructions
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## What This Server Does
 
 Synthesizes audio from a MusicXML score. Callers select voice parts (Soprano, Alto, Tenor, Bass,
@@ -7,9 +9,10 @@ or any combination) and an optional tempo factor. Returns a path to a rendered W
 
 **Status:** Phase 1 + UX Wave 1 + UX Wave 2 (score references: `musicxml_path`, `describe_score`)
 + UX Wave 3 (practice tracks: `measures`, `repeat`, count-in/metronome, `timbre`, part gains and
-presets; new `starting_pitches` tool) complete. MCP Apps Practice Player server side done
-(`structuredContent`, app-only `read_audio_chunk` and `get_score_xml`; the page is built in `ui/apps/practice-player/`, see requirements IR-3d). 383 unit + 10 integration tests (integration needs
-a soundfont, libfluidsynth and, for most, the omr-mcp MXL fixtures).
+presets; new `starting_pitches` tool) complete. MCP Apps pages built: Practice Player
+(`structuredContent`, app-only `read_audio_chunk` and `get_score_xml`; page in `ui/apps/practice-player/`, see requirements IR-3d)
+and Setup Doctor (`health_check`). 501 unit + 21 integration tests (they need a soundfont and libfluidsynth; 14 run in CI, the other 7
+also need the local omr-mcp MXL fixtures).
 
 ---
 
@@ -34,12 +37,17 @@ synth-mcp/
 │   ├── engine.py            # music21 + pyfluidsynth pipeline — NO mcp imports
 │   ├── practice.py          # practice-track steps (gains, repeat, clicks, timbre) — NO mcp imports
 │   ├── clip.py              # starting_pitches text, clip MIDI, downmix — NO mcp imports
+│   ├── presenter.py         # content + structuredContent, output schemas
+│   ├── scorebook.py         # MusicXML per audio_id — NO mcp imports
+│   ├── health.py            # probes mapped to the shared health report
+│   ├── ui/assets/           # practice-player.html, setup-doctor.html (built by ui/, gitignored)
 │   └── utils.py             # MusicXML validation, tempo validation, path helpers
 ├── tests/
 │   ├── test_server.py       # protocol tests
 │   ├── test_engine.py       # unit + integration tests
 │   ├── test_utils.py        # unit tests
 │   ├── test_practice_player.py, test_scorebook.py, test_content_golden.py  # MCP Apps
+│   ├── test_health_*.py          # health report mapping, health_check wiring, Setup Doctor link
 │   ├── test_score_references.py  # musicxml_path, read policy, describe_score
 │   ├── test_practice_midi.py     # practice options at MIDI level (music21.midi.MidiFile)
 │   ├── test_practice_server.py   # practice options through synthesize, schema
@@ -60,11 +68,13 @@ MXL test fixtures are in `../omr-mcp/test_samples/pdmx_satb_samples/mxl/` — 10
 | Tool | Description |
 |------|-------------|
 | `get_parts` | Parse MusicXML and return list of parts with IDs and measure counts |
-| `synthesize` | Render selected parts to WAV with optional tempo scaling and practice options: `measures`, `repeat`, `count_in_bars`, `metronome`, `timbre`, `part_gains` / `preset` / `focus_part` |
+| `synthesize` | Render selected parts to WAV with optional tempo scaling and practice options: `measures`, `repeat`, `count_in_bars`, `metronome`, `timbre`, `part_gains` / `preset` / `focus_part`; links `ui://synth/practice-player`, returns `audio_id` in `structuredContent` |
 | `starting_pitches` | Each part's first note as text (`"S: D5, A: A4, …"`) plus a short piano WAV (inline when ≤ 200 KB); text only, not an error, without a soundfont |
 | `describe_score` | Shared core tool: title, key, time, tempo, parts (ID, clef, range), measures, duration — no music21 |
+| `read_audio_chunk` | App-only: a base64 slice of a synthesized WAV by `audio_id` (`offset`, `length` ≤ 1 MiB; no paths) |
+| `get_score_xml` | App-only: the MusicXML an `audio_id` was made from (no paths) |
 | `list_capabilities` | Server metadata, backend, soundfont status |
-| `health_check` | Soundfont, FluidSynth and music21 readiness |
+| `health_check` | Soundfont, FluidSynth and music21 readiness; linked to the Setup Doctor page |
 
 `get_parts`, `synthesize`, `starting_pitches` and `describe_score` take the score as `musicxml` (inline text) **or**
 `musicxml_path` (`.musicxml`, `.xml`, `.mxl`), exactly one (`oneOf`). Paths are read with

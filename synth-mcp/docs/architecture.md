@@ -1,10 +1,12 @@
 # synth-mcp — Technical Architecture
 
-**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 ## Overview
 
-synth-mcp is a stateless MCP server that synthesizes WAV audio from MusicXML. It uses music21 to parse the score and extract MIDI, then pyfluidsynth to render MIDI to a WAV file using a soundfont. Every tool call is independent; no session state is retained.
+synth-mcp is an MCP server that synthesizes WAV audio from MusicXML. It uses music21 to parse the score and extract MIDI, then pyfluidsynth to render MIDI to a WAV file using a soundfont. Every tool call is independent. The only state is the Practice Player's: an artifact store of finished WAVs and a score book of their MusicXML, both expiring after one hour and lost on restart.
+
+Hosts that support MCP Apps also get two pages built in `ui/` and packaged with the server: the **Practice Player** (`ui://synth/practice-player`, linked from `synthesize`) and the **Setup Doctor** (`ui://synth/setup-doctor`, linked from `health_check`).
 
 ---
 
@@ -18,7 +20,7 @@ synth-mcp is a stateless MCP server that synthesizes WAV audio from MusicXML. It
 ┌──────────────────────────▼────────────────────────────────┐
 │                       server.py                           │
 │                                                           │
-│  list_tools()   → 6 tool definitions                      │
+│  list_tools()   → 8 tool definitions (2 app-only)         │
 │  call_tool()    → load_score(), then dispatches to engine │
 └──────────┬──────────────────────────────┬─────────────────┘
            │                              │ references.load_score()
@@ -64,8 +66,9 @@ synth-mcp is a stateless MCP server that synthesizes WAV audio from MusicXML. It
 
 MCP protocol layer. Contains no business logic.
 
-- Registers six tools: `get_parts`, `synthesize`, `starting_pitches`, `describe_score` (shared,
-  from `sheet_music_mcp_core.references`), `list_capabilities`, `health_check`
+- Registers eight tools: `get_parts`, `synthesize`, `starting_pitches`, `describe_score` (shared,
+  from `sheet_music_mcp_core.references`), `list_capabilities`, `health_check` and the app-only
+  `read_audio_chunk` and `get_score_xml`
 - Passes only the practice options the caller gave (`PRACTICE_PARAMETERS`) to `extract_midi` and
   echoes them in the result, so a call without them is unchanged
 - Takes the score as `musicxml` or `musicxml_path` (`oneOf`). `references.load_score()` returns
@@ -127,6 +130,14 @@ Turns results into `(content, structured_content)` for `get_parts`, `synthesize`
 tools, and holds their output schemas. `content` of `get_parts`/`synthesize` is what the tools always
 returned. No engine logic.
 
+### `health.py`
+
+`probe()` checks the soundfont, FluidSynth and music21; `health_text()` renders the text `health_check`
+always returned, and `build_health_report()` maps the same probe to the shared report
+(`sheet_music_mcp_core.health`: Soundfont, FluidSynth, music21, each `fail` when missing).
+`health_check` returns it as `structuredContent` (`HEALTH_OUTPUT_SCHEMA`); the Setup Doctor page
+shows it. No MCP imports.
+
 ### `scorebook.py`
 
 `ScoreBook`: MusicXML per `audio_id` for `get_score_xml`. It is kept in step with the artifact store by
@@ -150,9 +161,11 @@ The page is `ui/apps/practice-player/` (see requirements IR-3d): `player.ts` (co
 `follower.ts` (score and playhead), `audio.ts` and `dom.ts` (browser). Tempo and loop are local;
 a change of voices, volumes, count-in or timbre is one `synthesize` call.
 
-`server.py` registers `PRACTICE_PLAYER` (`ui://synth/practice-player`) in a `UiRegistry` over
+`server.py` registers `PRACTICE_PLAYER` (`ui://synth/practice-player`) and `SETUP_DOCTOR`
+(`ui://synth/setup-doctor`, core `setup_doctor_resource("synth")`) in a `UiRegistry` over
 `PackageAssetSource("synth_mcp")`; `meta_for()` drops the link while the HTML is not packaged.
-`call_tool_result()` returns `CallToolResult` for the four structured tools (`_RESULT_TOOLS`);
+`synthesize` links the Practice Player, `health_check` the Setup Doctor.
+`call_tool_result()` returns `CallToolResult` for the five structured tools (`_RESULT_TOOLS`: `get_parts`, `synthesize`, `read_audio_chunk`, `get_score_xml`, `health_check`);
 `call_tool()` keeps returning the content blocks. `engine.describe_mix()` resolves part selection and
 gains with the same functions as `extract_midi`, so the mixer shows what was rendered.
 
@@ -404,7 +417,8 @@ synth-mcp/
 │       ├── clip.py       ← starting_pitches (text, clip MIDI, downmix)
 │       ├── presenter.py  ← content + structuredContent, output schemas
 │       ├── scorebook.py  ← MusicXML per audio_id, in step with the artifact store
-│       ├── ui/assets/    ← practice-player.html, built by ui/ (gitignored, packaged)
+│       ├── health.py     ← probes mapped to the shared health report
+│       ├── ui/assets/    ← practice-player.html, setup-doctor.html; built by ui/ (gitignored, packaged)
 │       └── utils.py      ← Validation, path generation
 └── tests/
     ├── test_server.py
@@ -412,6 +426,7 @@ synth-mcp/
     ├── test_utils.py
     ├── test_practice_midi.py, test_practice_server.py, test_starting_pitches.py
     ├── test_practice_player.py, test_scorebook.py, test_content_golden.py (+ golden/)
+    ├── test_health_report.py, test_health_mapping.py   ← health report, Setup Doctor link
     ├── midi_helpers.py   ← MIDI bytes → events for assertions
     └── fixtures/         ← satb_4bars, six_eight, pickup_sound_tempo (.musicxml)
 ```

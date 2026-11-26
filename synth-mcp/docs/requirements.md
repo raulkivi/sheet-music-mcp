@@ -1,6 +1,6 @@
 # synth-mcp Requirements
 
-**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 ## Purpose
 
@@ -112,6 +112,15 @@ The server MUST expose a tool that returns:
 - FluidSynth availability flag and version
 - Soundfont load status and path
 - List of available tools
+
+### FR-7 — Setup Doctor UI resource (MCP Apps)
+
+The server MUST serve the Setup Doctor as `ui://synth/setup-doctor`
+(`synth_mcp/ui/assets/setup-doctor.html`, built in `ui/`) and link it from `health_check`
+(`_meta.ui.resourceUri`) while the HTML is packaged. The page shows the `health_check` report
+(Soundfont, FluidSynth, music21) and a copyable fix for each failing check; it asks only for
+`clipboardWrite`. `health_check` declares `HEALTH_OUTPUT_SCHEMA` and returns the report as
+`structuredContent`; its text `content` is unchanged.
 
 ---
 
@@ -351,6 +360,8 @@ If `SYNTH_SOUNDFONT_PATH` is unset or points to a non-existent file, the server 
 | `FILE_NOT_FOUND` | `musicxml_path` inside the roots does not exist |
 | `FILE_TOO_LARGE` | `musicxml_path` larger than `SHEET_MUSIC_MAX_SCORE_BYTES` |
 | `PROCESSING_FAILED` | FluidSynth not installed; soundfont not found; synthesis error |
+| `UI_ASSET_MISSING` | `resources/read` of a page without a UI build (JSON-RPC `-32603`, envelope in `data`) |
+| `RESOURCE_NOT_FOUND` | `resources/read` of an unknown URI (JSON-RPC `-32602`, envelope in `data`) |
 
 ---
 
@@ -393,6 +404,9 @@ Unit tests MUST mock pyfluidsynth. They MUST NOT synthesize real audio.
 - Practice Player (`tests/test_practice_player.py`, `tests/test_scorebook.py`, `tests/test_content_golden.py`): tool linking with and
   without a packaged page, resource list/read, `structuredContent` against the schemas, the app-only tools (no paths,
   unknown/expired id), chunk reassembly, `content` identical to the pre-Apps golden file
+- Health report (`tests/test_health_report.py`, `tests/test_health_mapping.py`): probe to report
+  mapping, `health_check` `structuredContent` against `HEALTH_OUTPUT_SCHEMA`, the Setup Doctor
+  link with and without a UI build
 
 ### TR-2 — Integration tests
 

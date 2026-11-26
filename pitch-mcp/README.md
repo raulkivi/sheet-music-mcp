@@ -1,5 +1,7 @@
 # pitch-mcp
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 <!-- mcp-name: io.github.raulkivi/pitch-mcp -->
 
 MCP server for real-time pitch detection and score alignment. Listens to a singer via microphone and reports their current position in a score and whether they are singing in tune.
@@ -27,6 +29,25 @@ Supports both offline analysis of pre-recorded audio and real-time microphone in
 | `list_sessions` | List open practice sessions with their part, state (`loaded` / `monitoring`) and idle time |
 | `list_capabilities` | Return server metadata: pitch backend, microphone availability |
 | `health_check` | Check that runtime dependencies (librosa, sounddevice/portaudio) are available |
+
+### MCP Apps pages
+
+Hosts that support MCP Apps show two pages, built in `ui/` and packaged with the server (without a
+UI build the tools carry no `_meta.ui`):
+
+- **Practice Coach** (`ui://pitch/practice-coach`, linked from `start_practice`, `load_score` and
+  `analyze_recording`): the score with a cursor, a cents meter and a status per note while the
+  singer sings, Start and Stop, and a Report with a per-bar heat strip after Stop. "Ask Claude for
+  tips" sends a fixed-template message built from the page's own numbers. The page uses the server
+  microphone; the browser-microphone option is shown disabled.
+- **Setup Doctor** (`ui://pitch/setup-doctor`, linked from `health_check`): shows the health report
+  with a copyable fix for each problem.
+
+Two app-only tools are hidden from clients without MCP Apps: `get_score_for_session` (the session's
+MusicXML, so the page can draw it) and `push_audio_chunk` (browser microphone audio for a session
+started with `start_monitoring` `source: "pushed"`; no page uses it yet). Neither takes a path.
+`start_monitoring`, `stop_monitoring` and `list_sessions` return JSON text without
+`structuredContent`; the Practice Coach reads that text.
 
 Scores are given as `musicxml_path` (a `.musicxml`, `.xml` or `.mxl` file, preferred) or as
 inline `musicxml` text, never both. Paths must lie inside the output root
@@ -114,11 +135,15 @@ VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m manual
 ```
 
-294 of the 300 total tests are unit tests (292 run, 2 skipped), run against mocks and synthetic (in-memory) WAV data —
-none require real audio hardware or pre-recorded fixtures. The other 6 are marked `integration`
-(4 — offline analysis against the committed `tests/fixtures/` pair) or `manual` (2 — full
-real-microphone session lifecycle) and are excluded from a plain `pytest tests/` run by
-`tests/conftest.py`; select them explicitly with `-m integration` / `-m manual`.
+The default run is 509 unit tests (plus 2 skipped), run against mocks and synthetic (in-memory)
+WAV data; none require real audio hardware or pre-recorded fixtures. The other 18 are marked
+`integration` (16) or `manual` (2) and are excluded from a plain `pytest tests/` run by
+`tests/conftest.py`; select them explicitly with `-m integration` / `-m manual`:
+
+- `integration`: 4 offline-analysis tests against the committed `tests/fixtures/` pair, and 12
+  synth-to-pitch round-trip tests that render each part with synth-mcp (they skip without
+  `SYNTH_SOUNDFONT_PATH` and synth-mcp's own venv)
+- `manual`: 2 full real-microphone session tests
 
 ## Dependencies
 
@@ -138,5 +163,5 @@ real-microphone session lifecycle) and are excluded from a plain `pytest tests/`
 
 | Phase | Status |
 |-------|--------|
-| Phase A — offline analysis | Complete. DTW-based alignment (`dtaidistance`); 292 unit tests plus 4 `-m integration` tests against a committed fixture pair (`tests/fixtures/`) |
+| Phase A — offline analysis | Complete. DTW-based alignment (`dtaidistance`); covered by the unit tests plus 4 `-m integration` tests against a committed fixture pair (`tests/fixtures/`) |
 | Phase B — real-time monitoring | Complete. Position tracking is audio-driven (matches detected pitch, not just elapsed time); `tempo_bpm` override supported. Covered by unit tests with mocked `sounddevice`; full-lifecycle `-m manual` tests exist for real-microphone verification but require real hardware to run |

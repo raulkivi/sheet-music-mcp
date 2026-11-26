@@ -1,6 +1,6 @@
 # render-mcp — Technical Architecture
 
-**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 ## Overview
 
@@ -9,8 +9,9 @@ render-mcp is a stateless MCP server that renders MusicXML scores to PDF or PNG/
 Hosts that support MCP Apps also get the **Score Viewer** (`ui://render/score-viewer`), an HTML
 page built in `ui/` and packaged with the server. It pages and zooms the score inline. It renders
 with Verovio WebAssembly in the page where the host allows it, and otherwise asks the app-only
-`render_page_svg` tool for each page ([Score Viewer](#score-viewer-mcp-apps)). The only server
-state is that tool's cache of the last score it parsed.
+`render_page_svg` tool for each page ([Score Viewer](#score-viewer-mcp-apps)). `health_check` links
+a second page, the Setup Doctor (`ui://render/setup-doctor`). The only server state is the cache of
+the last score `render_page_svg` parsed and the table of PDFs `get_pdf` wrote (lost on restart).
 
 ---
 
@@ -24,10 +25,10 @@ state is that tool's cache of the last score it parsed.
 ┌──────────────────────────▼────────────────────────────────┐   ┌──────────────────────────┐
 │                       server.py                           │   │ sheet_music_mcp_core     │
 │                                                           │   │                          │
-│  list_tools()        → 6 tools (render_page_svg app-only) │──►│ wiring.make_handlers()   │
+│  list_tools()        → 8 tools (3 app-only)                    │──►│ wiring.make_handlers()   │
 │  call_tool_result()  → load_score(), engine, presenter    │   │  hides app-only tools    │
 │  call_tool()         → the same result's content only     │   │  from non-UI clients     │
-│  ui_registry         → ui://render/score-viewer           │──►│ wiring.make_resource_    │
+│  ui_registry         → score-viewer, setup-doctor         │──►│ wiring.make_resource_    │
 │  resources/list, resources/read                           │   │  handlers()              │
 └──────┬─────────────────────────┬──────────────────────────┘   │ ui.UiRegistry,           │
        │                         │                              │  PackageAssetSource      │
@@ -35,10 +36,10 @@ state is that tool's cache of the last score it parsed.
        │                 │  presenter.py   │                                 │ reads
        │                 │                 │                    ┌────────────▼─────────────┐
        │                 │ present_pdf()   │                    │ render_mcp/ui/assets/    │
-       │                 │ present_image() │                    │   score-viewer.html      │
-       │                 │ present_page_   │                    │ built in ui/, gitignored,│
-       │                 │   svg()         │                    │ packaged by hatch        │
-       │                 │ *_OUTPUT_SCHEMA │                    │ artifacts                │
+       │                 │ present_image() │                    │ score-viewer.html,       │
+       │                 │ present_page_   │                    │ setup-doctor.html; built │
+       │                 │   svg()         │                    │ in ui/, gitignored,      │
+       │                 │ *_OUTPUT_SCHEMA │                    │ packaged by hatch        │
        │                 └─────────────────┘                    └──────────────────────────┘
 ┌──────▼──────────────────┐  ┌──────────────────────────────┐
 │       engine.py         │  │          utils.py            │
@@ -80,13 +81,15 @@ state is that tool's cache of the last score it parsed.
 
 MCP protocol layer. Contains no rendering logic.
 
-- Registers six tools: `render_to_pdf`, `render_to_image`, `list_capabilities`, `health_check`,
+- Registers eight tools: `render_to_pdf`, `render_to_image`, `list_capabilities`, `health_check`,
   the shared `describe_score` (`sheet_music_mcp_core.references.DESCRIBE_SCORE_TOOL`) and the
-  app-only `render_page_svg`
-- Registers the Score Viewer (`SCORE_VIEWER`) in `ui_registry`, a `UiRegistry` over
+  app-only `render_page_svg`, `get_pdf` and `read_pdf_chunk`
+- Registers the Score Viewer (`SCORE_VIEWER`) and the Setup Doctor (`SETUP_DOCTOR`, core
+  `setup_doctor_resource("render")`) in `ui_registry`, a `UiRegistry` over
   `PackageAssetSource("render_mcp")` (tests swap in `InMemoryAssetSource`). `render_to_pdf` and
-  `render_to_image` carry `meta=ui_registry.meta_for(SCORE_VIEWER)`, so `_meta.ui.resourceUri`
-  appears only when the HTML is packaged. `resources/list` and `resources/read` come from the
+  `render_to_image` carry `meta=ui_registry.meta_for(SCORE_VIEWER)` and `health_check` carries
+  `meta=ui_registry.meta_for(SETUP_DOCTOR)`, so `_meta.ui.resourceUri` appears only when the HTML
+  is packaged. `pdf_store` (`FileArtifactStore`) holds the PDFs `get_pdf` wrote. `resources/list` and `resources/read` come from the
   core `make_resource_handlers`, through a small delegate that reads `ui_registry` per request
 - Gets the score with `references.load_score(arguments, ctx)`: inline `musicxml` as is, or
   `musicxml_path` confined to the read roots and read (`.mxl` too). The handlers are wired with
@@ -109,7 +112,8 @@ success by the file blocks from `sheet_music_mcp_core.content`: a PNG of at most
 `image` block (`png_block`), then a `resource_link` with a `file://` URI and MIME type
 (`file_link`); SVG and PDF get only the link. `structuredContent` is the same data as the JSON
 text. `present_page_svg` returns a one-line text (no SVG, so the markup never reaches a model)
-and `{svg, page, page_count}`. The module also holds the three tools' `output_schema`s.
+and `{svg, page, page_count}`. The module also holds the `output_schema`s of the render tools,
+`render_page_svg`, `get_pdf` and `read_pdf_chunk`.
 
 ### `engine.py`
 
@@ -146,6 +150,13 @@ or zoom re-applies the options and calls `redoLayout()`; a new score loads afres
 clears the cache). The options are `ScoreView`'s: `page_layout()` plus `adjustPageHeight`,
 `breaks: "auto"`, `footer: "none"`. A page past the end raises `INVALID_PARAMETER` with the hint
 "This score has pages 1–N at this width and zoom."
+
+### `health.py`
+
+`build_health_report()` maps `engine.get_health_status()` to the shared report
+(`sheet_music_mcp_core.health`): Rendering backend (fail), cairosvg (warn, only when Verovio is
+available). `health_check` returns it as `structuredContent` (`HEALTH_OUTPUT_SCHEMA`) beside the
+unchanged text; the Setup Doctor page shows it. No MCP imports.
 
 ### `utils.py`
 
@@ -258,6 +269,10 @@ call_tool("render_to_image", {musicxml, page=2, format="png", dpi=150})
  └────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+The Setup Doctor (`ui://render/setup-doctor`) is a separate page from `ui/apps/setup-doctor/`, built
+once and copied into each server's package. It shows the `health_check` report and asks for the
+`clipboardWrite` permission only.
+
 **Why two paths.** The MCP Apps spec's default CSP for a resource without `_meta.ui.csp` has no
 `'wasm-unsafe-eval'`, and `McpUiResourceCsp` only lets a server declare domains, so a server cannot
 ask for it. Verovio's npm package ships only a WASM build. A host that enforces the default
@@ -282,7 +297,7 @@ each part's staff count. The model hears the highlighted part's ID with the page
 **PDF download.** The viewer's "Download PDF" calls the app-only `get_pdf` with the inline score. The
 server renders it (in a worker thread) to `<output root>/pdf/score-<timestamp>.pdf`, stores the file in
 a `FileArtifactStore` and returns only an opaque `pdf_id`; the page then pages `read_pdf_chunk`
-(core `chunk_payload`, 512 KiB per call) into a Blob and saves it as `score.pdf`. If the sandbox blocks
+(core `chunk_payload`, 512 KiB per call; the tool accepts up to 1 MiB) into a Blob and saves it as `score.pdf`. If the sandbox blocks
 downloads the page posts the D6 `ui/message`, as for SVG.
 
 **Text font limitation.** Tempo-mark notes (♩ = 90) are glyphs from Verovio's SMuFL text font.
@@ -443,9 +458,10 @@ render-mcp/
 │       ├── __init__.py
 │       ├── server.py     ← MCP layer (tool registration, dispatch, UI registry)
 │       ├── presenter.py  ← content + structuredContent, output schemas
+│       ├── health.py     ← health checks mapped to the shared report
 │       ├── engine.py     ← Rendering logic (Verovio, cairosvg, pypdf, MuseScore, viewer pages)
 │       ├── utils.py      ← Validation, path generation
-│       └── ui/assets/score-viewer.html   ← built by ui/ (npm run copy-assets), gitignored
+│       └── ui/assets/    ← score-viewer.html, setup-doctor.html; built by ui/ (npm run copy-assets), gitignored
 └── tests/
     ├── conftest.py                ← swaps ui_registry for in-memory assets (unbuilt by default)
     ├── test_server.py
@@ -459,6 +475,9 @@ render-mcp/
     ├── test_page_svg.py           ← page_layout parity, SvgPageRenderer cache (real Verovio)
     ├── test_render_page_svg.py    ← app-only tool: visibility, contract, errors
     ├── test_get_pdf.py            ← app-only get_pdf / read_pdf_chunk: handle, chunks, errors
+    ├── test_health_report.py      ← engine status → health report
+    ├── test_health_mapping.py     ← health_check structuredContent, schema, Setup Doctor link
+    ├── test_mcp_protocol.py, test_result_content.py, test_tool_metadata.py, test_server_json.py
     ├── test_packaging.py          ← integration: wheel ships the viewer, AC-R1
     └── fixtures/
 ```

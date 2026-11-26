@@ -1,5 +1,7 @@
 # synth-mcp
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 <!-- mcp-name: io.github.raulkivi/synth-mcp -->
 
 MCP server that synthesizes audio from MusicXML. Supports voice part selection (Soprano, Alto, Tenor, Bass) and tempo control.
@@ -18,6 +20,23 @@ Takes a MusicXML score, optionally filters to one or more voice parts, and rende
 | `describe_score` | Summarize a score cheaply: title, key, time, tempo, parts (ID, clef, range), measures, duration |
 | `list_capabilities` | Return server metadata: backend version, soundfont status, FluidSynth availability |
 | `health_check` | Check that the soundfont, FluidSynth, and music21 are all available and ready |
+
+### MCP Apps pages
+
+Hosts that support MCP Apps show two pages, built in `ui/` and packaged with the server (without a
+UI build the tools carry no `_meta.ui`):
+
+- **Practice Player** (`ui://synth/practice-player`, linked from `synthesize`): plays the track with a
+  score, playhead, tempo and loop control, and a mixer (solo, mute, volume per part, learning and
+  karaoke presets, count-in, sound). A change of voices, volumes, count-in or sound renders a new
+  track with one `synthesize` call.
+- **Setup Doctor** (`ui://synth/setup-doctor`, linked from `health_check`): shows the health report
+  with a copyable fix for each problem.
+
+Two app-only tools serve the Practice Player and are hidden from clients without MCP Apps:
+`read_audio_chunk` (a base64 slice of the synthesized WAV, by `audio_id`) and `get_score_xml` (the
+MusicXML the track was made from). Neither takes or returns a path. `synthesize` also returns the
+`audio_id` in `structuredContent`; ids last one hour and are lost on restart.
 
 ## Installation
 
@@ -157,7 +176,7 @@ the soundfont and FluidSynth. Without them the result says why in `audio_unavail
 ## Testing
 
 ```bash
-# Unit tests (no soundfont required)
+# Unit tests (no soundfont required; the default run)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v
 
 # Integration tests (synthesizes real audio)

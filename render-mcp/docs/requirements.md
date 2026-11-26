@@ -1,6 +1,6 @@
 # render-mcp Requirements
 
-**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 ## Purpose
 
@@ -92,6 +92,15 @@ viewer cuts the MusicXML to the chosen part and hands that score to whichever re
 no server change is needed and `render_page_svg`, `get_pdf` and Verovio WASM all see the same
 filtered score and page alike (AC-R3). Highlight is CSS on Verovio's staff groups and needs no
 re-render. The PDF download uses `get_pdf` and `read_pdf_chunk` (IR-8).
+
+### FR-8 — Setup Doctor UI resource (MCP Apps)
+
+The server MUST serve the Setup Doctor as `ui://render/setup-doctor`
+(`render_mcp/ui/assets/setup-doctor.html`, built in `ui/`, same packaging and `UI_ASSET_MISSING`
+rules as FR-5) and link it from `health_check` (`_meta.ui.resourceUri`). The page shows the
+`health_check` report and a copyable fix for each failing check; it asks only for
+`clipboardWrite`. `health_check` declares `HEALTH_OUTPUT_SCHEMA` and returns the report as
+`structuredContent`; its text `content` is unchanged.
 
 ---
 
@@ -361,6 +370,10 @@ Unit tests MUST cover:
 - MCP Apps: `_meta.ui` with and without a UI build, `resources/list` and `resources/read`,
   `structuredContent` against the output schemas, `content` unchanged (golden file),
   `render_page_svg` visibility for UI and non-UI clients, its contract and errors
+- Health report: engine status to report mapping, `health_check` `structuredContent` against
+  `HEALTH_OUTPUT_SCHEMA`, the Setup Doctor link with and without a UI build
+  (`tests/test_health_report.py`, `tests/test_health_mapping.py`)
+- `get_pdf` / `read_pdf_chunk`: handle, chunked read, expiry and errors (`tests/test_get_pdf.py`)
 
 Unit tests MUST mock Verovio and cairosvg for the file-writing tools. They MUST NOT produce real
 output files. The `render_page_svg` engine tests (`tests/test_page_svg.py`) run real Verovio in

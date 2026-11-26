@@ -1,5 +1,7 @@
 # pitch-mcp — Claude Code Instructions
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## What This Server Does
 
 Real-time pitch detection from microphone input compared against a reference MusicXML score.
@@ -8,11 +10,13 @@ status while a singer sings.
 
 **Status:** Phase A (offline analysis) + Phase B (real-time, audio-driven position tracking)
 complete, plus UX Wave 2 (score references: `musicxml_path`, `describe_score`) and UX Wave 3
-(`measures` ranges, `start_practice`, `highlights`), the MCP Apps Practice Coach server side
-(`structuredContent`, app-only `get_score_for_session`) and its browser-microphone mode
-(`start_monitoring` `source: "pushed"`, app-only `push_audio_chunk`). 438 unit
-(+6 skipped) + 4 integration tests pass (`-m integration`); 2 manual mic tests (`-m manual`)
-require real hardware.
+(`measures` ranges, `start_practice`, `highlights`), the MCP Apps Practice Coach (server
+microphone; `structuredContent`, app-only `get_score_for_session`; page in `ui/apps/practice-coach/`,
+see requirements IR-5b), the Setup Doctor (`health_check`), and the server side of a browser-microphone
+mode (`start_monitoring` `source: "pushed"`, app-only `push_audio_chunk`; no page uses it yet).
+509 unit (+2 skipped) tests; 16 integration tests (`-m integration`: 4 offline analysis, 12
+synth-to-pitch round trip that need a soundfont and synth-mcp's venv); 2 manual mic tests
+(`-m manual`) require real hardware.
 
 ---
 
@@ -20,8 +24,8 @@ require real hardware.
 
 ```bash
 # From this directory
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v                 # 438 unit tests (integration/manual skipped by default)
-VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration   # offline analysis against the committed fixture pair
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v                 # 509 unit tests (integration/manual skipped by default)
+VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m integration   # offline analysis + synth round trip (needs SYNTH_SOUNDFONT_PATH)
 VIRTUAL_ENV= .venv/bin/pytest tests/ -v -m manual        # real mic tests — skip in CI
 ```
 
@@ -35,6 +39,8 @@ Install dependencies: `uv sync`
 |------|---------|
 | `src/pitch_mcp/server.py` | MCP tool definitions and handlers |
 | `src/pitch_mcp/presenter.py` | `structuredContent` + output schemas for the Practice Coach tools |
+| `src/pitch_mcp/health.py` | Health checks mapped to the shared report (core `health`) |
+| `src/pitch_mcp/ui/assets/` | `practice-coach.html`, `setup-doctor.html`; built by `ui/` (`npm run copy-assets`), gitignored |
 | `src/pitch_mcp/engine.py` | Session management, offline/real-time orchestration, `AudioSource` (`SoundDeviceSource`, `PushedChunkSource`), `PitchFrames` (no MCP imports) |
 | `src/pitch_mcp/pitch_detector.py` | librosa pYIN backend (+ optional crepe) |
 | `src/pitch_mcp/aligner.py` | DTW (dtaidistance) alignment, accuracy classification |
@@ -54,14 +60,14 @@ Install dependencies: `uv sync`
 | `load_score` | B | Load MusicXML (`musicxml` or `musicxml_path`, optional `measures`) into a session, return session_id |
 | `start_practice` | W3 | `load_score` + `start_monitoring` in one call (`part`, `tempo_bpm`, `measures`); no orphan session if the mic fails |
 | `describe_score` | W2 | Shared core tool: title, key, tempo, parts with IDs and ranges, without loading a session |
-| `start_monitoring` | B | Open mic stream for a session; `source: "pushed"` takes browser audio instead (option B) |
+| `start_monitoring` | B | Open mic stream for a session (JSON text only, no `structuredContent`); `source: "pushed"` takes browser audio instead (option B; the page does not use it yet) |
 | `get_current_position` | B | Current measure/beat/pitch/accuracy from active session |
-| `stop_monitoring` | B | Stop stream, return summary (with `highlights`), clean up session (`timed_out: true` if the idle timeout closed it) |
-| `list_sessions` | B | Open sessions: part, state (`loaded`/`monitoring`), idle seconds |
+| `stop_monitoring` | B | Stop stream, return summary (with `highlights`), clean up session (`timed_out: true` if the idle timeout closed it); JSON text only, no `structuredContent` |
+| `list_sessions` | B | Open sessions: part, state (`loaded`/`monitoring`), idle seconds; JSON text only, no `structuredContent` |
 | `get_score_for_session` | Apps | App-only: the session's MusicXML for the Practice Coach (`session_id` only, no paths) |
 | `push_audio_chunk` | Apps | App-only: `{session_id, pcm_b64, sample_rate}` (16-bit LE mono PCM) for a pushed session → position snapshot |
 | `list_capabilities` | — | Server metadata, pitch backend version |
-| `health_check` | — | Runtime dependency status |
+| `health_check` | — | Runtime dependency status; `structuredContent` health report, linked to `ui://pitch/setup-doctor` |
 
 ---
 
