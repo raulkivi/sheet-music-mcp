@@ -1,6 +1,6 @@
 # omr-mcp — Technical Architecture
 
-**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 ## Overview
 
@@ -334,13 +334,18 @@ omr-mcp/
 │       ├── omr_engine.py    ← Business logic (oemer, merge)
 │       ├── presenter.py     ← content + structuredContent, output schemas (MCP Apps)
 │       ├── previews.py      ← source-preview JPEG and job-id table
-│       ├── staff_estimate.py ← staff count from the image
+│       ├── staff_estimate.py ← staves per system from the image
+│       ├── recognition_warnings.py ← structured warnings[]
+│       ├── health.py        ← health_check report
+│       ├── onnx_compat.py   ← ConvTranspose pad fix for onnxruntime
 │       ├── ui/assets/       ← built recognition-review.html (gitignored, packaged)
 │       └── utils.py         ← Input validation, base64, image info
 └── tests/
     ├── test_server.py
     ├── test_omr.py
     ├── test_utils.py
+    ├── test_recognition_review.py ← structuredContent, job table, app-only tools
+    ├── test_staff_estimate.py
     └── test_samples/
         └── pdmx_satb_samples/  ← PNG + MXL fixture pairs
 ```

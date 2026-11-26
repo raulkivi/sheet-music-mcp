@@ -1,5 +1,7 @@
 # omr-mcp
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 <!-- mcp-name: io.github.raulkivi/omr-mcp -->
 
 MCP server that converts sheet music images to MusicXML using optical music recognition (OMR).
@@ -25,6 +27,15 @@ Two selectable OMR backends, via an optional `engine` argument on the recognitio
 | `list_capabilities` | Return server metadata: backend version, input/output formats, available tools |
 | `list_supported_formats` | (Deprecated — use `list_capabilities`) List supported input and output formats |
 | `health_check` | Check that all runtime dependencies are available and return a human-readable status summary; useful on first run |
+
+### Recognition Review page
+
+In clients that support MCP Apps, `recognize_sheet` and `recognize_sheets` open the Recognition Review page
+(`ui://omr/recognition-review`): the source photo next to the recognized score, an issue list built from the
+result's `warnings[]`, advice when the image shows more staves per system than parts were recognized,
+a one-click re-run with the other engine, and Accept. The page reads the result through two app-only tools,
+`get_recognized_score` and `get_source_preview`, which models do not see. The staff count per system is checked
+against 60 real sample pages ([docs/staff-estimate-evidence.md](docs/staff-estimate-evidence.md)).
 
 ## Installation
 
