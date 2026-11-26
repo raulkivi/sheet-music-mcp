@@ -1,6 +1,9 @@
 # Round-Trip Testing Across MCP Servers
 
 Analysis date: 2026-08-16
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
+Note: comparer-mcp now has `compare_scores(detail="summary"|"changes"|"report"|"full")`. `compare_musicxml`, `compare_musicxml_files`, `quick_similarity`, `list_changes` and `generate_comparison_report` are deprecated aliases of it; the loops below work with either.
 
 ## Goal
 

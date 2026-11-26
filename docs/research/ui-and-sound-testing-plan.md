@@ -1,6 +1,6 @@
 # UI and sound testing: improvement plan
 
-Analysis date: 2026-11-11. Status: **P1 to P8 done** (U9 visual regression deferred by decision 5). Open: the two pitch-mcp grading defects (strict xfail, pitch-mcp/docs/todo.md), the perf budget is a CI warning until the runner's numbers are stable, and the release gate runs only on a pitch-mcp or render-mcp release tag.
+Analysis date: 2026-11-11 (last changed 2026-11-26, source https://github.com/raulkivi/sheet-music-mcp). Status: **P1 to P8 done** (U9 visual regression deferred by decision 5). Open: the two pitch-mcp grading defects (strict xfail, pitch-mcp/docs/todo.md), the perf budget is a CI warning until the runner's numbers are stable, and the release gate runs only on a pitch-mcp or render-mcp release tag.
 
 Compared against the testing in `agent-cost-analyzer` (MIT, same owner):
 `packages/mcp-apps/e2e/` (Playwright fake MCP Apps host), `packages/mcp-apps/test/theme/` (contrast tests),
@@ -28,7 +28,7 @@ Compared against the testing in `agent-cost-analyzer` (MIT, same owner):
 
 | Area | Today | Gap |
 |---|---|---|
-| Pages | One built page: `apps/score-viewer` (render-mcp). Other pages are "not built yet" (CLAUDE.md) | Nothing to test for the other five pages yet |
+| Pages | One built page: `apps/score-viewer` (render-mcp). Snapshot of 2026-11-11; since then all seven pages are built (`ui/apps.config.mjs`), each with its own spec file | None; the gap was closed page by page |
 | Browser tests | 13 Playwright tests in `apps/score-viewer/e2e/`, desktop Chrome only | No phone width, no keyboard, no accessibility scan |
 | Host | `test/mock-host/` hand-rolls the postMessage JSON-RPC and logs it in `window.__host` | Not the real protocol library; only `light`/`dark`; the server's fallback path is tested only with five placeholder pages (`server=1`), never with the real render-mcp |
 | Theme | `theme=light|dark` query only | No recorded Claude or VS Code colour sets; no contrast check |

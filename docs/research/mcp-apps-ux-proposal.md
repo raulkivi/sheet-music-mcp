@@ -1,10 +1,11 @@
 # MCP Apps for sheet-music-mcp: tool use cases and proposed UIs
 
-**Status:** Research / proposal; decisions recorded in [§10](#10-decisions). No code has been
-written. Next step: [Phase 0 spike plan](mcp-apps-phase0-spike-plan.md). Related tool and
+**Status:** Research / proposal; decisions recorded in [§10](#10-decisions). Built since: all seven
+pages (see [mcp-apps-improvement-plan.md](mcp-apps-improvement-plan.md)); this text is the original design.
+Spike: [Phase 0 spike plan](mcp-apps-phase0-spike-plan.md). Related tool and
 architecture changes: [ux-architecture-and-tool-improvements.md](ux-architecture-and-tool-improvements.md).
 **Date:** 2026-10-27
-**Last changed:** 2026-11-25
+**Last changed:** 2026-11-26
 **Source:** https://github.com/raulkivi/sheet-music-mcp
 **Scope:** All 34 tools across the six servers (`omr-mcp`, `render-mcp`, `synth-mcp`,
 `musicxml-abc-mcp`, `pitch-mcp`, `comparer-mcp`).

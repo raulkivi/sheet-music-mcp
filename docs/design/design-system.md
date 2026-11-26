@@ -3,7 +3,7 @@
 **Last changed:** 2026-11-26
 **Source:** https://github.com/raulkivi/sheet-music-mcp
 
-**Status:** Proposal, with mockups and tokens. Not yet adopted by the shipped Score Viewer.
+**Status:** Proposal, with mockups and tokens. Kannel chrome is applied in the Score Viewer, Practice Coach, Practice Player and Setup Doctor stylesheets; ABC Workbench, Diff Viewer and Recognition Review do not use it yet.
 **Scope:** The seven MCP Apps in [docs/research/mcp-apps-ux-proposal.md](../research/mcp-apps-ux-proposal.md)
 (Score Viewer, Practice Player, Recognition Review, ABC Workbench, Practice Coach, Diff Viewer, Setup Doctor).
 **Files:**
