@@ -1,6 +1,6 @@
 # comparer-mcp
 
-**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 <!-- mcp-name: io.github.raulkivi/comparer-mcp -->
 
@@ -39,6 +39,11 @@ and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if something doesn't work.
 | `health_check` | Server status — verifies music21 is importable and runs a self-comparison smoke test |
 | `list_capabilities` | Server metadata per project conventions |
 
+In clients that support MCP Apps, `compare_scores` and the other compare tools open the Diff Viewer page
+(`ui://comparer/diff-viewer`): both scores side by side with the differences colored. `compare_scores` adds a
+`diff_id`; the page reads the scores through the app-only `get_diff_scores` and `export_diff_scores` tools,
+which models do not see.
+
 Each score can be passed inline (`reference_xml`, `target_xml`) or as a file path
 (`reference_path`, `target_path`; `.musicxml`, `.xml` or `.mxl`), exactly one of each pair. Paths
 save copying whole scores through the conversation. They must be inside the output folder
@@ -46,55 +51,47 @@ save copying whole scores through the conversation. They must be inside the outp
 listed in `SHEET_MUSIC_INPUT_ROOTS`.
 
 ```json
-// Compare two MusicXML strings
+// Similarity check (detail "summary" is the default)
 {
-  "tool": "compare_musicxml",
+  "tool": "compare_scores",
   "arguments": {
     "reference_xml": "<score-partwise>...</score-partwise>",
     "target_xml": "<score-partwise>...</score-partwise>"
   }
 }
+// -> {"similarity_score": 0.87, "summary": {...}}
 
-// Compare two files
+// Compare two files and get the full diff
 {
-  "tool": "compare_musicxml_files",
+  "tool": "compare_scores",
   "arguments": {
     "reference_path": "/path/to/reference.musicxml",
-    "target_path": "/path/to/omr_output.musicxml"
+    "target_path": "/path/to/omr_output.musicxml",
+    "detail": "full"
   }
 }
-
-// Quick similarity check
-{
-  "tool": "quick_similarity",
-  "arguments": {
-    "reference_xml": "<score-partwise>...</score-partwise>",
-    "target_xml": "<score-partwise>...</score-partwise>"
-  }
-}
-// → {"similarity_score": 0.87, "summary": {...}}
 
 // Filtered changes, e.g. "what changed in the Alto, measures 17-24?"
 {
-  "tool": "list_changes",
+  "tool": "compare_scores",
   "arguments": {
     "reference_xml": "<score-partwise>...</score-partwise>",
     "target_xml": "<score-partwise>...</score-partwise>",
-    "part": "Alto",
+    "detail": "changes",
+    "parts": ["Alto"],
     "measures": [17, 24]
   }
 }
-// → {"changes": [{"measure_number": 18, "operation": "PITCH_CHANGE", "part_name": "Alto", ...}], "count": 1}
 
 // Human-readable report
 {
-  "tool": "generate_comparison_report",
+  "tool": "compare_scores",
   "arguments": {
     "reference_xml": "<score-partwise>...</score-partwise>",
-    "target_xml": "<score-partwise>...</score-partwise>"
+    "target_xml": "<score-partwise>...</score-partwise>",
+    "detail": "report"
   }
 }
-// → {"report": "Overall similarity: 87% (minor differences)\n...", "similarity_score": 0.87}
 
 // Colored MusicXML diff export — chain straight into render-mcp to visualize
 {
@@ -110,19 +107,9 @@ listed in `SHEET_MUSIC_INPUT_ROOTS`.
 // → {"reference_annotated_musicxml_path": ".../scores/annotated-reference_annotated_musicxml-....musicxml",
 //    "target_annotated_musicxml_path": "...", "similarity_score": 0.87, "legend": {...},
 //    "score_summary": {"reference_annotated_musicxml": {...}, "target_annotated_musicxml": {...}}}
-
-// Paths instead of inline text
-{
-  "tool": "quick_similarity",
-  "arguments": {
-    "reference_path": "scores/reference.musicxml",
-    "target_path": "scores/omr_output.mxl"
-  }
-}
 ```
 
-`compare_musicxml`, `compare_musicxml_files`, `generate_comparison_report`, and
-`export_annotated_musicxml` all accept an optional `options` object:
+`compare_scores` (and its deprecated aliases) and `export_annotated_musicxml` accept an optional `options` object:
 
 ```json
 {
@@ -197,3 +184,4 @@ uv sync
 | Phase 3 — MCP server & integration (`server.py`, all 6 tools, `install.sh`, `SETUP.md`, client config examples) | **Complete** — 94/94 tests passing (90 unit + 4 integration) |
 | Phase 4 — Advanced features (`options` wiring, `generate_comparison_report`, `export_annotated_musicxml`) | **Complete** — 134/134 tests passing (127 unit + 7 integration) |
 | UX Wave 2 — Score references (`reference_path`/`target_path`, `return` for the annotated export, `describe_score`) | **Complete** — 239 unit tests passing (+7 integration) |
+| UX Wave 3 and MCP Apps — `measures`, `compare_scores`, Diff Viewer page (`diff_id`, app-only tools) | **Complete** — 413 unit tests passing (+7 integration) |

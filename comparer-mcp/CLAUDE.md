@@ -1,5 +1,7 @@
 # comparer-mcp — Claude Code Instructions
 
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+
 ## What This Server Does
 
 Music-aware comparison of two MusicXML files. Provides structured, multi-level diffs

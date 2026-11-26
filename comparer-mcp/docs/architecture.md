@@ -1,6 +1,6 @@
 # MusicXML Comparer — Vision & Architecture
 
-**Last changed:** 2026-11-25 · **Source:** https://github.com/raulkivi/sheet-music-mcp
+**Last changed:** 2026-11-26 · **Source:** https://github.com/raulkivi/sheet-music-mcp
 
 Created: 2026-03-26
 Status: Implemented — Phases 1-4 complete (see `docs/HANDOVER.md`/`docs/PLAN.md` for current
@@ -433,11 +433,13 @@ All error responses use `{"error": "...", "error_code": "..."}` per conventions.
 |------|-------|--------|
 | `compare_scores` | reference, target, `detail` (`summary`/`changes`/`report`/`full`), optional `parts`, `measures`, `options` | Cumulative view built by `comparison_view.view_of()`: `{detail, similarity_score, summary[, changes, count][, report][, part_diffs]}`. Thin dispatcher over `engine.compare()` |
 | `compare_musicxml` | reference, target, optional `options` | Deprecated alias (`detail="full"`). Full `ComparisonResult` JSON |
-| `compare_musicxml_files` | `reference_path` (string), `target_path` (string), optional `options` | Full `ComparisonResult` JSON |
-| `quick_similarity` | reference, target | `{ "similarity_score": 0.87, "summary": {...} }` |
-| `list_changes` | reference, target, optional `part` filter, optional `measures` (deprecated alias `measure_range`) | Filtered list of `NoteDiff` entries (for targeted queries) |
-| `generate_comparison_report` | reference, target, optional `options` | `{ "report": "...", "similarity_score": 0.87 }` — human-readable summary |
+| `compare_musicxml_files` | `reference_path` (string), `target_path` (string), optional `options` | Deprecated alias (`detail="full"`). Full `ComparisonResult` JSON |
+| `quick_similarity` | reference, target | Deprecated alias (`detail="summary"`). `{ "similarity_score": 0.87, "summary": {...} }` |
+| `list_changes` | reference, target, optional `part` filter, optional `measures` (deprecated alias `measure_range`) | Deprecated alias (`detail="changes"`). Filtered list of `NoteDiff` entries (for targeted queries) |
+| `generate_comparison_report` | reference, target, optional `options` | Deprecated alias (`detail="report"`). `{ "report": "...", "similarity_score": 0.87 }` — human-readable summary |
 | `export_annotated_musicxml` | reference, target, optional `options`, `return` (`auto`/`path`/`inline`) | `{ "reference_annotated_musicxml": "...", "target_annotated_musicxml": "...", "similarity_score": ..., "legend": {...} }`; for large scores (or `return: "path"`) the two texts become `*_path` fields plus `score_summary`, with two `ResourceLink`s |
+| `get_diff_scores` | `diff_id` (app-only) | `{diff_id, reference_musicxml, target_musicxml, legend}`: both scores with the differences colored |
+| `export_diff_scores` | `diff_id` (app-only) | Paths of the annotated pair under the output root |
 | `describe_score` | `musicxml` or `musicxml_path` | Shared core tool: title, key, time, tempo, parts (ID, name, clef, range), measures, duration |
 | `health_check` | — | `{ "status": "ok", "music21_version": "..."}` |
 | `list_capabilities` | — | Server metadata per conventions |
@@ -491,7 +493,7 @@ result = compare_files("version_a.musicxml", "version_b.musicxml")
 | Package | Purpose | License |
 |---------|---------|---------|
 | `mcp>=2.2.0,<3.0.0` | MCP server framework | MIT |
-| `sheet-music-mcp-core>=0.1.0,<0.2.0` | Shared error envelope, `ProcessingError` and handler wiring (input validation, error results); see [docs/conventions.md](../../docs/conventions.md#shared-core-library) | MIT |
+| `sheet-music-mcp-core>=0.3.0,<0.4.0` | Shared error envelope, `ProcessingError` and handler wiring (input validation, error results); see [docs/conventions.md](../../docs/conventions.md#shared-core-library) | MIT |
 | `music21` | MusicXML parsing, score object model, stream alignment | BSD-3 |
 | `numpy` | Distance matrix in alignment (transitive via music21) | BSD-3 |
 
