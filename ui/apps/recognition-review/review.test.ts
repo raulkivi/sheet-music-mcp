@@ -5,7 +5,13 @@ const RESULT = {
   job_id: "job-1",
   metadata: { engine: "oemer", staves_detected: 1, measures: 12, page_count: 1, staff_systems_estimate: 4 },
   pages: [{ index: 1, staves_detected: 1, measures: 12, has_preview: true }],
-  warnings: [{ code: "PARTS_FEWER_THAN_STAVES", severity: "warning", message: "1 part recognized but 4 staves found" }],
+  warnings: [
+    {
+      code: "PARTS_FEWER_THAN_STAVES",
+      severity: "info",
+      message: "1 part recognized but the page has 4 staves per system; voices may be merged",
+    },
+  ],
 };
 
 describe("readReview", () => {
@@ -17,7 +23,13 @@ describe("readReview", () => {
       measures: 12,
       estimate: 4,
       pages: [{ index: 1, hasPreview: true }],
-      warnings: [{ code: "PARTS_FEWER_THAN_STAVES", severity: "warning", message: "1 part recognized but 4 staves found" }],
+      warnings: [
+        {
+          code: "PARTS_FEWER_THAN_STAVES",
+          severity: "info",
+          message: "1 part recognized but the page has 4 staves per system; voices may be merged",
+        },
+      ],
     });
   });
 

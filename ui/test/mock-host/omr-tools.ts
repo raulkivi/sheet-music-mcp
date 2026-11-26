@@ -39,8 +39,8 @@ function recognition(engine: "oemer" | "audiveris"): CallToolResult {
           { code: "LOW_RESOLUTION", severity: "warning", message: "Image is 150 DPI; 300 or more gives better recognition." },
           {
             code: "PARTS_FEWER_THAN_STAVES",
-            severity: "warning",
-            message: "1 part recognized but 4 staves found on the page; voices may be merged",
+            severity: "info",
+            message: "1 part recognized but the page has 4 staves per system; voices may be merged",
           },
           { code: "EMPTY_MEASURE", severity: "warning", message: "Measure 3 has no notes or rests", measure: 3, part: "P1" },
         ]

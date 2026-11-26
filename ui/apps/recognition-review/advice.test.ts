@@ -4,7 +4,7 @@ import { engineLabel, otherEngine, staffAdvice } from "./advice.ts";
 describe("staffAdvice (G2: only from the server's own numbers)", () => {
   it("AC-O3: the page looks like 4 staves, 1 part found with oemer: advises Audiveris", () => {
     expect(staffAdvice({ estimate: 4, detected: 1, engine: "oemer" })).toBe(
-      "Detected 1 part, but the page looks like it has 4 staves. Try the Audiveris engine, which keeps SATB voices apart.",
+      "Detected 1 part, but the page looks like it has 4 staves per system. Try the Audiveris engine, which keeps SATB voices apart.",
     );
   });
 
@@ -14,7 +14,7 @@ describe("staffAdvice (G2: only from the server's own numbers)", () => {
 
   it("with Audiveris already used, asks for a check against the photo instead", () => {
     expect(staffAdvice({ estimate: 4, detected: 3, engine: "audiveris" })).toBe(
-      "Detected 3 parts, but the page looks like it has 4 staves. Audiveris was already used: check the voices against the photo.",
+      "Detected 3 parts, but the page looks like it has 4 staves per system. Audiveris was already used: check the voices against the photo.",
     );
   });
 
