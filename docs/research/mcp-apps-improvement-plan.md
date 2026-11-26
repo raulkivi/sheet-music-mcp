@@ -1,10 +1,10 @@
 # MCP Apps improvement plan (after PR #192)
 
-**last changed:** 2026-11-25
+**last changed:** 2026-11-26
 **source:** https://github.com/raulkivi/sheet-music-mcp
 
-**Status:** Partially implemented (updated 2026-11-25): 22 tasks done, 7 active, 1 not started, and
-1 skipped. Six of seven app pages are built; Recognition Review is in progress. Server-side contracts and foundation work are in place, and the
+**Status:** Implemented except the optional step 6 (updated 2026-11-26): 28 tasks done, 1 active
+(T1.6, optional), 1 not started (T2.4, optional), and 1 skipped. All seven app pages are built. Server-side contracts and foundation work are in place, and the
 Score Viewer is the only app page shipped. The other six app pages are not built. Input: Kannel
 interactive mockups merged in
 [#192](https://github.com/raulkivi/sheet-music-mcp/pull/192) (`docs/design/interactive/`), the visual
@@ -209,14 +209,14 @@ gantt
     T1.7 Verify synth features          :done, t17, 2026-11-11, 1d
     T1.3 Practice Coach page            :done, t13, 2026-11-25, 1d
     T1.4 Adaptive polling               :done, t14, 2026-11-25, 1d
-    T1.5 Ask Claude for tips            :active, t15, 2026-11-25, 1d
+    T1.5 Ask Claude for tips            :done, t15, 2026-11-25, 1d
     T1.8 Audio delivery                 :done, t18, 2026-11-25, 1d
     T1.9 Practice Player page           :done, t19, 2026-11-25, 1d
 
     section Phase 2 Review tools
     T2.1 OMR warnings                   :done, t21, 2026-11-11, 1d
-    T2.2 SATB staff estimate            :active, t22, 2026-10-28, 4d
-    T2.3 Recognition Review page        :active, t23, 2026-11-25, 4d
+    T2.2 SATB staff estimate            :done, t22, 2026-10-28, 2026-11-25
+    T2.3 Recognition Review page        :done, t23, 2026-11-25, 1d
     T2.4 Multi-page merge               :t24, after t23, 2d
     T2.5 apply_abc_edit                 :done, t25, 2026-11-11, 1d
     T2.6 Hunk model                     :done, t26, 2026-11-11, 1d
@@ -231,9 +231,9 @@ gantt
     T3.6 Setup Doctor page              :done, t36, 2026-11-25, 1d
 
     section Phase 4 Score Viewer
-    T4.1 Score Viewer Kannel chrome     :active, t41, 2026-11-11, 2d
-    T4.2 Download SVG or PDF            :active, t42, 2026-10-28, 2d
-    T4.3 Part filter and highlight      :active, t43, 2026-11-25, 2d
+    T4.1 Score Viewer Kannel chrome     :done, t41, 2026-11-11, 2026-11-25
+    T4.2 Download SVG or PDF            :done, t42, 2026-10-28, 2026-11-25
+    T4.3 Part filter and highlight      :done, t43, 2026-11-25, 1d
 
     section Optional
     T1.6 Browser mic                    :active, t16, 2026-10-28, 4d
@@ -256,14 +256,14 @@ Dates are YYYY-MM-DD. Update this table with the Gantt chart after every step.
 | T1.2 | Grading state uncertain | Done | 2026-11-11 | 2026-11-11 | PR #200, 494 passed. The owner accepted the YIN 0.6 and octave 100-cent thresholds on 2026-11-11 |
 | T1.3 | Practice Coach page | Done | 2026-11-25 | 2026-11-25 | PR #220. DA7: server mic only. `stop_monitoring`, `start_monitoring` and `list_sessions` return JSON text, no `structuredContent`; the page parses either |
 | T1.4 | Adaptive polling | Done | 2026-11-25 | 2026-11-25 | PR #220: 10 Hz, 5 Hz when median RTT > 80 ms, paused while hidden; the rate e2e is timing-based |
-| T1.5 | Ask Claude for tips | Active | 2026-11-25 | | Local setup6 run; `feat/ui-coach-tips` |
+| T1.5 | Ask Claude for tips | Done | 2026-11-25 | 2026-11-25 | PR #222: written by local setup6 in one run, hidden tests passed; CodeQL flagged its one-pass tag strip, fixed to loop until stable |
 | T1.6 | Browser mic (optional) | Active | 2026-10-28 | | Server-side pushed sessions and app-only `push_audio_chunk` exist; browser AudioWorklet capture and page are not built |
 | T1.7 | Verify synth features | Done | 2026-11-11 | 2026-11-11 | Report only, §7. All features exist |
 | T1.8 | Audio delivery | Done | 2026-11-25 | 2026-11-25 | PR #215: kit `loadAudio`; written by local setup6 in one run, 11 hidden acceptance tests passed |
 | T1.9 | Practice Player page | Done | 2026-11-25 | 2026-11-25 | PR #221. Score needs WebAssembly (no server fallback); audio tries `blob:` then `data:` |
 | T2.1 | OMR warnings | Done | 2026-11-11 | 2026-11-11 | PR #198, 318 passed. Fewer-parts-than-staves warnings are informational and returned for all clients |
-| T2.2 | SATB staff estimate | Active | 2026-10-28 | | `staff_systems_estimate` is implemented with unit coverage; real-sample integration evidence remains; real-sample integration test on `feat/omr-staff-estimate-evidence` |
-| T2.3 | Recognition Review page | Active | 2026-11-25 | | `feat/ui-recognition-review` |
+| T2.2 | SATB staff estimate | Done | 2026-10-28 | 2026-11-25 | PR #224: now staves per system (deskew, relative ink threshold, system lines); 60/60 real pages; warning severity `info` |
+| T2.3 | Recognition Review page | Done | 2026-11-25 | 2026-11-25 | PR #225. Single page (DA9); issue list from `warnings[]`; Verovio only (no server render fallback) |
 | T2.4 | Multi-page merge (optional) | Not started | | | DA9: excluded from v1; optional future work |
 | T2.5 | apply_abc_edit | Done | 2026-11-11 | 2026-11-11 | PR #201, 306 unit + 6 integration. CI 23/23; the security notes were fixed in PR #204 |
 | T2.6 | Hunk model | Done | 2026-11-11 | 2026-11-11 | PR #197, CI 24/24 pass, 283 unit tests |
@@ -274,9 +274,9 @@ Dates are YYYY-MM-DD. Update this table with the Gantt chart after every step.
 | T3.4 | Open in Score Viewer | Done | 2026-11-25 | 2026-11-25 | PR #219: exports, then one fixed `ui/message` |
 | T3.5 | Standard health structure | Done | 2026-11-11 | 2026-11-11 | Already on main via PR #178 (merged). Verified: core `health.py`, six servers return it with `output_schema`. No new PR |
 | T3.6 | Setup Doctor page | Done | 2026-11-25 | 2026-11-25 | PR #217: one page, six copies, each served from its own server package |
-| T4.1 | Score Viewer Kannel chrome | Active | 2026-11-11 | | Theme tokens and focus ring exist; tricolor bar and 40 px targets remain; finishing on `feat/ui-score-viewer-finish` |
-| T4.2 | Download SVG or PDF | Active | 2026-10-28 | | SVG and fallback exist; PDF download remains (DA2: offer both); finishing on `feat/ui-score-viewer-finish` |
-| T4.3 | Part filter and highlight | Active | 2026-11-25 | | With T4.1 and T4.2 on `feat/ui-score-viewer-finish` |
+| T4.1 | Score Viewer Kannel chrome | Done | 2026-11-11 | 2026-11-25 | PR #226: tricolor bar, 40 px targets |
+| T4.2 | Download SVG or PDF | Done | 2026-10-28 | 2026-11-25 | PR #226: app-only `get_pdf` / `read_pdf_chunk`; kit `loadArtifact`. Manual Claude Desktop check needed before the next render-mcp release |
+| T4.3 | Part filter and highlight | Done | 2026-11-25 | 2026-11-25 | PR #226: client-side MusicXML part cut on both render paths; one part or all |
 
 ### 5.3 Update rule
 
@@ -311,6 +311,7 @@ After every implementation step, before the next step starts:
 | 2026-11-25 | Batch 2 started | T1.3, T1.4, T1.9, T2.7, T3.3, T3.4, T3.6 | Five page agents (Sonnet), one branch each | none |
 | 2026-11-25 | Batch 2 merged | T1.3, T1.4, T1.9, T2.7, T3.3, T3.4, T3.6 | PRs #217–#221 merged one at a time; each merged `main` first (mock-host files were the conflict hotspot). main: ui 736 unit, 292 e2e; comparer 413, abc 313, pitch 509, synth 501 unit | none |
 | 2026-11-25 | Batch 3 started | T1.5, T2.2, T2.3, T4.1–T4.3 | T1.5 on setup6; T2.2 real-sample check (Opus); T2.3 and T4.x pages (Sonnet) | none |
+| 2026-11-26 | Batch 3 merged | T1.5, T2.2, T2.3, T4.1–T4.3 | PRs #222, #224, #225, #226 merged. main: ui 882 unit, 367 e2e; render 284, omr 344 unit; staff estimate 60/60 real pages; perf within U7 (desktop 1863 ms, phone 5113 ms) | Manual host checks (render-mcp PDF download, clipboard, open-link); real-mic evidence for pitch-mcp |
 
 ---
 
@@ -343,7 +344,8 @@ The decisions below were confirmed by the owner on 2026-11-11; they are no longe
 - Tests were not run for the read-only T1.7 feature audit; the T1.8 loader (`loadAudio`) is merged.
 - `start_practice` and `list_sessions` exist server-side; verify their use when the T1.3 page is built.
 - T1.6 still needs browser-side AudioWorklet capture and the permission-denied fallback.
-- T2.2 still needs the planned integration check on real samples.
+- Host checks no mock can cover: `clipboardWrite` and `ui/open-link` (Setup Doctor), PDF download (Score Viewer), `blob:` vs `data:` media (Practice Player), WebAssembly under the host CSP (Practice Player, Recognition Review and Diff Viewer have no server render fallback).
+- `stop_monitoring`, `start_monitoring` and `list_sessions` return JSON text only; the Practice Coach parses it. Adding `structuredContent` would be cleaner.
 
 ## 8. Rules applied
 
